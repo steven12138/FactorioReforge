@@ -1,11 +1,22 @@
-"""SaveManager tests, including the paths that protect against losing a world."""
+"""Slot-based backups, following QuickBackupM.
 
+The shuffle in ``_clean_up_slot_1`` is the part worth testing hardest: it is
+what decides which world gets destroyed to make room for a new one.
+"""
+
+import json
 import time
 import zipfile
 
 import pytest
 
-from factorio_reforge.saves.manager import SaveError, SaveManager
+from factorio_reforge.saves.manager import (
+    OVERWRITE_SLOT,
+    NoSlotAvailable,
+    SaveError,
+    SaveManager,
+    SlotConfig,
+)
 
 pytestmark = pytest.mark.asyncio
 
@@ -25,132 +36,290 @@ def read_save(path) -> str:
 @pytest.fixture
 def manager(tmp_path):
     save = write_save(tmp_path / "saves" / "reforge.zip")
-    mgr = SaveManager(save, tmp_path / "snapshots", max_snapshots=5, max_age_days=0)
+    mgr = SaveManager(
+        save, tmp_path / "snapshots",
+        slots=[SlotConfig(0), SlotConfig(0), SlotConfig(0)],
+    )
     mgr.load_index()
     return mgr
 
 
-class TestSnapshot:
-    async def test_create_copies_the_live_save(self, manager):
-        snapshot = await manager.create("first", created_by="alice")
-        assert snapshot.id == 1 and snapshot.comment == "first"
-        assert manager.path_of(snapshot).is_file()
-        assert read_save(manager.path_of(snapshot)) == "world"
+def age(manager, slot: int, seconds: float) -> None:
+    """Backdate a slot, so protection windows can be tested without waiting."""
+    path = manager.info_path(slot)
+    data = json.loads(path.read_text())
+    data["created_at"] = time.time() - seconds
+    path.write_text(json.dumps(data))
 
-    async def test_save_first_hook_runs_before_the_copy(self, manager):
+
+class TestCreate:
+    async def test_a_backup_lands_in_slot_1(self, manager):
+        slot = await manager.create("first", created_by="alice")
+        assert slot.id == 1
+        assert manager.save_path(1).is_file()
+        assert read_save(manager.save_path(1)) == "world"
+
+    async def test_slots_shift_down_so_slot_1_is_always_newest(self, manager):
+        for marker in ("one", "two", "three"):
+            write_save(manager.current_save, marker)
+            await manager.create(marker)
+        assert read_save(manager.save_path(1)) == "three"
+        assert read_save(manager.save_path(2)) == "two"
+        assert read_save(manager.save_path(3)) == "one"
+
+    async def test_the_oldest_slot_falls_off_the_end(self, manager):
+        for marker in ("one", "two", "three", "four"):
+            write_save(manager.current_save, marker)
+            await manager.create(marker)
+        assert [s.comment for s in manager.list()] == ["four", "three", "two"]
+        assert read_save(manager.save_path(3)) == "two", "'one' should be gone"
+
+    async def test_the_server_writes_the_backup_when_it_can(self, manager):
+        """Factorio's /server-save <name> writes its own file; no copy needed."""
         calls = []
 
-        async def flush():
-            calls.append("flushed")
-            write_save(manager.current_save, "flushed-world")
+        async def write_save_here(target):
+            calls.append(target)
+            write_save(target, "written-by-server")
 
-        snapshot = await manager.create("x", save_first=flush)
-        assert calls == ["flushed"]
-        assert read_save(manager.path_of(snapshot)) == "flushed-world"
+        slot = await manager.create("x", write_save=write_save_here)
+        assert calls == [manager.save_path(1)]
+        assert read_save(manager.save_path(1)) == "written-by-server"
+        assert slot.size_bytes > 0
 
-    async def test_missing_save_is_reported(self, manager):
+    async def test_the_live_save_is_not_touched_when_the_server_writes_it(self, manager):
+        async def write_save_here(target):
+            write_save(target, "backup")
+
+        before = manager.current_save.read_bytes()
+        await manager.create("x", write_save=write_save_here)
+        assert manager.current_save.read_bytes() == before
+
+    async def test_a_failed_server_write_falls_back_to_copying(self, manager, caplog):
+        async def explode(target):
+            raise RuntimeError("rcon down")
+
+        with caplog.at_level("WARNING"):
+            await manager.create("x", write_save=explode)
+        assert read_save(manager.save_path(1)) == "world"
+        assert "falling back" in caplog.text
+
+    async def test_a_server_that_claims_success_but_writes_nothing_falls_back(self, manager):
+        async def pretend(target):
+            return None
+
+        await manager.create("x", write_save=pretend)
+        assert read_save(manager.save_path(1)) == "world"
+
+    async def test_a_corrupt_result_does_not_become_a_slot(self, manager):
+        async def write_rubbish(target):
+            target.write_bytes(b"not a zip")
+
+        with pytest.raises(SaveError):
+            await manager.create("x", write_save=write_rubbish)
+        assert manager.get(1) is None, "a broken backup must not be listed as restorable"
+
+    async def test_missing_save_and_no_server_is_an_error(self, manager):
         manager.current_save.unlink()
         with pytest.raises(SaveError, match="does not exist"):
             await manager.create()
 
-    async def test_corrupt_save_is_refused_rather_than_snapshotted(self, manager):
-        manager.current_save.write_bytes(b"not a zip at all")
-        with pytest.raises(SaveError):
-            await manager.create()
 
-    async def test_index_survives_a_reload(self, manager, tmp_path):
-        await manager.create("keep me", created_by="bob")
-        reopened = SaveManager(manager.current_save, manager.snapshot_directory)
-        reopened.load_index()
-        assert [s.comment for s in reopened.list()] == ["keep me"]
-        assert reopened.list()[0].created_by == "bob"
+class TestDeleteProtection:
+    @pytest.fixture
+    def protected(self, tmp_path):
+        save = write_save(tmp_path / "saves" / "reforge.zip")
+        mgr = SaveManager(
+            save, tmp_path / "snapshots",
+            slots=[SlotConfig(0), SlotConfig(0), SlotConfig(3600)],
+        )
+        mgr.load_index()
+        return mgr
 
-    async def test_ids_keep_climbing_after_a_reload(self, manager):
-        await manager.create("a")
-        reopened = SaveManager(manager.current_save, manager.snapshot_directory)
-        reopened.load_index()
-        second = await reopened.create("b")
-        assert second.id == 2
+    async def test_an_unprotected_slot_is_sacrificed_instead_of_a_protected_one(
+        self, protected
+    ):
+        """The protected slot stays put; the newest unprotected one is dropped.
 
-    async def test_entries_whose_file_vanished_are_dropped(self, manager):
-        snapshot = await manager.create("gone")
-        manager.path_of(snapshot).unlink()
-        reopened = SaveManager(manager.current_save, manager.snapshot_directory)
-        reopened.load_index()
-        assert reopened.list() == [], "a snapshot with no file must not be offered for rollback"
+        This is the behaviour worth having: an hour-old world that someone
+        marked worth keeping outlives a burst of fresh backups.
+        """
+        for marker in ("one", "two", "three"):
+            write_save(protected.current_save, marker)
+            await protected.create(marker)
+        # slot 1="three" slot 2="two" slot 3="one", and slot 3 is protected.
+        write_save(protected.current_save, "four")
+        await protected.create("four")
 
-    async def test_a_broken_index_is_rebuilt_from_the_files_on_disk(self, manager):
-        await manager.create("real")
-        manager.index_path.write_text("{{{ not json")
-        reopened = SaveManager(manager.current_save, manager.snapshot_directory)
-        reopened.load_index()
-        assert len(reopened.list()) == 1
+        assert protected.get(3).comment == "one", "the protected world survived"
+        assert protected.get(1).comment == "four"
+        assert protected.get(2).comment == "three", "'two' was the one dropped"
+
+    async def test_a_backup_is_refused_when_every_slot_is_protected(self, tmp_path):
+        """Refusing beats destroying something someone asked to keep."""
+        save = write_save(tmp_path / "saves" / "reforge.zip")
+        mgr = SaveManager(
+            save, tmp_path / "snapshots", slots=[SlotConfig(3600), SlotConfig(3600)]
+        )
+        mgr.load_index()
+        await mgr.create("one")
+        await mgr.create("two")
+        with pytest.raises(NoSlotAvailable, match="protection"):
+            await mgr.create("three")
+        assert [s.comment for s in mgr.list()] == ["two", "one"]
+
+    async def test_an_expired_protection_frees_the_slot_again(self, protected):
+        for marker in ("one", "two", "three"):
+            write_save(protected.current_save, marker)
+            await protected.create(marker)
+        age(protected, 3, 7200)
+        write_save(protected.current_save, "four")
+        await protected.create("four")
+        assert [s.comment for s in protected.list()] == ["four", "three", "two"]
+
+    async def test_an_empty_slot_is_preferred_over_dropping_anything(self, protected):
+        await protected.create("only")
+        assert protected.get(1).comment == "only"
+        assert protected.get(2) is None
+        await protected.create("second")
+        assert [s.comment for s in protected.list()] == ["second", "only"]
+
+    def test_is_protected_reports_the_window(self, protected, tmp_path):
+        assert protected.protection_of(3) == 3600
+        assert protected.protection_of(1) == 0
 
 
 class TestRestore:
     async def test_restore_puts_the_old_world_back(self, manager):
-        snapshot = await manager.create("v1")
+        await manager.create("v1")
         write_save(manager.current_save, "v2")
-        assert read_save(manager.current_save) == "v2"
-        await manager.restore_file(snapshot)
+        await manager.restore(1)
         assert read_save(manager.current_save) == "world"
 
-    async def test_restoring_a_corrupt_snapshot_leaves_the_world_untouched(self, manager):
-        snapshot = await manager.create("v1")
-        manager.path_of(snapshot).write_bytes(b"corrupted")
+    async def test_restoring_a_corrupt_slot_leaves_the_world_untouched(self, manager):
+        await manager.create("v1")
+        manager.save_path(1).write_bytes(b"corrupted")
         write_save(manager.current_save, "current")
         with pytest.raises(SaveError):
-            await manager.restore_file(snapshot)
+            await manager.restore(1)
         assert read_save(manager.current_save) == "current"
 
-    async def test_restoring_a_missing_snapshot_is_reported(self, manager):
-        snapshot = await manager.create("v1")
-        manager.path_of(snapshot).unlink()
-        with pytest.raises(SaveError, match="missing"):
-            await manager.restore_file(snapshot)
+    async def test_restoring_an_empty_slot_is_reported(self, manager):
+        with pytest.raises(SaveError, match="no save file"):
+            await manager.restore(2)
 
 
-class TestRotation:
-    async def test_manual_snapshots_are_never_rotated_away(self, tmp_path):
-        save = write_save(tmp_path / "saves" / "reforge.zip")
-        mgr = SaveManager(save, tmp_path / "snapshots", max_snapshots=2, max_age_days=0)
-        mgr.load_index()
-        for i in range(3):
-            await mgr.create(f"manual {i}")
-        mgr.rotate()
-        assert len(mgr.list()) == 3, "a snapshot someone asked for is not disposable"
+class TestOverwriteSlot:
+    """QBM's "backup current world to avoid idiot" -- the undo for a restore."""
 
-    async def test_automatic_snapshots_are_trimmed_to_the_limit(self, tmp_path):
-        save = write_save(tmp_path / "saves" / "reforge.zip")
-        mgr = SaveManager(save, tmp_path / "snapshots", max_snapshots=2, max_age_days=0)
-        mgr.load_index()
-        for i in range(4):
-            await mgr.create(f"auto {i}", automatic=True)
-        removed = mgr.rotate()
-        assert len(removed) == 2
-        assert len(mgr.list()) == 2
-        assert [s.comment for s in mgr.list()] == ["auto 3", "auto 2"], "oldest go first"
-        for snapshot in removed:
-            assert not mgr.path_of(snapshot).exists(), "rotation must delete the file too"
+    def test_the_current_world_is_preserved_before_being_replaced(self, manager):
+        write_save(manager.current_save, "about-to-be-lost")
+        info = manager.back_up_current_world("alice")
+        assert info is not None
+        assert read_save(manager.save_path(OVERWRITE_SLOT)) == "about-to-be-lost"
+        assert "alice" in info.comment
 
-    async def test_age_limit_removes_old_automatic_snapshots(self, tmp_path):
-        save = write_save(tmp_path / "saves" / "reforge.zip")
-        mgr = SaveManager(save, tmp_path / "snapshots", max_snapshots=0, max_age_days=7)
-        mgr.load_index()
-        old = await mgr.create("old", automatic=True)
-        old.created_at = time.time() - 10 * 86400
-        await mgr.create("fresh", automatic=True)
-        removed = mgr.rotate()
-        assert [s.comment for s in removed] == ["old"]
+    def test_it_is_overwritten_each_time_rather_than_accumulating(self, manager):
+        write_save(manager.current_save, "first")
+        manager.back_up_current_world("alice")
+        write_save(manager.current_save, "second")
+        manager.back_up_current_world("bob")
+        assert read_save(manager.save_path(OVERWRITE_SLOT)) == "second"
+
+    async def test_it_can_be_restored_like_any_slot(self, manager):
+        write_save(manager.current_save, "the-good-world")
+        manager.back_up_current_world("alice")
+        write_save(manager.current_save, "the-mistake")
+        await manager.restore(OVERWRITE_SLOT)
+        assert read_save(manager.current_save) == "the-good-world"
+
+    def test_with_no_current_save_it_reports_rather_than_pretending(self, manager):
+        manager.current_save.unlink()
+        assert manager.back_up_current_world("alice") is None
+
+    def test_the_overwrite_slot_is_not_one_of_the_numbered_slots(self, manager):
+        write_save(manager.current_save, "x")
+        manager.back_up_current_world("alice")
+        assert manager.list() == [], "it must not occupy a backup slot"
 
 
-class TestDelete:
-    async def test_delete_removes_the_entry_and_the_file(self, manager):
-        snapshot = await manager.create("x")
-        path = manager.path_of(snapshot)
-        assert manager.delete(snapshot.id) is True
-        assert not path.exists()
-        assert manager.get(snapshot.id) is None
+class TestEditing:
+    async def test_rename_changes_the_comment(self, manager):
+        await manager.create("typo")
+        assert manager.rename(1, "fixed").comment == "fixed"
+        assert manager.get(1).comment == "fixed"
 
-    async def test_deleting_an_unknown_id_is_false_not_an_error(self, manager):
-        assert manager.delete(999) is False
+    async def test_delete_empties_the_slot_without_shifting_others(self, manager):
+        for marker in ("one", "two"):
+            write_save(manager.current_save, marker)
+            await manager.create(marker)
+        manager.delete(1)
+        assert manager.get(1) is None
+        assert manager.get(2).comment == "one", "deleting must not renumber the rest"
+
+    async def test_a_deleted_slot_is_reused_first(self, manager):
+        for marker in ("one", "two"):
+            write_save(manager.current_save, marker)
+            await manager.create(marker)
+        manager.delete(1)
+        await manager.create("three")
+        assert manager.get(1).comment == "three"
+        assert manager.get(2).comment == "one"
+
+    @pytest.mark.parametrize("slot", [0, 4, -1])
+    async def test_an_out_of_range_slot_is_rejected(self, manager, slot):
+        with pytest.raises(SaveError, match="between 1 and 3"):
+            manager.validate(slot)
+
+    async def test_an_empty_slot_is_reported_as_empty(self, manager):
+        with pytest.raises(SaveError, match="empty"):
+            manager.validate(2)
+
+
+class TestListing:
+    async def test_all_slots_includes_the_empty_ones(self, manager):
+        await manager.create("only")
+        rows = manager.all_slots()
+        assert [index for index, _ in rows] == [1, 2, 3]
+        assert rows[0][1].comment == "only"
+        assert rows[1][1] is None
+
+    async def test_a_slot_with_a_broken_info_file_reads_as_empty(self, manager):
+        await manager.create("x")
+        manager.info_path(1).write_text("{{{ not json")
+        assert manager.get(1) is None
+
+    async def test_a_slot_whose_save_vanished_reads_as_empty(self, manager):
+        """Otherwise it would be offered as a restore target that cannot work."""
+        await manager.create("x")
+        manager.save_path(1).unlink()
+        assert manager.get(1) is None
+
+    async def test_total_size_counts_every_slot(self, manager):
+        await manager.create("one")
+        write_save(manager.current_save, "two")
+        await manager.create("two")
+        assert manager.total_size() > 0
+
+
+class TestConfigUpgrade:
+    """A config.yml written by an older version must still load."""
+
+    def test_retired_keys_warn_instead_of_failing(self, tmp_path, caplog):
+        from factorio_reforge.config import SavesConfig, _sub
+
+        with caplog.at_level("WARNING"):
+            saves = _sub(
+                SavesConfig,
+                {"max_snapshots": 30, "max_snapshot_age_days": 30, "save_timeout": 60.0},
+                "saves",
+            )
+        assert saves.save_timeout == 60.0
+        assert "max_snapshots" in caplog.text
+        assert "slot_protection" in caplog.text
+
+    def test_a_real_typo_still_errors(self):
+        from factorio_reforge.config import ConfigError, SavesConfig, _sub
+
+        with pytest.raises(ConfigError, match="save_timout"):
+            _sub(SavesConfig, {"save_timout": 60.0}, "saves")

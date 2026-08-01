@@ -342,22 +342,22 @@ async def _cmd_saves(ctx: TelegramContext):
 
 async def _cmd_rollback(ctx: TelegramContext):
     if not ctx.args:
-        await ctx.reply("Usage: /rollback <id>  (see /saves)")
+        await ctx.reply("Usage: /rollback <slot>  (see /saves)")
         return
     try:
-        snapshot_id = int(ctx.args[0])
+        slot = int(ctx.args[0])
     except ValueError:
-        await ctx.reply("The id must be a number, e.g. /rollback 3")
+        await ctx.reply("The slot must be a number, e.g. /rollback 1")
         return
 
     server = _state["server"]
-    snapshot = server.saves.get(snapshot_id)
-    if snapshot is None:
-        await ctx.reply(f"No snapshot with id {snapshot_id}.")
+    info = server.saves.get(slot)
+    if info is None:
+        await ctx.reply(f"Slot {slot} is empty. Send /saves to see what is there.")
         return
 
     if not await ctx.confirm(
-        f"Roll back to:\n{snapshot.describe()}\n\n"
+        f"Restore:\n{info.describe()}\n\n"
         "This stops the server and replaces the current world."
     ):
         await ctx.reply("Cancelled.")
@@ -365,7 +365,7 @@ async def _cmd_rollback(ctx: TelegramContext):
 
     await ctx.reply("Rolling back...")
     try:
-        restored = await server.rollback(snapshot_id, countdown=10, requested_by=f"tg:{ctx.user_id}")
+        restored = await server.rollback(slot, countdown=10, requested_by=f"tg:{ctx.user_id}")
     except Exception as exc:
         await ctx.reply(f"Rollback failed: {exc}")
         return

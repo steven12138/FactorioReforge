@@ -14,12 +14,18 @@
 </p>
 
 <p align="center">
-  <a href="docs/TUTORIAL.md">Step-by-step tutorial</a> ·
+  <a href="docs/TUTORIAL.md"><b>📖 Step-by-step tutorial</b></a> ·
   <a href="#part-1--running-a-factorio-multiplayer-server">Run a server</a> ·
   <a href="#part-2--factorioreforge">Use FactorioReforge</a> ·
   <a href="#writing-a-plugin">Write a plugin</a> ·
   <a href="#bundled-plugins">Plugins</a>
 </p>
+
+---
+
+> **First time here?** Start with the **[step-by-step tutorial](docs/TUTORIAL.md)** —
+> thirteen sections from a bare machine to Telegram control, every command
+> verified on a real server. This README is the reference manual.
 
 ---
 

@@ -7,7 +7,7 @@ even when every plugin fails to load -- which is exactly when you need them.
 from __future__ import annotations
 
 import time
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from factorio_reforge.command.builder import (
     CommandContext,
@@ -19,6 +19,7 @@ from factorio_reforge.command.builder import (
 from factorio_reforge.command.source import CommandSource
 from factorio_reforge.permission import PermissionLevel
 from factorio_reforge.plugin.manager import CORE_VERSION
+from factorio_reforge.saves.manager import NoSlotAvailable, SaveError, format_duration
 
 if TYPE_CHECKING:
     from factorio_reforge.core.server import ReforgeServer
@@ -165,94 +166,147 @@ def build(server: "ReforgeServer"):
 
 
 def build_save_commands(server: "ReforgeServer"):
-    """The ``!!save`` tree. Lives in the core because rollback is a core concern.
+    """The ``!!save`` tree, following QuickBackupM's command set.
 
-    ``back`` deliberately does not act immediately: it arms a pending request
-    that ``confirm`` completes, so a mistyped id cannot wipe a world in one
-    keystroke.
+    ``back`` stages a slot rather than acting on it; ``confirm`` starts an
+    abortable countdown and only then touches the world. Two deliberate
+    steps, because a mistyped slot number would otherwise replace a world in
+    one keystroke.
     """
     prefix = server.config.command_prefix + "save"
-    pending: dict[str, object] = {}
+    saves = server.saves
+    #: The staged slot, shared by everyone -- as in QBM, one restore at a time.
+    staged: dict[str, Any] = {"slot": None, "at": 0.0, "by": ""}
+    CONFIRM_WINDOW = 60.0
 
     async def make(source: CommandSource, ctx: CommandContext):
         comment = ctx.get("comment", "")
-        await source.reply("Saving and snapshotting...")
+        await source.reply("Saving...")
         try:
-            snapshot = await server.create_snapshot(
+            slot = await server.create_snapshot(
                 comment, created_by=str(source.player or "console")
             )
-        except Exception as exc:
-            await source.reply(f"Snapshot failed: {exc}")
+        except NoSlotAvailable as exc:
+            await source.reply(f"No slot free: {exc}")
             return
-        await source.reply(f"Created {snapshot.describe()}")
+        except Exception as exc:
+            await source.reply(f"Backup failed: {exc}")
+            return
+        await source.reply(f"Backed up to {slot.describe()}")
 
     async def listing(source: CommandSource):
-        snapshots = server.saves.list()
-        if not snapshots:
-            await source.reply("No snapshots yet")
-            return
-        await source.reply(f"{len(snapshots)} snapshot(s), newest first:")
-        for snapshot in snapshots[:20]:
-            await source.reply(f"  {snapshot.describe()}")
+        rows = saves.all_slots()
+        total = saves.total_size() / (1024 * 1024)
+        await source.reply(f"Backup slots ({total:.1f} MiB total):")
+        for index, info in rows:
+            if info is None:
+                await source.reply(f"  slot {index}: empty")
+                continue
+            protection = saves.protection_of(index)
+            guard = ""
+            if protection:
+                remaining = protection - info.age_seconds
+                guard = (
+                    f"  [protected for another {format_duration(remaining)}]"
+                    if remaining > 0 else "  [protection expired]"
+                )
+            await source.reply(f"  {info.describe()}{guard}")
+
+        overwrite = saves.get_overwrite()
+        if overwrite is not None:
+            await source.reply(
+                f"  overwrite: {overwrite.created_at_text} - the world from before the last restore"
+            )
+        await source.reply(f"Restore with '{prefix} back <slot>', then '{prefix} confirm'.")
 
     async def back(source: CommandSource, ctx: CommandContext):
-        snapshot_id = ctx["id"]
-        snapshot = server.saves.get(snapshot_id)
-        if snapshot is None:
-            await source.reply(f"No snapshot with id {snapshot_id}")
+        slot = ctx.get("slot", 1)
+        try:
+            info = saves.validate(slot)
+        except SaveError as exc:
+            await source.reply(str(exc))
             return
-        pending[str(source)] = (snapshot_id, time.monotonic())
-        await source.reply(f"About to roll back to {snapshot.describe()}")
+        staged.update(slot=slot, at=time.monotonic(), by=str(source))
+        await source.reply(f"About to restore {info.describe()}")
         await source.reply(
             f"This stops the server and replaces the current world. "
-            f"Type '{prefix} confirm' within 60s to proceed, or '{prefix} abort' to cancel."
+            f"'{prefix} confirm' within {int(CONFIRM_WINDOW)}s to go ahead, "
+            f"'{prefix} abort' to cancel."
         )
 
     async def confirm(source: CommandSource):
-        entry = pending.pop(str(source), None)
-        if entry is None:
-            await source.reply(f"Nothing to confirm. Start with '{prefix} back <id>'")
+        slot = staged["slot"]
+        if slot is None:
+            await source.reply(f"Nothing staged. Start with '{prefix} back <slot>'")
             return
-        snapshot_id, requested_at = entry
-        if time.monotonic() - requested_at > 60:
+        if time.monotonic() - staged["at"] > CONFIRM_WINDOW:
+            staged["slot"] = None
             await source.reply("That confirmation expired; run the command again")
             return
-        await source.reply("Rolling back...")
+        staged["slot"] = None
+
         try:
-            snapshot = await server.rollback(
-                snapshot_id, requested_by=str(source.player or "console")
+            slot_info = await server.rollback(
+                slot,
+                countdown=server.config.saves.restore_countdown,
+                requested_by=str(source.player or "console"),
             )
         except Exception as exc:
-            await source.reply(f"Rollback failed: {exc}")
+            await source.reply(f"Restore failed: {exc}")
             return
-        await source.reply(f"Rolled back to {snapshot.describe()}")
+        await source.reply(f"Restored {slot_info.describe()}")
 
     async def abort(source: CommandSource):
-        await source.reply(
-            "Rollback cancelled" if pending.pop(str(source), None) else "Nothing pending"
-        )
+        # Two things can be cancelled: a staged slot, and a countdown that is
+        # already running. QBM's abort covers both, so this does too.
+        if server.abort_rollback():
+            await source.reply("Cancelling the restore that is counting down")
+            return
+        if staged["slot"] is not None:
+            staged["slot"] = None
+            await source.reply("Cancelled")
+            return
+        await source.reply("Nothing to cancel")
 
     async def delete(source: CommandSource, ctx: CommandContext):
-        ok = server.saves.delete(ctx["id"])
-        await source.reply(f"Deleted snapshot #{ctx['id']}" if ok else "No such snapshot")
+        try:
+            info = saves.delete(ctx["slot"])
+        except SaveError as exc:
+            await source.reply(str(exc))
+            return
+        await source.reply(f"Deleted {info.describe()}")
 
+    async def rename(source: CommandSource, ctx: CommandContext):
+        try:
+            info = saves.rename(ctx["slot"], ctx["comment"])
+        except SaveError as exc:
+            await source.reply(str(exc))
+            return
+        await source.reply(f"Renamed: {info.describe()}")
+
+    # QBM's default permissions: anyone may back up, staff may restore.
+    user = PermissionLevel.USER
     helper = PermissionLevel.HELPER
-    admin = PermissionLevel.ADMIN
 
     return (
         Literal(prefix)
         .runs(listing)
+        .then(Literal("list").runs(listing))
         .then(
-            Literal("make")
-            .requires(helper)
-            .runs(make)
+            Literal("make").requires(user).runs(make)
             .then(GreedyText("comment").runs(make))
         )
-        .then(Literal("list").requires(PermissionLevel.USER).runs(listing))
-        .then(Literal("back").requires(admin).then(Integer("id").runs(back)))
-        .then(Literal("confirm").requires(admin).runs(confirm))
-        .then(Literal("abort").requires(admin).runs(abort))
-        .then(Literal("del").requires(admin).then(Integer("id").runs(delete)))
+        .then(
+            Literal("back").requires(helper).runs(back)
+            .then(Integer("slot").runs(back))
+        )
+        .then(Literal("confirm").requires(user).runs(confirm))
+        .then(Literal("abort").requires(user).runs(abort))
+        .then(Literal("del").requires(helper).then(Integer("slot").runs(delete)))
+        .then(
+            Literal("rename").requires(helper)
+            .then(Integer("slot").then(GreedyText("comment").runs(rename)))
+        )
     )
 
 

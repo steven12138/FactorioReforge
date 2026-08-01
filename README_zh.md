@@ -14,11 +14,18 @@
 </p>
 
 <p align="center">
+  <a href="docs/TUTORIAL_zh.md"><b>📖 分步教程</b></a> ·
   <a href="#第一部分--把-factorio-联机服务器跑起来">开服</a> ·
   <a href="#第二部分--factorioreforge">使用</a> ·
   <a href="#写一个插件">写插件</a> ·
   <a href="#自带插件">插件</a>
 </p>
+
+---
+
+> **第一次用？** 直接看 **[分步教程](docs/TUTORIAL_zh.md)** ——
+> 从零安装到 Telegram 远程控制，13 节，每条命令都实测过。
+> 下面这份 README 是完整参考手册。
 
 ---
 

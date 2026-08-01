@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
+import shutil
 import time
 from pathlib import Path
 from typing import Optional
@@ -19,7 +20,13 @@ from factorio_reforge.core.reactor import InfoReactor
 from factorio_reforge.permission import PermissionManager
 from factorio_reforge.plugin import events as ev
 from factorio_reforge.plugin.manager import PluginManager
-from factorio_reforge.saves.manager import SaveError, SaveManager, Snapshot
+from factorio_reforge.saves.manager import (
+    OVERWRITE_SLOT,
+    SaveError,
+    SaveManager,
+    Slot,
+    SlotConfig,
+)
 
 
 class RollbackError(Exception):
@@ -49,8 +56,7 @@ class ReforgeServer:
         self.saves = SaveManager(
             config.current_save_path,
             config.snapshot_dir_path,
-            max_snapshots=config.saves.max_snapshots,
-            max_age_days=config.saves.max_snapshot_age_days,
+            slots=[SlotConfig(seconds) for seconds in config.saves.slot_protection],
             logger=self.logger,
         )
 
@@ -79,6 +85,7 @@ class ReforgeServer:
         #: Set when shutdown has *finished*; what wait_for_exit waits on.
         self._exited = asyncio.Event()
         self._rollback_in_progress = False
+        self._abort_rollback = asyncio.Event()
         self._expect_stop = False
         self._crash_watch: Optional[asyncio.Task] = None
         self.started_at = time.monotonic()
@@ -217,134 +224,169 @@ class ReforgeServer:
     # -- saves ---------------------------------------------------------------
 
     async def flush_save(self) -> bool:
-        """``/server-save`` and wait for the completion line. False on timeout.
+        """``/server-save`` with no name: overwrites the live save. False on timeout."""
+        return await self._server_save(None) is not None
 
-        Waiting on the real marker rather than sleeping is what makes a snapshot
-        contain the current world instead of whatever autosave last wrote.
+    async def write_backup_save(self, target: Path) -> None:
+        """Have the running server write a complete save at ``target``.
+
+        ``/server-save <name>`` writes a **separate** file and leaves the live
+        save alone -- measured on 2.0.77 -- so a backup no longer has to
+        overwrite the world it is backing up and then copy it. The name goes
+        through Factorio's console, so it is restricted to characters that
+        cannot be misread as arguments.
         """
+        stem = f"reforge-backup-{int(time.time())}"
+        produced = await self._server_save(stem)
+        if produced is None:
+            raise SaveError("the server did not confirm the save in time")
+        target.parent.mkdir(parents=True, exist_ok=True)
+        # Same filesystem, so this is a rename rather than a second full write.
+        shutil.move(str(produced), str(target))
+
+    async def _server_save(self, stem: Optional[str]) -> Optional[Path]:
+        """Run ``/server-save [name]`` and wait for the completion marker."""
         if not self.process.is_running:
-            return False
+            return None
         self._save_completed.clear()
-        await self.process.write("/server-save")
+        await self.process.write(f"/server-save {stem}" if stem else "/server-save")
         try:
             await asyncio.wait_for(self._save_completed.wait(), self.config.saves.save_timeout)
-            return True
         except asyncio.TimeoutError:
             self.logger.warning(
-                "No save-completion message within %.0fs; snapshotting the file as it stands",
-                self.config.saves.save_timeout,
+                "No save-completion message within %.0fs", self.config.saves.save_timeout
             )
-            return False
+            return None
+        return self.config.save_dir_path / (f"{stem}.zip" if stem else self.current_save_name)
+
+    @property
+    def current_save_name(self) -> str:
+        return self.config.current_save_path.name
 
     async def create_snapshot(
         self, comment: str = "", *, created_by: str = "unknown", automatic: bool = False
-    ) -> Snapshot:
+    ) -> Slot:
         players: list[str] = []
         if self.process.is_running:
-            await self.flush_save()
             with contextlib.suppress(RconError):
                 players = await self.interface.get_online_players()
-        snapshot = await self.saves.create(
-            comment, created_by=created_by, players_online=players, automatic=automatic
+
+        slot = await self.saves.create(
+            comment,
+            created_by=created_by,
+            players_online=players,
+            automatic=automatic,
+            write_save=self.write_backup_save if self.process.is_running else None,
         )
-        self.saves.rotate()
-        await self.plugins.dispatch(ev.SNAPSHOT_CREATED, snapshot)
-        return snapshot
+        await self.plugins.dispatch(ev.SNAPSHOT_CREATED, slot)
+        return slot
+
+    def abort_rollback(self) -> bool:
+        """Cancel a countdown that is already running. QBM's ``!!qb abort``."""
+        if not self._rollback_in_progress:
+            return False
+        self._abort_rollback.set()
+        return True
 
     async def rollback(
-        self, snapshot_id: int, *, countdown: float = 10.0, requested_by: str = "unknown"
-    ) -> Snapshot:
-        """Restore a snapshot: announce, back up the present, swap, restart.
+        self, slot: int, *, countdown: float = 10.0, requested_by: str = "unknown"
+    ) -> Slot:
+        """Restore a slot, in QBM's order: countdown, stop, preserve, swap, start.
 
-        Step 2 is the important one -- taking a safety snapshot of the current
-        world before overwriting it means rolling back to the wrong point is
-        recoverable rather than terminal.
+        Preserving the current world *after* the server has stopped, and before
+        anything is overwritten, is what makes restoring the wrong slot
+        survivable. If that step fails there is no way back, so the restore is
+        refused rather than attempted.
         """
         if self._rollback_in_progress:
-            raise RollbackError("a rollback is already running")
+            raise RollbackError("a restore is already running")
 
-        snapshot = self.saves.get(snapshot_id)
-        if snapshot is None:
-            raise RollbackError(f"no snapshot with id {snapshot_id}")
-        if not self.saves.path_of(snapshot).is_file():
-            raise RollbackError(f"snapshot #{snapshot_id} file is missing")
+        info = self.saves.validate(slot)
 
         self._rollback_in_progress = True
+        self._abort_rollback.clear()
         was_running = self.process.is_running
-        safety: Optional[Snapshot] = None
+        preserved: Optional[Slot] = None
         try:
-            await self.plugins.dispatch(ev.ROLLBACK_STARTED, snapshot, requested_by)
+            await self.plugins.dispatch(ev.ROLLBACK_STARTED, info, requested_by)
 
             if was_running and countdown > 0:
-                await self._announce_countdown(snapshot, countdown)
+                if not await self._announce_countdown(info, countdown):
+                    raise RollbackError("cancelled during the countdown")
 
             if was_running:
-                self.logger.info("Taking a safety snapshot before rolling back")
-                try:
-                    safety = await self.create_snapshot(
-                        f"before rollback to #{snapshot_id}",
-                        created_by=requested_by, automatic=True,
-                    )
-                except SaveError as exc:
-                    # No way back if this fails -- refuse rather than gamble.
-                    raise RollbackError(
-                        f"could not take a safety snapshot, aborting rollback: {exc}"
-                    ) from exc
-
                 self._expect_stop = True
                 if not await self.process.stop():
-                    raise RollbackError("the server would not stop; rollback aborted")
+                    raise RollbackError("the server would not stop; restore aborted")
                 await self.process.cleanup()
                 if self.rcon is not None:
                     await self.rcon.stop()
 
+            # QBM's "backup current world to avoid idiot", with the server down
+            # so the file is not moving underneath us.
+            self.logger.info("Preserving the current world before overwriting it")
+            preserved = self.saves.back_up_current_world(requested_by)
+            if preserved is None and self.config.current_save_path.is_file():
+                raise RollbackError(
+                    "could not preserve the current world, so the restore was refused"
+                )
+
             try:
-                await self.saves.restore_file(snapshot)
+                await self.saves.restore(slot)
             except SaveError as exc:
-                raise RollbackError(f"restoring the snapshot failed: {exc}") from exc
+                raise RollbackError(f"restoring slot {slot} failed: {exc}") from exc
 
             if was_running:
                 if not await self.start_server():
-                    await self._recover(safety)
+                    await self._recover(preserved)
                     raise RollbackError(
-                        "the server did not come back up; the previous world was restored"
+                        "the server did not come back up; the previous world was put back"
                     )
 
-            self.logger.info("Rolled back to %s", snapshot.describe())
-            await self.plugins.dispatch(ev.ROLLBACK_FINISHED, snapshot, True)
-            return snapshot
+            self.logger.info("Restored %s", info.describe())
+            await self.plugins.dispatch(ev.ROLLBACK_FINISHED, info, True)
+            return info
         except Exception:
-            await self.plugins.dispatch(ev.ROLLBACK_FINISHED, snapshot, False)
+            await self.plugins.dispatch(ev.ROLLBACK_FINISHED, info, False)
             raise
         finally:
             self._rollback_in_progress = False
 
-    async def _announce_countdown(self, snapshot: Snapshot, seconds: float) -> None:
-        await self.process.write(
-            f"[FactorioReforge] Rolling back to {snapshot.created_at_text} "
-            f"in {int(seconds)} seconds. The server will restart."
-        )
-        remaining = seconds
-        while remaining > 0:
-            step = 5 if remaining > 5 else remaining
-            await asyncio.sleep(step)
-            remaining -= step
-            if remaining > 0 and self.process.is_running:
-                with contextlib.suppress(RuntimeError):
-                    await self.process.write(f"[FactorioReforge] Rollback in {int(remaining)}s")
+    async def _announce_countdown(self, info: Slot, seconds: float) -> bool:
+        """Count down in chat, one second at a time. False if aborted.
 
-    async def _recover(self, safety: Optional[Snapshot]) -> None:
-        if safety is None:
-            self.logger.error("No safety snapshot to fall back on")
+        Per-second rather than in chunks because that is the window in which
+        someone realises they picked the wrong slot.
+        """
+        for remaining in range(int(seconds), 0, -1):
+            if self._abort_rollback.is_set():
+                self.logger.info("Restore cancelled during the countdown")
+                with contextlib.suppress(RuntimeError):
+                    await self.process.write("[FactorioReforge] Restore cancelled")
+                return False
+            with contextlib.suppress(RuntimeError):
+                await self.process.write(
+                    f"[FactorioReforge] Restoring slot {info.id} "
+                    f"({info.created_at_text}) in {remaining}s -- !!save abort to cancel"
+                )
+            try:
+                await asyncio.wait_for(self._abort_rollback.wait(), timeout=1.0)
+            except asyncio.TimeoutError:
+                continue
+        return not self._abort_rollback.is_set()
+
+    async def _recover(self, preserved: Optional[Slot]) -> None:
+        if preserved is None:
+            self.logger.error("Nothing was preserved, so there is nothing to put back")
             return
-        self.logger.warning("Restoring the pre-rollback world from %s", safety.filename)
+        self.logger.warning("Putting the pre-restore world back")
         try:
-            await self.saves.restore_file(safety)
+            await self.saves.restore(OVERWRITE_SLOT)
             await self.start_server()
         except Exception:
             self.logger.exception(
-                "Recovery failed. The pre-rollback world is intact at %s -- restore it by hand",
-                self.saves.path_of(safety),
+                "Recovery failed. The pre-restore world is intact at %s -- restore it by hand",
+                self.saves.save_path(OVERWRITE_SLOT),
             )
 
 

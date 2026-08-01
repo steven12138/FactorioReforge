@@ -1,9 +1,36 @@
-"""Snapshots and rollback.
+"""Slot-based backups, following QuickBackupM's proven design.
 
-Factorio cannot swap the loaded map at runtime, so a rollback is an orchestrated
-sequence -- announce, snapshot the present, stop, replace the file, start -- not
-a file copy. Every step that can fail is followed by a path back to the state we
-started from, because the whole point of this feature is not losing a world.
+QBM (https://github.com/TISUnion/QuickBackupM) has been in production on
+Minecraft servers for years, so its logic is copied rather than reinvented:
+
+* A new backup always lands in **slot 1**; the others shift down one.
+* The slot that gets sacrificed to make room is the first empty one, or failing
+  that the highest-numbered slot past its ``delete_protection``. If every slot
+  is still protected, the backup is refused rather than destroying something
+  someone asked to keep.
+* Restoring stages a slot, then waits for an explicit confirm, with an
+  abortable countdown.
+* Before overwriting the world, the current one is copied to a fixed
+  ``overwrite`` slot -- QBM's comment on that line reads "backup current world
+  to avoid idiot", and it is the single most valuable behaviour here.
+
+Two things differ, both because Factorio offers something Minecraft does not:
+
+* Minecraft needs ``save-off`` / ``save-all flush`` and then a directory copy,
+  because the world is a live directory. Factorio's ``/server-save <name>``
+  writes a **separate, complete** save file and leaves the live one untouched,
+  so the backup is written straight into its slot with no copy and no need to
+  suspend autosaving.
+* A world is one ``.zip``, not a directory tree, so a slot holds ``save.zip``
+  plus ``info.json`` instead of a copied world folder.
+
+Layout::
+
+    snapshots/
+        slot1/  save.zip  info.json
+        slot2/  ...
+        ...
+        overwrite/  save.zip  info.json
 """
 
 from __future__ import annotations
@@ -18,7 +45,9 @@ import zipfile
 from pathlib import Path
 from typing import Any, Callable, Optional
 
-INDEX_FILE = "index.json"
+SAVE_NAME = "save.zip"
+INFO_NAME = "info.json"
+OVERWRITE_SLOT = "overwrite"
 _SAFE = "-_.() "
 
 
@@ -26,12 +55,23 @@ class SaveError(Exception):
     pass
 
 
+class NoSlotAvailable(SaveError):
+    """Every slot is still within its delete protection window."""
+
+
 @dataclasses.dataclass
-class Snapshot:
+class SlotConfig:
+    #: Seconds during which this slot may not be sacrificed to make room.
+    delete_protection: int = 0
+
+
+@dataclasses.dataclass
+class Slot:
+    """One backup. ``id`` is the slot number, so it changes as slots shift."""
+
     id: int
-    filename: str
-    comment: str
-    created_at: float
+    comment: str = ""
+    created_at: float = 0.0
     created_by: str = "unknown"
     players_online: list[str] = dataclasses.field(default_factory=list)
     size_bytes: int = 0
@@ -42,105 +82,158 @@ class Snapshot:
         return time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(self.created_at))
 
     @property
-    def age_days(self) -> float:
-        return (time.time() - self.created_at) / 86400
+    def age_seconds(self) -> float:
+        return time.time() - self.created_at
 
     def to_dict(self) -> dict[str, Any]:
         return dataclasses.asdict(self)
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "Snapshot":
+    def from_dict(cls, data: dict[str, Any], slot_id: int) -> "Slot":
         known = {f.name for f in dataclasses.fields(cls)}
-        return cls(**{k: v for k, v in data.items() if k in known})
+        kwargs = {k: v for k, v in data.items() if k in known}
+        kwargs["id"] = slot_id
+        return cls(**kwargs)
 
     def describe(self) -> str:
         who = f" by {self.created_by}" if self.created_by != "unknown" else ""
         note = f" - {self.comment}" if self.comment else ""
-        mb = self.size_bytes / (1024 * 1024)
-        return f"#{self.id} {self.created_at_text}{who} ({mb:.1f} MiB){note}"
+        size = f" ({self.size_bytes / (1024 * 1024):.1f} MiB)" if self.size_bytes else ""
+        return f"slot {self.id}: {self.created_at_text}{who}{size}{note}"
 
 
 class SaveManager:
-    """Owns the snapshot directory and its index."""
-
     def __init__(
         self,
         current_save: Path,
         snapshot_directory: Path,
         *,
-        max_snapshots: int = 30,
-        max_age_days: int = 30,
+        slots: Optional[list[SlotConfig]] = None,
         logger: Optional[logging.Logger] = None,
     ):
         self.current_save = Path(current_save)
         self.snapshot_directory = Path(snapshot_directory)
-        self.max_snapshots = max_snapshots
-        self.max_age_days = max_age_days
+        #: QBM's defaults: the two oldest slots are protected so a burst of
+        #: backups cannot wipe out yesterday's known-good world.
+        self.slots = slots or [
+            SlotConfig(0),
+            SlotConfig(0),
+            SlotConfig(0),
+            SlotConfig(3 * 60 * 60),
+            SlotConfig(3 * 24 * 60 * 60),
+        ]
         self.logger = logger or logging.getLogger(__name__)
-        self._snapshots: list[Snapshot] = []
-        self._next_id = 1
+        # One backup or restore at a time; QBM calls this single_op.
         self._lock = asyncio.Lock()
 
-    # -- index ---------------------------------------------------------------
+    # -- paths ---------------------------------------------------------------
 
     @property
-    def index_path(self) -> Path:
-        return self.snapshot_directory / INDEX_FILE
+    def slot_count(self) -> int:
+        return len(self.slots)
+
+    def slot_path(self, slot: "int | str") -> Path:
+        name = slot if isinstance(slot, str) else f"slot{slot}"
+        return self.snapshot_directory / name
+
+    def save_path(self, slot: "int | str") -> Path:
+        return self.slot_path(slot) / SAVE_NAME
+
+    def info_path(self, slot: "int | str") -> Path:
+        return self.slot_path(slot) / INFO_NAME
+
+    def ensure_directories(self) -> None:
+        self.snapshot_directory.mkdir(parents=True, exist_ok=True)
+        for index in range(1, self.slot_count + 1):
+            self.slot_path(index).mkdir(exist_ok=True)
+
+    # -- reading -------------------------------------------------------------
 
     def load_index(self) -> None:
-        self.snapshot_directory.mkdir(parents=True, exist_ok=True)
-        if not self.index_path.is_file():
-            self._snapshots, self._next_id = [], 1
-            return
+        """Kept for API compatibility; slots are read from disk on demand."""
+        self.ensure_directories()
+
+    def get(self, slot: "int | str") -> Optional[Slot]:
+        """Read one slot, or None if it is empty or unreadable."""
+        info_file = self.info_path(slot)
+        if not info_file.is_file() or not self.save_path(slot).is_file():
+            return None
         try:
-            data = json.loads(self.index_path.read_text(encoding="utf-8"))
-        except (json.JSONDecodeError, OSError) as exc:
-            self.logger.error("Snapshot index is unreadable (%s); rebuilding from disk", exc)
-            self._rebuild_index_from_disk()
-            return
-        self._snapshots = [Snapshot.from_dict(d) for d in data.get("snapshots", [])]
-        # Drop entries whose file is gone so the list never offers a rollback
-        # target that cannot be restored.
-        missing = [s for s in self._snapshots if not (self.snapshot_directory / s.filename).is_file()]
-        for snapshot in missing:
-            self.logger.warning("Snapshot #%s file is missing, dropping it", snapshot.id)
-            self._snapshots.remove(snapshot)
-        self._next_id = max((s.id for s in self._snapshots), default=0) + 1
-        if missing:
-            self.save_index()
+            data = json.loads(info_file.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            self.logger.warning("%s is unreadable; treating the slot as empty", info_file)
+            return None
+        slot_id = slot if isinstance(slot, int) else 0
+        return Slot.from_dict(data, slot_id)
 
-    def _rebuild_index_from_disk(self) -> None:
-        self._snapshots = []
-        for index, path in enumerate(sorted(self.snapshot_directory.glob("*.zip")), start=1):
-            stat = path.stat()
-            self._snapshots.append(
-                Snapshot(
-                    id=index, filename=path.name, comment="(recovered)",
-                    created_at=stat.st_mtime, size_bytes=stat.st_size,
-                )
+    def list(self) -> list[Slot]:
+        """Occupied slots, in slot order -- slot 1 is always the newest."""
+        return [s for s in (self.get(i) for i in range(1, self.slot_count + 1)) if s]
+
+    def all_slots(self) -> list[tuple[int, Optional[Slot]]]:
+        """Every slot including the empty ones, for listing."""
+        return [(i, self.get(i)) for i in range(1, self.slot_count + 1)]
+
+    def protection_of(self, slot: int) -> int:
+        if 1 <= slot <= self.slot_count:
+            return self.slots[slot - 1].delete_protection
+        return 0
+
+    def is_protected(self, slot: int) -> bool:
+        info = self.get(slot)
+        if info is None:
+            return False
+        return info.age_seconds <= self.protection_of(slot)
+
+    def validate(self, slot: int) -> Slot:
+        """Resolve a user-supplied slot number, with a message they can act on."""
+        if not 1 <= slot <= self.slot_count:
+            raise SaveError(f"slot must be between 1 and {self.slot_count}")
+        info = self.get(slot)
+        if info is None:
+            raise SaveError(f"slot {slot} is empty")
+        return info
+
+    # -- the QBM slot shuffle ------------------------------------------------
+
+    def _clean_up_slot_1(self) -> None:
+        """Free slot 1, shifting the others down. QBM's ``clean_up_slot_1``.
+
+        The slot that gets dropped is the first empty one, or the
+        highest-numbered slot whose protection has expired. Nothing protected is
+        ever destroyed -- if there is no candidate the backup is refused, which
+        is the whole point of setting a protection window.
+        """
+        self.ensure_directories()
+
+        empty_index: Optional[int] = None
+        last_available: Optional[int] = None
+        for index in range(1, self.slot_count + 1):
+            info = self.get(index)
+            if info is None:
+                if empty_index is None:
+                    empty_index = index
+            elif info.age_seconds > self.protection_of(index):
+                last_available = index
+
+        target = empty_index if empty_index is not None else last_available
+        if target is None:
+            raise NoSlotAvailable(
+                f"all {self.slot_count} slots are within their delete protection window; "
+                "delete one with !!save del <slot>, or lower the protection in config.yml"
             )
-        self._next_id = len(self._snapshots) + 1
-        self.save_index()
 
-    def save_index(self) -> None:
-        self.snapshot_directory.mkdir(parents=True, exist_ok=True)
-        payload = {"snapshots": [s.to_dict() for s in self._snapshots]}
-        temp = self.index_path.with_suffix(".json.tmp")
-        temp.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
-        temp.replace(self.index_path)
+        victim = self.get(target)
+        if victim is not None:
+            self.logger.info("Dropping %s to make room for the new backup", victim.describe())
+        shutil.rmtree(self.slot_path(target), ignore_errors=True)
 
-    # -- queries -------------------------------------------------------------
+        # Shift target-1 .. 1 down by one, so slot 1 ends up free.
+        for index in reversed(range(1, target)):
+            self.slot_path(index).rename(self.slot_path(index + 1))
+        self.slot_path(1).mkdir(parents=True, exist_ok=True)
 
-    def list(self) -> list[Snapshot]:
-        return sorted(self._snapshots, key=lambda s: s.created_at, reverse=True)
-
-    def get(self, snapshot_id: int) -> Optional[Snapshot]:
-        return next((s for s in self._snapshots if s.id == snapshot_id), None)
-
-    def path_of(self, snapshot: Snapshot) -> Path:
-        return self.snapshot_directory / snapshot.filename
-
-    # -- create --------------------------------------------------------------
+    # -- creating ------------------------------------------------------------
 
     async def create(
         self,
@@ -149,47 +242,54 @@ class SaveManager:
         created_by: str = "unknown",
         players_online: Optional[list[str]] = None,
         automatic: bool = False,
-        save_first: Optional[Callable[[], Any]] = None,
-    ) -> Snapshot:
-        """Copy the live save into the snapshot directory.
+        write_save: Optional[Callable[[Path], Any]] = None,
+    ) -> Slot:
+        """Make a backup in slot 1.
 
-        ``save_first`` should ask the running server to flush the map to disk and
-        return once it has; skipping it snapshots whatever was last written,
-        which can be many minutes stale.
+        ``write_save(target)`` should ask the running server to write a complete
+        save at ``target`` and return once it has. When it is absent -- the
+        server is stopped -- the current save file is copied instead, which is
+        the best answer available with nothing to ask.
         """
         async with self._lock:
-            if save_first is not None:
-                result = save_first()
-                if asyncio.iscoroutine(result):
-                    await result
+            self._clean_up_slot_1()
+            slot_dir = self.slot_path(1)
+            slot_dir.mkdir(parents=True, exist_ok=True)
+            target = self.save_path(1)
 
-            if not self.current_save.is_file():
-                raise SaveError(f"save file does not exist: {self.current_save}")
-            _verify_zip(self.current_save)
+            wrote = False
+            if write_save is not None:
+                try:
+                    result = write_save(target)
+                    if asyncio.iscoroutine(result):
+                        await result
+                    wrote = target.is_file()
+                    if not wrote:
+                        self.logger.warning(
+                            "The server reported a save but %s is not there; "
+                            "falling back to copying the current save file", target
+                        )
+                except Exception as exc:
+                    self.logger.warning(
+                        "The server could not write the backup (%s); "
+                        "falling back to copying the current save file", exc
+                    )
 
-            self.snapshot_directory.mkdir(parents=True, exist_ok=True)
-            stamp = time.strftime("%Y%m%d-%H%M%S")
-            suffix = f"_{_slug(comment)}" if comment else ""
-            filename = f"{stamp}{suffix}.zip"
-            target = self.snapshot_directory / filename
-            counter = 1
-            while target.exists():
-                filename = f"{stamp}{suffix}_{counter}.zip"
-                target = self.snapshot_directory / filename
-                counter += 1
+            if not wrote:
+                if not self.current_save.is_file():
+                    raise SaveError(f"save file does not exist: {self.current_save}")
+                _verify_zip(self.current_save)
+                shutil.copy2(self.current_save, target)
 
-            temp = target.with_suffix(".zip.part")
             try:
-                shutil.copy2(self.current_save, temp)
-                _verify_zip(temp)
-                temp.replace(target)
-            except Exception:
-                temp.unlink(missing_ok=True)
+                _verify_zip(target)
+            except SaveError:
+                shutil.rmtree(slot_dir, ignore_errors=True)
+                slot_dir.mkdir(parents=True, exist_ok=True)
                 raise
 
-            snapshot = Snapshot(
-                id=self._next_id,
-                filename=filename,
+            info = Slot(
+                id=1,
                 comment=comment,
                 created_at=time.time(),
                 created_by=created_by,
@@ -197,23 +297,64 @@ class SaveManager:
                 size_bytes=target.stat().st_size,
                 automatic=automatic,
             )
-            self._next_id += 1
-            self._snapshots.append(snapshot)
-            self.save_index()
-            self.logger.info("Created snapshot %s", snapshot.describe())
-            return snapshot
+            self._write_info(1, info)
+            self.logger.info("Created %s", info.describe())
+            return info
 
-    # -- restore -------------------------------------------------------------
+    def _write_info(self, slot: "int | str", info: Slot) -> None:
+        path = self.info_path(slot)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        temp = path.with_suffix(".json.tmp")
+        temp.write_text(
+            json.dumps(info.to_dict(), indent=2, ensure_ascii=False), encoding="utf-8"
+        )
+        temp.replace(path)
 
-    async def restore_file(self, snapshot: Snapshot) -> None:
-        """Overwrite the live save with a snapshot. The server must be stopped.
+    # -- the pre-restore backup ----------------------------------------------
+
+    def back_up_current_world(self, confirmed_by: str) -> Optional[Slot]:
+        """Copy the live save into the fixed ``overwrite`` slot.
+
+        QBM does this right before replacing the world, and it is what makes
+        restoring the wrong slot survivable. Called with the server stopped, so
+        the file is not moving underneath us.
+        """
+        if not self.current_save.is_file():
+            self.logger.error("There is no current save to preserve at %s", self.current_save)
+            return None
+
+        path = self.slot_path(OVERWRITE_SLOT)
+        shutil.rmtree(path, ignore_errors=True)
+        path.mkdir(parents=True, exist_ok=True)
+        target = path / SAVE_NAME
+        shutil.copy2(self.current_save, target)
+
+        info = Slot(
+            id=0,
+            comment=f"the world as it was, before {confirmed_by} confirmed a restore",
+            created_at=time.time(),
+            created_by=confirmed_by,
+            size_bytes=target.stat().st_size,
+            automatic=True,
+        )
+        self._write_info(OVERWRITE_SLOT, info)
+        self.logger.info("Preserved the current world in the overwrite slot")
+        return info
+
+    def get_overwrite(self) -> Optional[Slot]:
+        return self.get(OVERWRITE_SLOT)
+
+    # -- restoring -----------------------------------------------------------
+
+    async def restore(self, slot: "int | str") -> None:
+        """Put a slot's save in place. The server must be stopped.
 
         Writes to a temp file next to the target and renames, so an interrupted
         copy cannot leave a truncated save where the world used to be.
         """
-        source = self.path_of(snapshot)
+        source = self.save_path(slot)
         if not source.is_file():
-            raise SaveError(f"snapshot file is missing: {source}")
+            raise SaveError(f"slot {slot} has no save file")
         _verify_zip(source)
 
         self.current_save.parent.mkdir(parents=True, exist_ok=True)
@@ -225,51 +366,33 @@ class SaveManager:
         except Exception:
             temp.unlink(missing_ok=True)
             raise
-        self.logger.info("Restored %s onto %s", snapshot.filename, self.current_save)
+        self.logger.info("Restored slot %s onto %s", slot, self.current_save)
 
-    # -- delete / rotate -----------------------------------------------------
+    # -- editing -------------------------------------------------------------
 
-    def delete(self, snapshot_id: int) -> bool:
-        snapshot = self.get(snapshot_id)
-        if snapshot is None:
-            return False
-        self.path_of(snapshot).unlink(missing_ok=True)
-        self._snapshots.remove(snapshot)
-        self.save_index()
-        return True
+    def rename(self, slot: int, comment: str) -> Slot:
+        info = self.validate(slot)
+        info.comment = comment
+        self._write_info(slot, info)
+        return info
 
-    def rotate(self) -> list[Snapshot]:
-        """Drop snapshots past the count or age limit. Returns what was removed.
+    def delete(self, slot: int) -> Slot:
+        info = self.validate(slot)
+        shutil.rmtree(self.slot_path(slot), ignore_errors=True)
+        self.slot_path(slot).mkdir(parents=True, exist_ok=True)
+        self.logger.info("Deleted slot %s", slot)
+        return info
 
-        Only automatic snapshots are eligible: a human who typed a comment meant
-        to keep that one.
-        """
-        removed: list[Snapshot] = []
-        candidates = sorted(
-            (s for s in self._snapshots if s.automatic), key=lambda s: s.created_at
+    def total_size(self) -> int:
+        return sum(
+            path.stat().st_size
+            for path in self.snapshot_directory.rglob(SAVE_NAME)
+            if path.is_file()
         )
-        if self.max_age_days > 0:
-            for snapshot in list(candidates):
-                if snapshot.age_days > self.max_age_days:
-                    candidates.remove(snapshot)
-                    removed.append(snapshot)
-        if self.max_snapshots > 0:
-            surplus = len(self._snapshots) - len(removed) - self.max_snapshots
-            while surplus > 0 and candidates:
-                removed.append(candidates.pop(0))
-                surplus -= 1
-
-        for snapshot in removed:
-            self.path_of(snapshot).unlink(missing_ok=True)
-            self._snapshots.remove(snapshot)
-        if removed:
-            self.save_index()
-            self.logger.info("Rotated out %d snapshot(s)", len(removed))
-        return removed
 
 
 def _verify_zip(path: Path) -> None:
-    """A Factorio save is a zip; a broken one must never become a rollback target."""
+    """A Factorio save is a zip; a broken one must never become a restore target."""
     try:
         with zipfile.ZipFile(path) as archive:
             if archive.testzip() is not None:
@@ -278,6 +401,22 @@ def _verify_zip(path: Path) -> None:
                 raise SaveError(f"{path.name} is an empty archive")
     except zipfile.BadZipFile as exc:
         raise SaveError(f"{path.name} is not a valid save archive: {exc}") from exc
+    except FileNotFoundError as exc:
+        raise SaveError(f"{path} does not exist") from exc
+
+
+def format_duration(seconds: float) -> str:
+    seconds = int(seconds)
+    if seconds < 60:
+        return f"{seconds}s"
+    minutes, secs = divmod(seconds, 60)
+    if minutes < 60:
+        return f"{minutes}m"
+    hours, minutes = divmod(minutes, 60)
+    if hours < 24:
+        return f"{hours}h{minutes:02d}m"
+    days, hours = divmod(hours, 24)
+    return f"{days}d{hours:02d}h"
 
 
 def _slug(text: str) -> str:

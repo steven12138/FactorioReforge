@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import dataclasses
+import logging
 import shlex
 from pathlib import Path
 from typing import Any, Optional
@@ -30,14 +31,26 @@ class RconConfig:
 class SavesConfig:
     #: Directory Factorio itself loads from, i.e. ``<server>/saves``.
     save_directory: str = "server/factorio/saves"
-    #: The one save the server is launched with. Rollback overwrites this file,
+    #: The one save the server is launched with. Restoring overwrites this file,
     #: which is why the launch command must name it explicitly rather than using
     #: --start-server-load-latest.
     current_save: str = "server/factorio/saves/reforge.zip"
     snapshot_directory: str = "snapshots"
-    max_snapshots: int = 30
-    max_snapshot_age_days: int = 30
+
+    #: Delete protection per slot, in seconds, following QuickBackupM. A backup
+    #: always goes to slot 1 and pushes the rest down; the slot sacrificed to
+    #: make room is the first empty one, or the highest-numbered slot past its
+    #: protection. The last two entries keep a few hours and a few days of
+    #: history safe from a burst of backups. The length of this list is the
+    #: number of slots.
+    slot_protection: list[int] = dataclasses.field(
+        default_factory=lambda: [0, 0, 0, 3 * 60 * 60, 3 * 24 * 60 * 60]
+    )
+
+    #: Seconds to wait for the server to confirm it finished writing a save.
     save_timeout: float = 120.0
+    #: Seconds of in-game countdown before a restore actually happens.
+    restore_countdown: float = 10.0
 
 
 @dataclasses.dataclass
@@ -185,11 +198,30 @@ class Config:
         )
 
 
+#: Keys that used to be valid. Failing on these would break every config.yml
+#: written by an older version, so they are dropped with a note instead --
+#: while a genuine typo still errors, which is the point of checking at all.
+RETIRED_KEYS: dict[str, dict[str, str]] = {
+    "saves": {
+        "max_snapshots": "replaced by saves.slot_protection (its length is the slot count)",
+        "max_snapshot_age_days": "replaced by per-slot saves.slot_protection",
+    },
+}
+
+
 def _sub(klass, value: Optional[dict], name: str):
     if value is None:
         return klass()
     if not isinstance(value, dict):
         raise ConfigError(f"config key {name!r} must be a mapping")
+
+    value = dict(value)
+    for key, reason in RETIRED_KEYS.get(name, {}).items():
+        if value.pop(key, None) is not None:
+            logging.getLogger("reforge").warning(
+                "config.yml: %s.%s is no longer used -- %s", name, key, reason
+            )
+
     known = {f.name for f in dataclasses.fields(klass)}
     unknown = set(value) - known
     if unknown:

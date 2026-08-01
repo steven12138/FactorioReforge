@@ -205,8 +205,13 @@ class ServerInterface:
     async def snapshot(self, comment: str = "", *, created_by: str = "unknown"):
         return await self._server.create_snapshot(comment, created_by=created_by)
 
-    async def rollback(self, snapshot_id: int, *, countdown: float = 10.0, requested_by: str = "unknown"):
-        return await self._server.rollback(snapshot_id, countdown=countdown, requested_by=requested_by)
+    async def rollback(
+        self, slot: int, *, countdown: float = 10.0, requested_by: str = "unknown"
+    ):
+        """Restore a backup slot. Stops the server, swaps the world, starts it."""
+        return await self._server.rollback(
+            slot, countdown=countdown, requested_by=requested_by
+        )
 
     # -- permissions ---------------------------------------------------------
 
