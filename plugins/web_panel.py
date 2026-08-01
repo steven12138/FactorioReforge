@@ -163,6 +163,12 @@ def _start_http(server, config):
         def do_GET(self):  # noqa: N802 -- the base class dictates the name
             if self.path.startswith("/api"):
                 self._send(200, "application/json", _render_json())
+            elif self.path.startswith("/map.png"):
+                image = _latest_map()
+                if image is None:
+                    self._send(404, "text/plain", b"no map has been rendered yet")
+                else:
+                    self._send(200, "image/png", image)
             elif self.path in ("/", "/index.html"):
                 self._send(200, "text/html; charset=utf-8", _render_html())
             else:
@@ -188,6 +194,20 @@ def _start_http(server, config):
     thread.start()
     _state["httpd"], _state["thread"] = httpd, thread
     server.logger.info("web_panel is serving on http://%s:%s", host, port)
+
+
+def _latest_map() -> bytes | None:
+    """The most recent render from map_render, if that plugin is loaded."""
+    server = _state.get("server")
+    if server is None:
+        return None
+    plugin = server.get_plugin_instance("map_render")
+    if plugin is None:
+        return None
+    try:
+        return plugin.latest_png()
+    except Exception:
+        return None
 
 
 def _render_json() -> bytes:
@@ -260,6 +280,13 @@ def _render_html() -> bytes:
         if blueprints else '<p class=muted>Library is empty.</p>'
     )
 
+    map_html = (
+        '<a href="/map.png" title="open full size">'
+        '<img src="/map.png" alt="map overview" loading="lazy"></a>'
+        if _latest_map() is not None
+        else '<p class=muted>No map rendered yet. Run <code>!!map</code>.</p>'
+    )
+
     log_html = "<pre>" + esc("\n".join(_state.get("log") or [])) + "</pre>"
 
     error = (
@@ -301,6 +328,8 @@ def _render_html() -> bytes:
   pre {{ margin: 0; overflow-x: auto; font-size: 12px; line-height: 1.4;
          color: var(--muted); max-height: 22rem; }}
   figure {{ margin: 0 0 .75rem; color: var(--accent); }}
+  section img {{ max-width: 100%; height: auto; display: block; border-radius: 6px;
+                 image-rendering: pixelated; }}
   .error {{ color: #c0392b; }}
   .status {{ padding: .1rem .5rem; border-radius: 999px; font-size: .8rem;
              background: var(--accent); color: #fff; }}
@@ -318,6 +347,7 @@ def _render_html() -> bytes:
   {card(f"Online ({len(players)})", players_html)}
   {card("Recent snapshots", snapshots_html)}
   {card("Blueprints", bp_html)}
+  <div class="wide">{card("Map", map_html)}</div>
   <div class="wide">{card("Production", charts)}</div>
   <div class="wide">{card("Recent output", log_html)}</div>
 </div>

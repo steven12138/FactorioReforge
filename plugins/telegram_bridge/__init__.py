@@ -84,6 +84,20 @@ async def broadcast(text: str, *, html_escape: bool = False) -> None:
         await _service.broadcast(text, html_escape=html_escape)
 
 
+async def broadcast_photo(
+    data: bytes,
+    *,
+    caption: str = "",
+    filename: str = "image.png",
+    as_document: bool = False,
+) -> None:
+    """Push an image to every allowed chat. Plugins pass bytes, not telegram types."""
+    if _service is not None:
+        await _service.broadcast_photo(
+            data, caption=caption, filename=filename, as_document=as_document
+        )
+
+
 def is_ready() -> bool:
     return _service is not None and _service.is_ready()
 

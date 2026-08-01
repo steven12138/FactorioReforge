@@ -426,3 +426,94 @@ def validate_blueprint(blueprint: str) -> str:
         "return {ok = true, label = label, entities = entities and #entities or 0, "
         "counts = counts} end)()"
     ) % lua_string(blueprint)
+
+
+# ---------------------------------------------------------------------------
+# Map overview
+#
+# A headless server has no renderer: game.take_screenshot exists and accepts the
+# call, but produces no file (measured on 2.0.77). So the map is summarised into
+# one row per chunk and drawn on our side instead. A chunk is 32x32 tiles, which
+# is exactly the resolution a thumbnail wants.
+# ---------------------------------------------------------------------------
+
+def map_chunk_list(surface: str = "nauvis") -> str:
+    """Just the coordinates of every generated chunk, to size the image."""
+    return (
+        "(function() local s = game.get_surface(%s) local out = {} "
+        "for c in s.get_chunks() do out[#out+1] = {c.x, c.y} end "
+        "return out end)()"
+    ) % lua_string(surface)
+
+
+#: Tile classes, chosen so the map reads like the in-game one at a glance.
+#: Factorio has dozens of tile variants (dirt-1..7, red-desert-0..3); grouping
+#: them by name keeps the payload to one character per tile.
+TERRAIN_CLASSIFY = (
+    "(n:find('deepwater') and 'D') or (n:find('water') and 'W') "
+    "or (n:find('sand') and 'S') or (n:find('desert') and 'E') "
+    "or (n:find('grass') and 'G') or (n:find('dirt') and 'R') or '.'"
+)
+
+
+def map_terrain(surface: str, chunks: list, step: int = 1) -> str:
+    """Terrain for a batch of chunks, one character per sampled tile.
+
+    Returned as ``"cx,cy,<chars>;cx,cy,<chars>"`` rather than JSON: at one
+    character per tile the field names of a structured form would be most of
+    the payload. A whole 409-chunk world comes back in 421 KB at step 1, in
+    about half a second, so batching exists to keep any single RCON reply
+    modest rather than because the query is slow.
+    """
+    coords = ",".join(f"{{{int(x)},{int(y)}}}" for x, y in chunks)
+    return (
+        "(function() local s = game.get_surface(%s) local rows = {} "
+        "for _, c in pairs({%s}) do local buf = {} "
+        "local ox, oy = c[1] * 32, c[2] * 32 "
+        "for y = 0, 31, %d do for x = 0, 31, %d do "
+        "local n = s.get_tile(ox + x, oy + y).name "
+        "buf[#buf+1] = %s end end "
+        "rows[#rows+1] = c[1] .. ',' .. c[2] .. ',' .. table.concat(buf) end "
+        "return table.concat(rows, ';') end)()"
+    ) % (lua_string(surface), coords, int(step), int(step), TERRAIN_CLASSIFY)
+
+
+def map_entity_positions(surface: str, *, kind: str, limit: int = 200000) -> str:
+    """Positions of one entity family, as ``"x,y,name;..."``.
+
+    ``kind`` is ``resource``, ``tree``, or ``player`` for anything the player
+    force built -- the last being the part that actually shows the factory.
+    """
+    if kind == "player":
+        query = "{force = 'player', limit = %d}" % int(limit)
+        with_name = "false"
+    else:
+        query = "{type = %s, limit = %d}" % (lua_string(kind), int(limit))
+        with_name = "true" if kind == "resource" else "false"
+
+    return (
+        "(function() local s = game.get_surface(%s) local out = {} "
+        "for _, e in pairs(s.find_entities_filtered%s) do "
+        "out[#out+1] = math.floor(e.position.x) .. ',' .. math.floor(e.position.y) "
+        "%s end "
+        "return table.concat(out, ';') end)()"
+    ) % (
+        lua_string(surface),
+        query,
+        ".. ',' .. e.name" if with_name == "true" else "",
+    )
+
+
+def map_markers(surface: str = "nauvis") -> str:
+    """Chart tags and connected players, for annotating the rendered map."""
+    return (
+        "(function() local s = game.get_surface(%s) local tags = {} "
+        "for _, t in pairs(game.forces.player.find_chart_tags(s)) do "
+        "tags[#tags+1] = {x = t.position.x, y = t.position.y, text = t.text} end "
+        "local players = {} "
+        "for _, p in pairs(game.connected_players) do "
+        "if p.physical_surface == s then "
+        "players[#players+1] = {x = p.physical_position.x, y = p.physical_position.y, "
+        "name = p.name} end end "
+        "return {tags = tags, players = players} end)()"
+    ) % lua_string(surface)

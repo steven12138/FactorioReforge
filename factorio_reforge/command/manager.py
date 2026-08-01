@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 
 from factorio_reforge.command.builder import (
     ArgumentNode,
@@ -15,9 +16,17 @@ from factorio_reforge.command.source import CommandSource
 
 
 class CommandManager:
-    def __init__(self, prefix: str = "!!", logger: logging.Logger | None = None):
+    def __init__(
+        self,
+        prefix: str = "!!",
+        logger: logging.Logger | None = None,
+        interface_for: Callable[[str], object] | None = None,
+    ):
         self.prefix = prefix
         self.logger = logger or logging.getLogger(__name__)
+        #: Resolves a plugin id to that plugin's ServerInterface. Set by the
+        #: core; without it, handlers get the core-wide interface.
+        self.interface_for = interface_for
         #: root literal -> [(plugin_id, node)]; a list so a collision is visible
         #: rather than silently overwriting whichever plugin loaded first.
         self._roots: dict[str, list[tuple[str, ArgumentNode]]] = {}
@@ -63,7 +72,13 @@ class CommandManager:
             return False
 
         errors: list[str] = []
+        original = source.server
         for plugin_id, node in entries:
+            # Hand the handler its *own* plugin's interface, so `source.server`
+            # is the same object `on_load` was given. Otherwise a plugin command
+            # gets the core interface, which has no get_data_folder or
+            # register_command, and the difference is invisible until it is not.
+            source.server = self._interface(plugin_id, original)
             try:
                 await node.execute(source, tokens, CommandContext(source))
                 return True
@@ -73,6 +88,14 @@ class CommandManager:
                 self.logger.exception("Plugin %r raised while handling %r", plugin_id, text)
                 await source.reply(f"Command failed: internal error in plugin {plugin_id}")
                 return True
+            finally:
+                source.server = original
 
         await source.reply(errors[0] if errors else f"Unknown command: {tokens[0]}")
         return True
+
+    def _interface(self, plugin_id: str, fallback):
+        """The owning plugin's interface, or the core one for built-ins."""
+        if self.interface_for is None:
+            return fallback
+        return self.interface_for(plugin_id) or fallback

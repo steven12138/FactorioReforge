@@ -1,0 +1,97 @@
+# Core translations. English is the fallback for every other language, so a key
+# missing here will render as the key itself -- which is the intent: a visible
+# `save.no_slot` in chat says exactly what to add.
+
+common:
+  yes: "yes"
+  no: "no"
+  none: "none"
+  empty: "empty"
+  unknown: "unknown"
+  console: console
+  cancelled: Cancelled
+  nothing_to_cancel: Nothing to cancel
+
+server:
+  starting: Starting...
+  already_running: The server is already running
+  stopping: Stopping the server...
+  stopped: Server stopped
+  restarting: Restarting the server...
+  not_running: The server is not running
+  killing: "SIGKILL -- everything since the last save is lost"
+  exiting: Stopping the server, then exiting
+  startup_complete: Server startup complete
+  rcon_connected: RCON connected
+
+status:
+  header: "FactorioReforge {version} - up {uptime}"
+  server: "Server: {state}"
+  server_with_pid: "Server: {state} (pid {pid}, up {uptime})"
+  rcon: "RCON: {state}"
+  connected: connected
+  disconnected: not connected
+  plugins: "Plugins: {count} loaded"
+  backups: "Backups: {count} slots in use"
+  online: "Online ({count}): {names}"
+  online_unavailable: "Online: unavailable ({error})"
+
+plugin:
+  none_loaded: No plugins loaded
+  count: "{count} plugin(s):"
+  file_changed: " [file changed]"
+  reloaded: "Reloaded {id}"
+  reload_failed: "Could not reload {id}"
+  unloaded: "Unloaded {id}"
+  not_found: "No such plugin: {id}"
+  reloaded_changed: "Reloaded: {names}"
+  nothing_changed: No plugin files have changed
+
+permission:
+  default: "Default level: {level}"
+  no_overrides: No per-player overrides
+  changed: "{player} is now {level}"
+  denied: Permission denied
+  requires: "Requires permission {level}"
+
+save:
+  saving: Saving...
+  created: "Backed up to {slot}"
+  failed: "Backup failed: {error}"
+  no_slot: "No slot free: {error}"
+  header: "Backup slots ({size} MiB total):"
+  slot_empty: "  slot {slot}: empty"
+  protected: "  [protected for another {duration}]"
+  protection_expired: "  [protection expired]"
+  overwrite: "  overwrite: {time} - the world from before the last restore"
+  restore_hint: "Restore with '{prefix} back <slot>', then '{prefix} confirm'."
+  about_to_restore: "About to restore {slot}"
+  confirm_hint: >-
+    This stops the server and replaces the current world.
+    '{prefix} confirm' within {seconds}s to go ahead, '{prefix} abort' to cancel.
+  nothing_staged: "Nothing staged. Start with '{prefix} back <slot>'"
+  confirm_expired: That confirmation expired; run the command again
+  restored: "Restored {slot}"
+  restore_failed: "Restore failed: {error}"
+  cancelling_countdown: Cancelling the restore that is counting down
+  deleted: "Deleted {slot}"
+  renamed: "Renamed: {slot}"
+  countdown: "[FactorioReforge] Restoring slot {slot} ({time}) in {seconds}s -- {prefix} abort to cancel"
+  countdown_cancelled: "[FactorioReforge] Restore cancelled"
+
+help:
+  header: "FactorioReforge {version}"
+  status: "server and framework state"
+  plugin_list: "loaded plugins"
+  plugin_reload: "reload one plugin"
+  reload: "reload every changed plugin"
+  server: "start, stop, restart or kill the server"
+  permission: "view or change permissions"
+  exit: "stop the server and quit"
+
+error:
+  rcon_down: "RCON is not connected"
+  lookup_failed: "Could not look that up: {error}"
+  unknown_command: "Unknown command: {command}"
+  internal: "Command failed: internal error in plugin {plugin}"
+  console_only: "That only works in game -- the console has no position."

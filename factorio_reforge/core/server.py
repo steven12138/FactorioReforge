@@ -51,7 +51,9 @@ class ReforgeServer:
         self.permissions = PermissionManager(
             config.resolve("config") / "permission.yml", config.default_permission_level
         )
-        self.commands = CommandManager(config.command_prefix, self.logger)
+        self.commands = CommandManager(
+            config.command_prefix, self.logger, interface_for=self._plugin_interface
+        )
         self.saves = SaveManager(
             config.current_save_path,
             config.snapshot_dir_path,
@@ -88,6 +90,11 @@ class ReforgeServer:
         self._expect_stop = False
         self._crash_watch: asyncio.Task | None = None
         self.started_at = time.monotonic()
+
+    def _plugin_interface(self, plugin_id: str):
+        """Look up a plugin's own ServerInterface by id."""
+        plugin = self.plugins.get(plugin_id)
+        return plugin.interface if plugin else None
 
     # -- console output ------------------------------------------------------
 

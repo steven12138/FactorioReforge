@@ -19,6 +19,7 @@ from __future__ import annotations
 import asyncio
 import dataclasses
 import html
+import io
 import logging
 import time
 from collections.abc import Awaitable, Callable
@@ -42,9 +43,27 @@ class TelegramContext:
     level: str
     _reply: Callable[[str], Awaitable[None]]
     _confirm: Callable[..., Awaitable[bool]]
+    _send_photo: Callable[..., Awaitable[None]]
 
     async def reply(self, text: str) -> None:
         await self._reply(text)
+
+    async def send_photo(
+        self, data: bytes, *, caption: str = "", filename: str = "image.png"
+    ) -> None:
+        """Reply with an image. Bytes in, no telegram types out."""
+        await self._send_photo(data, caption, filename, False)
+
+    async def send_image_file(
+        self, data: bytes, *, caption: str = "", filename: str = "image.png"
+    ) -> None:
+        """Reply with an image as a *document*, so Telegram does not recompress it.
+
+        Telegram re-encodes anything sent as a photo, which turns a map where a
+        single pixel is a single tile into mush. Sent as a document it arrives
+        byte-for-byte, and clients still show a preview.
+        """
+        await self._send_photo(data, caption, filename, True)
 
     async def confirm(self, question: str, *, timeout: float = 60.0) -> bool:
         """Ask for a yes/no with inline buttons. Returns False on timeout.
@@ -120,6 +139,36 @@ class TelegramService:
         return self.app is not None
 
     # -- outbound ------------------------------------------------------------
+
+    async def broadcast_photo(
+        self,
+        data: bytes,
+        *,
+        caption: str = "",
+        filename: str = "image.png",
+        as_document: bool = False,
+    ) -> None:
+        """Push an image to every allowed chat.
+
+        ``as_document`` avoids Telegram's photo recompression, which matters for
+        anything with fine detail -- a map at one pixel per tile survives as a
+        document and does not as a photo.
+        """
+        if self.app is None:
+            return
+        for chat_id in self.config.get("allowed_chat_ids", []):
+            try:
+                payload = _as_input_file(data, filename)
+                if as_document:
+                    await self.app.bot.send_document(
+                        chat_id=chat_id, document=payload, caption=caption[:1024]
+                    )
+                else:
+                    await self.app.bot.send_photo(
+                        chat_id=chat_id, photo=payload, caption=caption[:1024]
+                    )
+            except Exception:
+                self.logger.warning("Could not send an image to chat %s", chat_id, exc_info=True)
 
     async def broadcast(self, text: str, *, html_escape: bool = False) -> None:
         """Send to every allowed chat. Safe to call when the bot is not up."""
@@ -218,6 +267,15 @@ class TelegramService:
         async def confirm(question: str, *, timeout: float = 60.0) -> bool:
             return await self._ask_confirm(message, question, timeout)
 
+        async def send_photo(
+            data: bytes, caption: str, filename: str, as_document: bool
+        ) -> None:
+            payload = _as_input_file(data, filename)
+            if as_document:
+                await message.reply_document(document=payload, caption=caption[:1024])
+            else:
+                await message.reply_photo(photo=payload, caption=caption[:1024])
+
         return TelegramContext(
             args=list(context.args or []),
             text=" ".join(context.args or []),
@@ -227,6 +285,7 @@ class TelegramService:
             level=level,
             _reply=reply,
             _confirm=confirm,
+            _send_photo=send_photo,
         )
 
     # -- confirmation buttons ------------------------------------------------
@@ -287,3 +346,10 @@ def _chunk(text: str, size: int) -> list[str]:
     if current:
         chunks.append(current)
     return chunks
+
+
+def _as_input_file(data: bytes, filename: str):
+    """Wrap raw bytes for python-telegram-bot without leaking its types outward."""
+    from telegram import InputFile
+
+    return InputFile(io.BytesIO(data), filename=filename)

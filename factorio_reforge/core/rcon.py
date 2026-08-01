@@ -24,8 +24,16 @@ SERVERDATA_EXECCOMMAND = 2
 SERVERDATA_RESPONSE_VALUE = 0
 
 _AUTH_FAILED_ID = -1
-_MAX_PACKET = 4096 + 16
-#: A reply at or above this length was probably truncated into more packets.
+
+#: A sanity bound, not a protocol limit. The Source spec caps a packet body at
+#: 4096, but Factorio does not honour that -- a whole-map query came back in a
+#: single 5879-byte packet, and rejecting it lost the reply. This only exists to
+#: stop a desynced stream from being read as a gigantic length.
+_MAX_PACKET = 16 * 1024 * 1024
+
+#: A reply at least this long *might* have been split across packets, so wait
+#: briefly for more. Factorio usually does not split, so this costs a short
+#: pause on large replies rather than being the normal path.
 _SPLIT_THRESHOLD = 4000
 _CONTINUATION_WAIT = 0.3
 
