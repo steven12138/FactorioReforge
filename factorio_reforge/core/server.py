@@ -74,7 +74,10 @@ class ReforgeServer:
             )
 
         self._save_completed = asyncio.Event()
+        #: Set when shutdown *begins*; guards against re-entry.
         self._exiting = asyncio.Event()
+        #: Set when shutdown has *finished*; what wait_for_exit waits on.
+        self._exited = asyncio.Event()
         self._rollback_in_progress = False
         self._expect_stop = False
         self._crash_watch: Optional[asyncio.Task] = None
@@ -171,23 +174,37 @@ class ReforgeServer:
                 await self.start_server()
 
     async def shutdown(self, *, stop_server: bool = True) -> None:
+        """Stop the server and tear FactorioReforge down.
+
+        A second caller waits for the first to finish rather than returning
+        straight away: two Ctrl-C presses should not let the program exit while
+        the first shutdown is still saving the map.
+        """
         if self._exiting.is_set():
+            await self._exited.wait()
             return
         self._exiting.set()
         self.logger.info("Shutting down FactorioReforge")
-        if self._crash_watch is not None:
-            self._crash_watch.cancel()
-            with contextlib.suppress(asyncio.CancelledError):
-                await self._crash_watch
-        if stop_server:
-            await self.stop_server()
-        await self.plugins.dispatch(ev.REFORGE_STOP)
-        await self.plugins.unload_all()
-        if self.rcon is not None:
-            await self.rcon.stop()
+        try:
+            if self._crash_watch is not None:
+                self._crash_watch.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await self._crash_watch
+            if stop_server:
+                await self.stop_server()
+            await self.plugins.dispatch(ev.REFORGE_STOP)
+            await self.plugins.unload_all()
+            if self.rcon is not None:
+                await self.rcon.stop()
+        finally:
+            # Only now is it safe for main() to return. Setting this at the top
+            # -- as _exiting is -- let asyncio.run() cancel the shutdown while
+            # it was still stopping the server, so Ctrl-C left Factorio running.
+            self._exited.set()
 
     async def wait_for_exit(self) -> None:
-        await self._exiting.wait()
+        """Block until a shutdown has run to completion."""
+        await self._exited.wait()
 
     @property
     def is_exiting(self) -> bool:

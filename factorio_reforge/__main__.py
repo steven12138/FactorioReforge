@@ -57,21 +57,31 @@ async def run(config: Config) -> int:
     await server.boot()
     print(BANNER.format(prefix=config.command_prefix))
 
-    console = ConsoleReader(server.feed_console, logger=logger)
-    console.start()
-
     loop = asyncio.get_running_loop()
     stopping = False
 
     def request_shutdown() -> None:
+        """Stop the server, then exit. Called by a signal or by the console.
+
+        A second request escalates to SIGKILL, because the usual reason for
+        pressing Ctrl-C twice is that the first shutdown appears stuck.
+        """
         nonlocal stopping
         if stopping:
             logger.warning("Second interrupt -- killing the server now")
             asyncio.create_task(server.interface.kill())
             return
         stopping = True
-        logger.info("Interrupt received; stopping the server gracefully")
+        logger.info("Stopping the server, then exiting")
         asyncio.create_task(server.shutdown(stop_server=True))
+
+    # The console gets this too. On an interactive terminal prompt_toolkit runs
+    # in raw mode and consumes Ctrl-C itself, so the signal handler below never
+    # fires and this is the only path that notices.
+    console = ConsoleReader(
+        server.feed_console, on_interrupt=request_shutdown, logger=logger
+    )
+    console.start()
 
     for sig in (signal.SIGINT, signal.SIGTERM):
         with contextlib.suppress(NotImplementedError):
