@@ -1,0 +1,47 @@
+help: search and install mods
+usage:
+  - "!!mod search <query>      find mods on the portal"
+  - "!!mod info <name>         details for one mod"
+  - "!!mod list                what is installed"
+  - "!!mod install <name> [v]  install it (admin)"
+  - "!!mod remove <name>       uninstall (admin)"
+  - "!!mod enable|disable <n>  toggle without removing (admin)"
+  - "!!mod updates             what has a newer release (admin)"
+  - "!!mod refresh             refetch the portal index (admin)"
+search:
+  searching: "Searching the portal for {query!r}..."
+  failed: "Search failed: {error}"
+  nothing: "Nothing matched. Try a shorter query, or !!mod refresh."
+  header: "{count} result(s):"
+info:
+  title: "{title} ({name}) by {owner}"
+  downloads: "  Downloads: {count}"
+  latest: "  Latest: v{version} for Factorio {factorio}"
+  requires: "  Requires: {deps}"
+  installed: "  Installed: {mod}"
+list:
+  header: "{count} mod(s) installed beyond the base game:"
+  none: "  (none)"
+install:
+  starting: "Installing {name}{version}..."
+  failed: "Install failed: {error}"
+  installed: "  installed {mod}"
+remove:
+  not_installed: "{name} is not installed."
+  done: "Removed {name}."
+toggle:
+  enabled: "Enabled {name}."
+  disabled: "Disabled {name}."
+updates:
+  checking: "Checking the portal for updates (this can take a moment)..."
+  failed: "Update check failed: {error}"
+  none: Everything is up to date.
+  header: "{count} update(s) available:"
+  entry: "  {name}: v{current} -> v{latest}"
+  hint: "Install them with !!mod install <name>"
+refresh:
+  starting: "Refetching the portal index (~14s, 22k mods)..."
+  failed: "Refresh failed: {error}"
+  done: "Index refreshed: {count} mods."
+restart_needed: "Restart the server for this to take effect (!!FR server restart). Players will need the same mods to reconnect."
+restart_note: "(the running server will rewrite mod-list.json when it stops; FactorioReforge reapplies this change at that point)"

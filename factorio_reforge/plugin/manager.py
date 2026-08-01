@@ -45,6 +45,19 @@ class PluginError(Exception):
     pass
 
 
+def plugin_lang_dir(path: Path, plugin_id: str) -> Path:
+    """Where a plugin's ``<language>.yml`` files live.
+
+    A multi-file plugin keeps them inside its own package. A solo ``.py`` has
+    nowhere of its own, so it gets ``plugins/lang/<plugin_id>/`` -- pointing
+    every solo plugin at a shared ``plugins/lang/`` would have them overwrite
+    each other's keys, since a catalogue is loaded under one namespace at a time.
+    """
+    if path.is_dir():
+        return path / "lang"
+    return path.parent / "lang" / plugin_id
+
+
 class _NoBytecodeCacheLoader(importlib.machinery.SourceFileLoader):
     """Always compile from source, never from ``__pycache__``.
 
@@ -193,9 +206,7 @@ class PluginManager:
 
         plugin.interface = PluginServerInterface(self.server, plugin)
         self.plugins[plugin.id] = plugin
-        # A plugin may ship lang/<language>.yml beside its code; those keys land
-        # under its own id so two plugins can share key names.
-        lang_dir = (plugin.path if plugin.path.is_dir() else plugin.path.parent) / "lang"
+        lang_dir = plugin_lang_dir(plugin.path, plugin.id)
         if lang_dir.is_dir():
             count = self.server.i18n.load_directory(lang_dir, namespace=plugin.id)
             if count:

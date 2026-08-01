@@ -1,0 +1,27 @@
+help: web panel address
+disabled: web_panel is disabled in its config.
+not_serving: "web_panel is not serving -- check the log for a bind error."
+serving: "Serving on http://{host}:{port} (JSON at /api). Read-only."
+page:
+  status: Status
+  rcon: RCON
+  uptime: Uptime
+  surface: Surface
+  played: Played
+  evolution: Evolution
+  pollution: Pollution
+  research: Research
+  overview: Overview
+  online: "Online ({count})"
+  nobody: Nobody online.
+  backups: Recent backups
+  no_backups: No backups.
+  blueprints: Blueprints
+  no_blueprints: Library is empty.
+  map: Map
+  no_map: "No map rendered yet. Run !!map."
+  production: Production
+  no_production: No production samples yet.
+  log: Recent output
+  updated: "updated {age}s ago · read-only"
+  unavailable: "Some data is unavailable: {error}"

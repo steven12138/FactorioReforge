@@ -1,0 +1,12 @@
+help: render an overview of the map
+cooldown: "The map was just rendered -- try again in {seconds}s."
+rendering: Rendering the map...
+failed: "Could not render the map: {error}"
+size: "{width}x{height} px, {tiles} tiles across at {step} tile(s) per pixel"
+contents: "  {built} built entities, {trees} trees, {tags} markers"
+ore: "  ore: {items}"
+written: "  written to {path}"
+sent: "  also sent to Telegram"
+caption: "Map overview - {tiles} tiles across"
+tg_caption: "{tiles} tiles across · {built} built entities · {players} online"
+not_ready: The map plugin is not ready.

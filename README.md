@@ -618,11 +618,28 @@ so a partial translation stays usable.
 !!FR lang missing zh_cn    the specific keys still to translate
 ```
 
+**All thirteen bundled plugins are translated**, not just the core.
+
 To add a language, copy `factorio_reforge/lang/en.yml` to `<code>.yml` beside
-it and translate the values. A plugin can ship its own `lang/` directory; its
-keys are namespaced under the plugin id, so `server.tr("failed")` inside a
-plugin finds `<plugin_id>.failed` and falls through to the core catalogue for
-shared strings.
+it and translate the values, then do the same under `plugins/lang/<plugin_id>/`
+for each plugin. Keys are namespaced under the plugin id, so
+`server.tr("failed")` inside a plugin finds `<plugin_id>.failed` and falls
+through to the core catalogue for shared strings like `common.yes`.
+
+Where the files live:
+
+| Plugin shape | Its translations |
+|---|---|
+| solo, `plugins/warp.py` | `plugins/lang/warp/<code>.yml` |
+| package, `plugins/telegram_bridge/` | `plugins/telegram_bridge/lang/<code>.yml` |
+
+A solo plugin gets its own subdirectory rather than a shared `plugins/lang/`,
+because a catalogue is loaded under one namespace at a time and they would
+otherwise overwrite each other.
+
+Tests assert that every bundled plugin ships both languages, that neither has
+keys the other lacks, and that matching keys carry the same placeholders — a
+key whose placeholders drift would format wrongly in one language only.
 
 A missing key renders as the key itself rather than as blank text — a visible
 `save.restore.confirm` in chat says exactly what to add.

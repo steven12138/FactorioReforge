@@ -1,0 +1,47 @@
+help: 搜索并安装 mod
+usage:
+  - "!!mod search <关键词>      在门户搜索"
+  - "!!mod info <名字>          单个 mod 的详情"
+  - "!!mod list                 已安装的 mod"
+  - "!!mod install <名字> [版本] 安装（admin）"
+  - "!!mod remove <名字>        卸载（admin）"
+  - "!!mod enable|disable <名字> 启用/禁用但不删除（admin）"
+  - "!!mod updates              有新版本的（admin）"
+  - "!!mod refresh              重新抓取门户索引（admin）"
+search:
+  searching: "正在门户搜索 {query!r}……"
+  failed: "搜索失败：{error}"
+  nothing: "没有匹配结果。换个短一点的关键词，或者 !!mod refresh。"
+  header: "共 {count} 条结果："
+info:
+  title: "{title}（{name}），作者 {owner}"
+  downloads: "  下载量：{count}"
+  latest: "  最新版：v{version}，适用 Factorio {factorio}"
+  requires: "  依赖：{deps}"
+  installed: "  已安装：{mod}"
+list:
+  header: "基础游戏之外已安装 {count} 个 mod："
+  none: "  （无）"
+install:
+  starting: "正在安装 {name}{version}……"
+  failed: "安装失败：{error}"
+  installed: "  已安装 {mod}"
+remove:
+  not_installed: "{name} 没有安装。"
+  done: "已移除 {name}。"
+toggle:
+  enabled: "已启用 {name}。"
+  disabled: "已禁用 {name}。"
+updates:
+  checking: "正在向门户检查更新（可能要等一会）……"
+  failed: "检查更新失败：{error}"
+  none: 全部都是最新的。
+  header: "有 {count} 个可更新："
+  entry: "  {name}：v{current} -> v{latest}"
+  hint: "用 !!mod install <名字> 安装"
+refresh:
+  starting: "正在重新抓取门户索引（约 14 秒，2.2 万个 mod）……"
+  failed: "刷新失败：{error}"
+  done: "索引已刷新：{count} 个 mod。"
+restart_needed: "需要重启服务器才会生效（!!FR server restart）。玩家也必须有相同的 mod 才能重连。"
+restart_note: "（运行中的服务器停止时会重写 mod-list.json，FactorioReforge 会在那之后重新应用这次改动）"

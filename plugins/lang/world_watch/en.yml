@@ -1,0 +1,19 @@
+help: alert and milestone state
+alert:
+  evolution: "⚠️ Evolution has passed {threshold} (now {value})"
+  evolution_detail: "Biters are getting stronger -- time to check the defences."
+  pollution: "⚠️ Pollution has passed {threshold} (now {value})"
+  pollution_detail: "A bigger cloud reaches more nests, which means bigger attacks."
+milestone:
+  first_rocket: "🚀 The first rocket has launched!"
+  rocket: "🚀 Rocket #{count} launched"
+  research: "🔬 Research complete: {tag} {name}"
+status:
+  failed: "Could not read the world: {error}"
+  evolution: "Evolution: {value}"
+  pollution: "Pollution: {value}"
+  research: "Research: {done}/{total} done{current}"
+  researching: ", now on {name}"
+  idle: ", idle"
+  rockets: "Rockets launched: {count}"
+  next_alert: "Next evolution alert at {threshold}"

@@ -244,27 +244,19 @@ def _register_commands(server):
         .then(Literal("updates").requires(admin).runs(_cmd_updates))
         .then(Literal("refresh").requires(admin).runs(_cmd_refresh))
     )
-    server.register_help_message("!!mod", "search and install mods", PermissionLevel.USER)
+    server.register_help_message("!!mod", server.tr("help"), PermissionLevel.USER)
 
 
 async def _cmd_help(source):
-    for line in (
-        "!!mod search <query>      find mods on the portal",
-        "!!mod info <name>         details for one mod",
-        "!!mod list                what is installed",
-        "!!mod install <name> [v]  install it (admin)",
-        "!!mod remove <name>       uninstall (admin)",
-        "!!mod enable|disable <n>  toggle without removing (admin)",
-        "!!mod updates             what has a newer release (admin)",
-        "!!mod refresh             refetch the portal index (admin)",
-    ):
-        await source.reply(line)
+    tr = source.server.tr
+    for index in range(8):
+        await source.reply(tr(f"usage.{index}"))
 
 
 async def _cmd_search(source, ctx):
     portal = _state["portal"]
     query = ctx["query"]
-    await source.reply(f"Searching the portal for {query!r}...")
+    await source.reply(source.server.tr("search.searching", query=query))
     try:
         results = await portal.search(
             query,
@@ -272,12 +264,12 @@ async def _cmd_search(source, ctx):
             factorio_version=_target_version(),
         )
     except PortalError as exc:
-        await source.reply(f"Search failed: {exc}")
+        await source.reply(source.server.tr("search.failed", error=exc))
         return
     if not results:
-        await source.reply("Nothing matched. Try a shorter query, or !!mod refresh.")
+        await source.reply(source.server.tr("search.nothing"))
         return
-    await source.reply(f"{len(results)} result(s):")
+    await source.reply(source.server.tr("search.header", count=len(results)))
     for mod in results:
         await source.reply(f"  {mod.describe()}")
 
@@ -291,39 +283,40 @@ async def _cmd_info(source, ctx):
         await source.reply(str(exc))
         return
 
-    await source.reply(f"{data.get('title', name)} ({name}) by {data.get('owner', '?')}")
+    tr = source.server.tr
+    await source.reply(tr("info.title", title=data.get("title", name), name=name,
+                          owner=data.get("owner", "?")))
     if data.get("summary"):
         await source.reply(f"  {data['summary']}")
-    await source.reply(f"  Downloads: {data.get('downloads_count', 0):,}")
+    await source.reply(tr("info.downloads", count=f"{data.get('downloads_count', 0):,}"))
     if releases:
         latest = releases[-1]
-        await source.reply(
-            f"  Latest: v{latest.version} for Factorio {latest.factorio_version}"
-        )
+        await source.reply(tr("info.latest", version=latest.version,
+                              factorio=latest.factorio_version))
         required = latest.required_dependencies()
         if required:
-            await source.reply(
-                "  Requires: " + ", ".join(f"{n}{(' ' + s) if s else ''}" for n, s in required)
-            )
+            await source.reply(tr("info.requires", deps=", ".join(
+                f"{n}{(' ' + s) if s else ''}" for n, s in required)))
     installed = _state["mods"].get_installed(name)
     if installed:
-        await source.reply(f"  Installed: {installed.describe()}")
+        await source.reply(tr("info.installed", mod=installed.describe()))
 
 
 async def _cmd_list(source):
     mods = _state["mods"].list_installed()
     extra = [mod for mod in mods if not mod.builtin]
-    await source.reply(f"{len(extra)} mod(s) installed beyond the base game:")
+    await source.reply(source.server.tr("list.header", count=len(extra)))
     for mod in extra:
         await source.reply(f"  {mod.describe()}")
     if not extra:
-        await source.reply("  (none)")
+        await source.reply(source.server.tr("list.none"))
 
 
 async def _cmd_install(source, ctx):
     name = ctx["name"]
     version = ctx.get("version")
-    await source.reply(f"Installing {name}{f' v{version}' if version else ''}...")
+    await source.reply(source.server.tr(
+        "install.starting", name=name, version=f" v{version}" if version else ""))
     try:
         installed = await _state["mods"].install(
             name,
@@ -332,12 +325,12 @@ async def _cmd_install(source, ctx):
             with_dependencies=_state["config"].get("install_dependencies", True),
         )
     except (AuthRequired, PortalError, ModError) as exc:
-        await source.reply(f"Install failed: {exc}")
+        await source.reply(source.server.tr("install.failed", error=exc))
         return
 
     _state["recent_change"] = f"installed {name}"
     for mod in installed:
-        await source.reply(f"  installed {mod.describe()}")
+        await source.reply(source.server.tr("install.installed", mod=mod.describe()))
     await _warn_restart(source)
 
 
@@ -348,9 +341,9 @@ async def _cmd_remove(source, ctx):
         await source.reply(str(exc))
         return
     if not removed:
-        await source.reply(f"{ctx['name']} is not installed.")
+        await source.reply(source.server.tr("remove.not_installed", name=ctx["name"]))
         return
-    await source.reply(f"Removed {ctx['name']}.")
+    await source.reply(source.server.tr("remove.done", name=ctx["name"]))
     await _warn_restart(source)
 
 
@@ -369,50 +362,46 @@ async def _toggle(source, name, enabled):
         await source.reply(str(exc))
         return
     if not ok:
-        await source.reply(f"{name} is not installed.")
+        await source.reply(source.server.tr("remove.not_installed", name=name))
         return
-    await source.reply(f"{'Enabled' if enabled else 'Disabled'} {name}.")
+    await source.reply(source.server.tr(
+        "toggle.enabled" if enabled else "toggle.disabled", name=name))
     await _warn_restart(source)
 
 
 async def _cmd_updates(source):
-    await source.reply("Checking the portal for updates (this can take a moment)...")
+    await source.reply(source.server.tr("updates.checking"))
     try:
         updates = await _state["mods"].check_updates(_target_version())
     except PortalError as exc:
-        await source.reply(f"Update check failed: {exc}")
+        await source.reply(source.server.tr("updates.failed", error=exc))
         return
     if not updates:
-        await source.reply("Everything is up to date.")
+        await source.reply(source.server.tr("updates.none"))
         return
-    await source.reply(f"{len(updates)} update(s) available:")
+    await source.reply(source.server.tr("updates.header", count=len(updates)))
     for mod, release in updates:
-        await source.reply(f"  {mod.name}: v{mod.version} -> v{release.version}")
-    await source.reply("Install them with !!mod install <name>")
+        await source.reply(source.server.tr(
+            "updates.entry", name=mod.name, current=mod.version, latest=release.version))
+    await source.reply(source.server.tr("updates.hint"))
 
 
 async def _cmd_refresh(source):
-    await source.reply("Refetching the portal index (~14s, 22k mods)...")
+    await source.reply(source.server.tr("refresh.starting"))
     try:
         index = await _state["portal"].get_index(force=True)
     except PortalError as exc:
-        await source.reply(f"Refresh failed: {exc}")
+        await source.reply(source.server.tr("refresh.failed", error=exc))
         return
-    await source.reply(f"Index refreshed: {len(index)} mods.")
+    await source.reply(source.server.tr("refresh.done", count=len(index)))
 
 
 async def _warn_restart(source):
-    await source.reply(
-        "Restart the server for this to take effect (!!FR server restart). "
-        "Players will need the same mods to reconnect."
-    )
+    await source.reply(source.server.tr("restart_needed"))
     if source.server.is_server_running():
         # Be explicit rather than let it look like nothing happened: the file on
         # disk will be overwritten by the running server and put back by us.
-        await source.reply(
-            "(the running server will rewrite mod-list.json when it stops; "
-            "FactorioReforge reapplies this change at that point)"
-        )
+        await source.reply(source.server.tr("restart_note"))
 
 
 # ---------------------------------------------------------------------------

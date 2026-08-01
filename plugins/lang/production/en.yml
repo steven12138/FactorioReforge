@@ -1,0 +1,27 @@
+help: production rates
+overview:
+  nothing_watched: "Nothing is being watched. Add items with !!prod watch <item>"
+  header: "Production over the last minute:"
+  entry: "  {item}: {rate}/min{spark}"
+  unavailable: "  {item}: unavailable ({error})"
+  no_history: "  (no history yet)"
+item:
+  failed: "Could not read production for {item}: {error}"
+  none: "No production data for {item!r}."
+  header: "{item}:"
+  rates: "  {produced}/min produced, {consumed}/min consumed"
+  total: "  {total} produced in total"
+  history: "  {spark}  ({minutes}min samples)"
+unknown:
+  no_such_item: "There is no item called {item!r}."
+  internal_names: "Factorio wants internal names, like 'iron-plate' rather than 'iron'."
+  did_you_mean: "Did you mean: {items}"
+  try_top: "Try !!prod top to see what this factory produces."
+top:
+  failed: "Could not read the totals: {error}"
+  nothing: Nothing has been produced yet.
+  header: "Most-produced items, all time:"
+  entry: "  {name}: {count}"
+watch:
+  already: "{item} is already watched."
+  added: "Now sampling {item}. It will appear once the next sample runs."

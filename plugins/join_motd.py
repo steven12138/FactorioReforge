@@ -24,16 +24,12 @@ PLUGIN_METADATA = {
     "dependencies": {"factorio_reforge": ">=0.1.0"},
 }
 
+#: An empty "lines" means "use the translated default", so a zh_cn server gets
+#: a Chinese greeting without anyone editing config.json. Put lines here to
+#: override, and they are used verbatim in every language.
 DEFAULT_CONFIG = {
     "enabled": True,
-    "lines": [
-        "=== Welcome, {player}! ===",
-        "Day {day} of this world - {uptime} played",
-        "{online} online now, {total} have ever joined",
-        "Evolution {evolution} | Research: {research}",
-        "Last snapshot: {last_snapshot} ({snapshots} kept)",
-        "Type !!help for commands",
-    ],
+    "lines": [],
     #: Give the client a moment to finish connecting, or the message can land
     #: before the player's console is ready to show it.
     "delay_seconds": 3,
@@ -73,7 +69,10 @@ async def _greet(server, player, config):
         server.logger.warning("Could not build the MOTD for %s: %s", player, exc)
         return
 
-    for template in config.get("lines", []):
+    templates = config.get("lines") or [
+        server.tr(f"lines.{index}") for index in range(6)
+    ]
+    for template in templates:
         try:
             line = template.format(**values)
         except KeyError as exc:
@@ -91,10 +90,12 @@ async def _placeholders(server, player) -> dict:
     snapshots = server.saves.list()
     ticks = stats.get("ticks_played", 0)
 
-    last_snapshot = "never"
+    last_snapshot = server.tr("never")
     if snapshots:
         age_minutes = int((time.time() - snapshots[0].created_at) / 60)
-        last_snapshot = f"{age_minutes}m ago" if age_minutes else "just now"
+        last_snapshot = (
+            server.tr("ago", minutes=age_minutes) if age_minutes else server.tr("just_now")
+        )
 
     return {
         "player": player,
@@ -104,7 +105,7 @@ async def _placeholders(server, player) -> dict:
         "day": ticks // (60 * 60 * 25) + 1,  # a Factorio day is ~25000 ticks
         "evolution": f"{(stats.get('evolution') or 0) * 100:.2f}%",
         "pollution": f"{stats.get('pollution', 0):.0f}",
-        "research": stats.get("research") or "idle",
+        "research": stats.get("research") or server.tr("research_idle"),
         "snapshots": len(snapshots),
         "last_snapshot": last_snapshot,
     }

@@ -1,0 +1,11 @@
+help: automatic backup status
+scheduled: "Backing up every {minutes} minutes"
+reason_scheduled: scheduled
+reason_last_left: "last player ({player}) left"
+reason_manual: "manual via !!autosnap now"
+failed: "Automatic backup failed: {error}"
+made: "Automatic backup: {slot}"
+report: "Auto backup: every {interval} min, last taken at {when}"
+never: never
+taking: Taking a backup...
+done: Done.

@@ -1,0 +1,21 @@
+help: named map locations
+list:
+  empty: "No warps yet. An admin can add one with !!warp set <name>"
+  header: "{count} warp(s):"
+  entry: "  {name} - ({x}, {y}) on {surface}"
+  hint: "Use !!warp <name> to have it pinged on your map."
+goto:
+  not_found: "No warp called {name!r}. Try !!warp list"
+  told: "{name}: {gps}"
+  console: "{name}: ({x}, {y}) on {surface}"
+set:
+  usage: "Usage: !!warp set <name>"
+  console_only: "!!warp set uses your position, so it only works in game."
+  full: "There are already {count} warps; delete one first."
+  read_failed: "Could not read your position: {error}"
+  no_position: Could not read your position.
+  done: "Warp {name!r} set at ({x}, {y}) on {surface}."
+  announced: "New warp {name} at {gps}"
+delete:
+  not_found: "No warp called {name!r}."
+  done: "Deleted warp {name!r}. (Its map marker stays until removed in game.)"

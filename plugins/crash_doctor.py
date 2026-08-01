@@ -157,7 +157,7 @@ def on_load(server, prev):
     server.register_command(
         Literal("!!why").requires(PermissionLevel.ADMIN).runs(_cmd_why)
     )
-    server.register_help_message("!!why", "why did the server last exit", PermissionLevel.ADMIN)
+    server.register_help_message("!!why", server.tr("help"), PermissionLevel.ADMIN)
 
 
 async def on_unload(server):
@@ -184,10 +184,7 @@ async def on_server_crash(server, code):
     _state["last"] = (code, diagnosis, lines[-15:])
 
     if diagnosis is None:
-        server.logger.error(
-            "Server exited with code %s and nothing matched a known failure. "
-            "Run !!why to see the last few lines of output.", code
-        )
+        server.logger.error(server.tr("unknown_exit", code=code))
         return
 
     server.logger.error("Server exited with code %s: %s", code, diagnosis.summary)
@@ -257,17 +254,18 @@ def _collect_mod_reasons(lines: list[str]) -> str:
 async def _cmd_why(source):
     last = _state.get("last")
     if last is None:
-        await source.reply("The server has not exited unexpectedly since this plugin loaded.")
+        await source.reply(source.server.tr("nothing_yet"))
         return
     code, diagnosis, tail = last
-    await source.reply(f"Last unexpected exit: code {code}")
+    tr = source.server.tr
+    await source.reply(tr("last_exit", code=code))
     if diagnosis is None:
-        await source.reply("  No known signature matched. Last lines:")
+        await source.reply(tr("no_match"))
         for line in tail:
             await source.reply(f"    {line}")
         return
-    await source.reply(f"  Cause: {diagnosis.summary}")
+    await source.reply(tr("cause", summary=diagnosis.summary))
     if diagnosis.detail:
-        await source.reply(f"  Detail: {diagnosis.detail}")
+        await source.reply(tr("detail", detail=diagnosis.detail))
     if diagnosis.fix:
-        await source.reply(f"  Try: {diagnosis.fix}")
+        await source.reply(tr("fix", fix=diagnosis.fix))

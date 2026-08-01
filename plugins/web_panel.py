@@ -60,7 +60,7 @@ def on_load(server, prev):
     server.register_command(
         Literal("!!web").requires(PermissionLevel.ADMIN).runs(_cmd_status)
     )
-    server.register_help_message("!!web", "web panel address", PermissionLevel.ADMIN)
+    server.register_help_message("!!web", server.tr("help"), PermissionLevel.ADMIN)
 
     if not config.get("enabled", True):
         server.logger.info("web_panel is disabled in its config")
@@ -371,12 +371,10 @@ def _duration(seconds: float | None) -> str:
 async def _cmd_status(source):
     config = _state["config"]
     if not config.get("enabled", True):
-        await source.reply("web_panel is disabled in its config.")
+        await source.reply(source.server.tr("disabled"))
         return
     if _state.get("httpd") is None:
-        await source.reply("web_panel is not serving -- check the log for a bind error.")
+        await source.reply(source.server.tr("not_serving"))
         return
-    await source.reply(
-        f"Serving on http://{config.get('host')}:{config.get('port')} "
-        f"(JSON at /api). Read-only."
-    )
+    await source.reply(source.server.tr(
+        "serving", host=config.get("host"), port=config.get("port")))

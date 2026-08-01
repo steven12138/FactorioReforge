@@ -1,0 +1,21 @@
+help: 命名地点
+list:
+  empty: "还没有任何地点。管理员可以用 !!warp set <名字> 添加。"
+  header: "共 {count} 个地点："
+  entry: "  {name} —— ({x}, {y}) 于 {surface}"
+  hint: "用 !!warp <名字> 让它在你地图上 ping 一下。"
+goto:
+  not_found: "没有叫 {name!r} 的地点。试试 !!warp list"
+  told: "{name}：{gps}"
+  console: "{name}：({x}, {y}) 于 {surface}"
+set:
+  usage: "用法：!!warp set <名字>"
+  console_only: "!!warp set 取的是你的位置，所以只能在游戏内使用。"
+  full: "已经有 {count} 个地点了，先删掉一个。"
+  read_failed: "读不到你的位置：{error}"
+  no_position: 读不到你的位置。
+  done: "地点 {name!r} 已设在 ({x}, {y}) 于 {surface}。"
+  announced: "新地点 {name} 在 {gps}"
+delete:
+  not_found: "没有叫 {name!r} 的地点。"
+  done: "已删除地点 {name!r}。（地图上的标记要在游戏里手动删。）"

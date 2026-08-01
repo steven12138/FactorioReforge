@@ -1,0 +1,12 @@
+help: 渲染世界地图
+cooldown: "地图刚渲染过 —— {seconds} 秒后再试。"
+rendering: 正在渲染地图……
+failed: "渲染地图失败：{error}"
+size: "{width}x{height} 像素，横跨 {tiles} 格，{step} 格 / 像素"
+contents: "  {built} 个建筑，{trees} 棵树，{tags} 个标记"
+ore: "  矿点：{items}"
+written: "  已写入 {path}"
+sent: "  已同时发送到 Telegram"
+caption: "世界地图 —— 横跨 {tiles} 格"
+tg_caption: "横跨 {tiles} 格 · {built} 个建筑 · {players} 人在线"
+not_ready: 地图插件尚未就绪。

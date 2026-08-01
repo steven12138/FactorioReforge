@@ -90,7 +90,7 @@ def on_load(server, prev):
     server.register_command(
         Literal("!!map").requires(PermissionLevel.USER).runs(_cmd_map)
     )
-    server.register_help_message("!!map", "render an overview of the map")
+    server.register_help_message("!!map", server.tr("help"))
     _register_telegram(server)
     server.register_event_listener("telegram.ready", lambda s: _register_telegram(s))
 
@@ -270,33 +270,34 @@ def _cooldown_remaining() -> int:
 async def _cmd_map(source):
     remaining = _cooldown_remaining()
     if remaining:
-        await source.reply(f"The map was just rendered -- try again in {remaining}s.")
+        await source.reply(source.server.tr("cooldown", seconds=remaining))
         return
 
     server = source.server
-    await source.reply("Rendering the map...")
+    await source.reply(source.server.tr("rendering"))
     try:
         data, summary = await render(server)
     except QueryError as exc:
-        await source.reply(f"Could not render the map: {exc}")
+        await source.reply(source.server.tr("failed", error=exc))
         return
 
     _state["last"] = time.monotonic()
     path = output_path(server)
     path.write_bytes(data)
 
-    await source.reply(
-        f"{summary['width']}x{summary['height']} px, {summary['tiles_across']:,} tiles "
-        f"across at {summary['step']} tile(s) per pixel"
-    )
-    await source.reply(
-        f"  {summary['built']:,} built entities, {summary['trees']:,} trees, "
-        f"{summary['tags']} markers"
-    )
+    tr = source.server.tr
+    await source.reply(tr(
+        "size", width=summary["width"], height=summary["height"],
+        tiles=f"{summary['tiles_across']:,}", step=summary["step"],
+    ))
+    await source.reply(tr(
+        "contents", built=f"{summary['built']:,}",
+        trees=f"{summary['trees']:,}", tags=summary["tags"],
+    ))
     if summary["resources"]:
         top = sorted(summary["resources"].items(), key=lambda kv: -kv[1])[:5]
-        await source.reply("  ore: " + ", ".join(f"{n} x{c}" for n, c in top))
-    await source.reply(f"  written to {path}")
+        await source.reply(tr("ore", items=", ".join(f"{n} x{c}" for n, c in top)))
+    await source.reply(tr("written", path=path))
 
     bridge = server.get_plugin_instance("telegram_bridge")
     if bridge is not None and bridge.is_ready():
@@ -304,11 +305,11 @@ async def _cmd_map(source):
         # pixel per tile, which is exactly the detail that would be lost.
         await bridge.broadcast_photo(
             data,
-            caption=f"Map overview - {summary['tiles_across']:,} tiles across",
+            caption=tr("caption", tiles=f"{summary['tiles_across']:,}"),
             filename=_timestamped_name(),
             as_document=True,
         )
-        await source.reply("  also sent to Telegram")
+        await source.reply(tr("sent"))
 
 
 # ---------------------------------------------------------------------------
@@ -330,29 +331,34 @@ def _register_telegram(server):
 async def _tg_map(ctx):
     remaining = _cooldown_remaining()
     if remaining:
-        await ctx.reply(f"The map was just rendered -- try again in {remaining}s.")
+        await ctx.reply(_tg_tr("cooldown", seconds=remaining))
         return
 
     server = _telegram_server()
     if server is None:
-        await ctx.reply("The map plugin is not ready.")
+        await ctx.reply(_tg_tr("not_ready"))
         return
 
-    await ctx.reply("Rendering...")
+    await ctx.reply(_tg_tr("rendering"))
     try:
         data, summary = await render(server)
     except QueryError as exc:
-        await ctx.reply(f"Could not render the map: {exc}")
+        await ctx.reply(_tg_tr("failed", error=exc))
         return
 
     _state["last"] = time.monotonic()
     output_path(server).write_bytes(data)
-    caption = (
-        f"{summary['tiles_across']:,} tiles across · "
-        f"{summary['built']:,} built entities · "
-        f"{summary['players']} online"
+    caption = _tg_tr(
+        "tg_caption", tiles=f"{summary['tiles_across']:,}",
+        built=f"{summary['built']:,}", players=summary["players"],
     )
     await ctx.send_image_file(data, caption=caption, filename=_timestamped_name())
+
+
+def _tg_tr(key: str, **kwargs) -> str:
+    """Translate from a Telegram handler, which has no CommandSource."""
+    server = _state.get("server")
+    return server.tr(key, **kwargs) if server is not None else key
 
 
 def _telegram_server():

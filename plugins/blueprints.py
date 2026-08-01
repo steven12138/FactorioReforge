@@ -67,7 +67,7 @@ def on_load(server, prev):
         )
         .then(Literal("del").requires(manage).then(GreedyText("name").runs(_cmd_delete)))
     )
-    server.register_help_message("!!bp", "shared blueprint library", PermissionLevel.USER)
+    server.register_help_message("!!bp", server.tr("help"), PermissionLevel.USER)
 
 
 async def on_unload(server):
@@ -135,58 +135,58 @@ def get_library() -> dict:
 async def _cmd_list(source):
     library = _state["library"]
     if not library:
-        await source.reply("The library is empty. Stand somewhere and use !!bp save <name>")
+        await source.reply(source.server.tr("list.empty"))
         return
-    await source.reply(f"{len(library)} blueprint(s):")
+    await source.reply(source.server.tr("list.header", count=len(library)))
     for name, entry in sorted(library.items()):
-        await source.reply(
-            f"  {name} - {entry.get('entities', 0)} entities, by {entry.get('saved_by', '?')}"
-        )
-    await source.reply("!!bp get <name> puts one in your inventory.")
+        await source.reply(source.server.tr(
+            "list.entry", name=name, entities=entry.get("entities", 0),
+            by=entry.get("saved_by", "?")))
+    await source.reply(source.server.tr("list.hint"))
 
 
 async def _cmd_info(source, ctx):
     found = _find(ctx["name"].strip())
     if found is None:
-        await source.reply(f"No blueprint called {ctx['name']!r}.")
+        await source.reply(source.server.tr("info.not_found", name=ctx["name"]))
         return
     name, entry = found
-    await source.reply(f"{name}:")
-    await source.reply(f"  {entry.get('entities', 0)} entities")
-    await source.reply(f"  saved by {entry.get('saved_by', '?')}")
+    tr = source.server.tr
+    await source.reply(tr("info.header", name=name))
+    await source.reply(tr("info.entities", count=entry.get("entities", 0)))
+    await source.reply(tr("info.saved_by", by=entry.get("saved_by", "?")))
     counts = entry.get("counts") or {}
     if counts:
         top = sorted(counts.items(), key=lambda kv: -kv[1])[:8]
-        await source.reply("  contains: " + ", ".join(f"{n} x{c}" for n, c in top))
+        await source.reply(tr("info.contains",
+                              items=", ".join(f"{n} x{c}" for n, c in top)))
 
 
 async def _cmd_save(source, ctx):
     """Blueprint the square around the caller and store it."""
     name = ctx["name"].strip()
     if source.player is None:
-        await source.reply(
-            "!!bp save captures the area around you, so it only works in game."
-        )
+        await source.reply(source.server.tr("save.console_only"))
         return
 
     config = _state["config"]
     radius = int(ctx.get("radius") or config.get("capture_radius", 32))
     limit = config.get("max_capture_radius", 200)
     if radius < 1 or radius > limit:
-        await source.reply(f"The radius must be between 1 and {limit}.")
+        await source.reply(source.server.tr("save.bad_radius", max=limit))
         return
     if len(_state["library"]) >= config.get("max_blueprints", 200) and not _find(name):
-        await source.reply(f"The library is full ({len(_state['library'])}); delete one first.")
+        await source.reply(source.server.tr("save.full", count=len(_state["library"])))
         return
 
     server = source.server
     try:
         info = await server.get_player_info(source.player)
     except QueryError as exc:
-        await source.reply(f"Could not read your position: {exc}")
+        await source.reply(server.tr("save.read_failed", error=exc))
         return
     if not info or not info.get("position"):
-        await source.reply("Could not read your position.")
+        await source.reply(server.tr("save.no_position"))
         return
 
     position = info["position"]
@@ -196,18 +196,15 @@ async def _cmd_save(source, ctx):
         2: {"x": position["x"] + radius, "y": position["y"] + radius},
     }
 
-    await source.reply(f"Capturing {radius * 2}x{radius * 2} tiles around you...")
+    await source.reply(server.tr("save.capturing", size=radius * 2))
     try:
         result = await server.lua_json(lua.capture_blueprint(surface, area))
     except QueryError as exc:
-        await source.reply(f"Capture failed: {exc}")
+        await source.reply(server.tr("save.failed", error=exc))
         return
 
     if not result or not result.get("blueprint"):
-        await source.reply(
-            "Nothing to blueprint there -- the area is empty. "
-            "Stand near your build, or pass a bigger radius: !!bp save <name> <radius>"
-        )
+        await source.reply(server.tr("save.empty_area"))
         return
 
     _state["library"][name] = {
@@ -218,19 +215,20 @@ async def _cmd_save(source, ctx):
         "radius": radius,
     }
     _save_library(server)
-    await source.reply(f"Saved {name!r}: {result.get('entities', 0)} entities.")
+    await source.reply(server.tr("save.done", name=name, entities=result.get("entities", 0)))
 
 
 async def _cmd_get(source, ctx):
     found = _find(ctx["name"].strip())
     if found is None:
-        await source.reply(f"No blueprint called {ctx['name']!r}. Try !!bp list")
+        await source.reply(source.server.tr("get.not_found", name=ctx["name"]))
         return
     name, entry = found
 
     if source.player is None:
         # The console has no inventory, so hand over the string instead.
-        await source.reply(f"{name} ({entry.get('entities', 0)} entities):")
+        await source.reply(source.server.tr(
+            "get.console", name=name, entities=entry.get("entities", 0)))
         await source.reply(entry["blueprint"])
         return
 
@@ -239,13 +237,16 @@ async def _cmd_get(source, ctx):
             lua.give_blueprint(source.player, entry["blueprint"])
         )
     except QueryError as exc:
-        await source.reply(f"Could not hand it over: {exc}")
+        await source.reply(source.server.tr("get.failed", error=exc))
         return
 
     if not result or not result.get("ok"):
-        await source.reply(f"Could not give you {name!r}: {result.get('reason', 'unknown')}")
+        await source.reply(source.server.tr(
+            "get.refused", name=name,
+            reason=result.get("reason") or source.server.tr("common.unknown")))
         return
-    await source.reply(f"{name!r} is in your inventory ({entry.get('entities', 0)} entities).")
+    await source.reply(source.server.tr(
+        "get.done", name=name, entities=entry.get("entities", 0)))
 
 
 async def _cmd_delete(source, ctx):
@@ -256,4 +257,4 @@ async def _cmd_delete(source, ctx):
     name, _ = found
     del _state["library"][name]
     _save_library(source.server)
-    await source.reply(f"Deleted {name!r}.")
+    await source.reply(source.server.tr("delete.done", name=name))

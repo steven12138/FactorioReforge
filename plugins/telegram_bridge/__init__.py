@@ -64,6 +64,12 @@ _state: dict = {}
 # public API -- what other plugins call via get_plugin_instance("telegram_bridge")
 # ---------------------------------------------------------------------------
 
+def _tr(key: str, **kwargs) -> str:
+    """Translate from a Telegram handler, which has no CommandSource to use."""
+    server = _state.get("server")
+    return server.tr(key, **kwargs) if server is not None else key
+
+
 def register_command(plugin_id, name, handler, *, level="admin", help=""):
     """Add a ``/name`` Telegram command owned by ``plugin_id``.
 
@@ -121,14 +127,12 @@ def on_load(server, prev):
         return
     if not config.get("token"):
         server.logger.warning(
-            "telegram_bridge has no token yet; edit %s and reload the plugin",
-            server.get_data_folder() / "config.json",
+            server.tr("no_token", path=server.get_data_folder() / "config.json"),
         )
         return
     if not config.get("allowed_chat_ids"):
         server.logger.warning(
-            "telegram_bridge has no allowed_chat_ids; it will ignore every message "
-            "until you add one (send the bot a message to see its id in this log)"
+            server.tr("no_chats")
         )
 
     _state["task"] = asyncio.create_task(_run_bot(server, config))
@@ -170,7 +174,7 @@ async def _run_bot(server, config):
         await app.initialize()
         await app.start()
         await app.updater.start_polling(drop_pending_updates=True)
-        server.logger.info("telegram_bridge is polling with %d command(s)", len(_service.commands))
+        server.logger.info(server.tr("polling", count=len(_service.commands)))
         # Tell sub-plugins the bridge exists. They register here as well as in
         # their own on_load, so reloading either side puts things back.
         await server.dispatch_event(READY_EVENT)
@@ -197,32 +201,37 @@ async def on_user_info(server, info: Info):
 
 async def on_player_joined(server, player, info=None):
     if (_state.get("config") or {}).get("forward_join_leave"):
-        await broadcast(f"➕ <b>{html.escape(str(player))}</b> joined")
+        await broadcast(_tr("alerts.joined", player=html.escape(str(player))))
 
 
 async def on_player_left(server, player, info=None):
     if (_state.get("config") or {}).get("forward_join_leave"):
-        await broadcast(f"➖ <b>{html.escape(str(player))}</b> left")
+        await broadcast(_tr("alerts.left", player=html.escape(str(player))))
 
 
 async def on_player_death(server, player, info=None):
     if (_state.get("config") or {}).get("forward_death"):
-        await broadcast(f"💀 {html.escape((info.content if info else None) or str(player))}")
+        await broadcast(_tr(
+            "alerts.died",
+            message=html.escape((info.content if info else None) or str(player)),
+        ))
 
 
 async def on_server_startup(server):
     if (_state.get("config") or {}).get("forward_server_state"):
-        await broadcast("✅ Server is up")
+        await broadcast(_tr("alerts.server_up"))
 
 
 async def on_server_crash(server, code):
     """Always sent, whatever forward_server_state says -- this is the alert."""
-    await broadcast(f"🔥 <b>Server exited unexpectedly</b> (code {code})")
+    await broadcast(_tr("alerts.server_crashed", code=code))
 
 
 async def on_rollback_finished(server, snapshot, ok):
-    verb = "♻️ Rolled back to" if ok else "❌ Rollback FAILED for"
-    await broadcast(f"{verb} {html.escape(snapshot.describe())}")
+    await broadcast(_tr(
+        "alerts.restored" if ok else "alerts.restore_failed",
+        slot=html.escape(snapshot.describe()),
+    ))
 
 
 # ---------------------------------------------------------------------------
@@ -278,7 +287,7 @@ def _register_builtin_commands(server):
 
 
 async def _cmd_help(ctx: TelegramContext):
-    lines = ["FactorioReforge bridge", ""]
+    lines = [_tr("help_header"), ""]
     by_plugin: dict[str, list[str]] = {}
     for command in sorted(_service.commands.values(), key=lambda c: c.name):
         if not _service._allows(command.level, ctx.level):
@@ -297,17 +306,18 @@ async def _cmd_help(ctx: TelegramContext):
 async def _cmd_status(ctx: TelegramContext):
     server = _state["server"]
     lines = [
-        f"Server running: {server.is_server_running()}",
-        f"Startup done: {server.is_server_startup()}",
-        f"RCON: {server.is_rcon_running()}",
-        f"Snapshots: {len(server.saves.list())}",
+        _tr("status.running", value=server.is_server_running()),
+        _tr("status.startup", value=server.is_server_startup()),
+        _tr("status.rcon", value=server.is_rcon_running()),
+        _tr("status.backups", count=len(server.saves.list())),
     ]
     try:
         stats = await server.get_server_stats()
-        lines.append(f"Online: {stats.get('players_online', 0)}/{stats.get('players_total', 0)}")
-        lines.append(f"Evolution: {(stats.get('evolution') or 0) * 100:.2f}%")
+        lines.append(_tr("status.online", online=stats.get("players_online", 0),
+                         total=stats.get("players_total", 0)))
+        lines.append(_tr("status.evolution", value=f"{(stats.get('evolution') or 0) * 100:.2f}%"))
     except QueryError as exc:
-        lines.append(f"World stats unavailable: {exc}")
+        lines.append(_tr("status.unavailable", error=exc))
     await ctx.reply("\n".join(lines))
 
 
@@ -315,101 +325,98 @@ async def _cmd_players(ctx: TelegramContext):
     try:
         players = await _state["server"].get_online_player_details()
     except QueryError as exc:
-        await ctx.reply(f"Could not read the player list: {exc}")
+        await ctx.reply(_tr("players.failed", error=exc))
         return
     if not players:
-        await ctx.reply("Nobody is online right now.")
+        await ctx.reply(_tr("players.nobody"))
         return
     await ctx.reply("\n".join(f"{p['name']} - {p.get('online_time', 0) // 3600}m" for p in players))
 
 
 async def _cmd_say(ctx: TelegramContext):
     if not ctx.text:
-        await ctx.reply("Usage: /say <message>")
+        await ctx.reply(_tr("say.usage"))
         return
     prefix = _state["config"].get("game_prefix", "[TG]")
     await _state["server"].say(f"{prefix} {ctx.user_name}: {ctx.text}")
-    await ctx.reply("Sent.")
+    await ctx.reply(_tr("say.sent"))
 
 
 async def _cmd_save(ctx: TelegramContext):
-    await ctx.reply("Saving and snapshotting...")
+    await ctx.reply(_tr("save.working"))
     try:
         snapshot = await _state["server"].snapshot(
             ctx.text or "via telegram", created_by=f"tg:{ctx.user_id}"
         )
     except Exception as exc:
-        await ctx.reply(f"Snapshot failed: {exc}")
+        await ctx.reply(_tr("save.failed", error=exc))
         return
-    await ctx.reply(f"Created {snapshot.describe()}")
+    await ctx.reply(_tr("save.done", slot=snapshot.describe()))
 
 
 async def _cmd_saves(ctx: TelegramContext):
     snapshots = _state["server"].saves.list()
     if not snapshots:
-        await ctx.reply("No snapshots yet.")
+        await ctx.reply(_tr("save.none"))
         return
     await ctx.reply("\n".join(s.describe() for s in snapshots[:20]))
 
 
 async def _cmd_rollback(ctx: TelegramContext):
     if not ctx.args:
-        await ctx.reply("Usage: /rollback <slot>  (see /saves)")
+        await ctx.reply(_tr("rollback.usage"))
         return
     try:
         slot = int(ctx.args[0])
     except ValueError:
-        await ctx.reply("The slot must be a number, e.g. /rollback 1")
+        await ctx.reply(_tr("rollback.not_a_number"))
         return
 
     server = _state["server"]
     info = server.saves.get(slot)
     if info is None:
-        await ctx.reply(f"Slot {slot} is empty. Send /saves to see what is there.")
+        await ctx.reply(_tr("rollback.empty", slot=slot))
         return
 
-    if not await ctx.confirm(
-        f"Restore:\n{info.describe()}\n\n"
-        "This stops the server and replaces the current world."
-    ):
-        await ctx.reply("Cancelled.")
+    if not await ctx.confirm(_tr("rollback.confirm", slot=info.describe())):
+        await ctx.reply(_tr("rollback.cancelled"))
         return
 
-    await ctx.reply("Rolling back...")
+    await ctx.reply(_tr("rollback.working"))
     try:
         restored = await server.rollback(slot, countdown=10, requested_by=f"tg:{ctx.user_id}")
     except Exception as exc:
-        await ctx.reply(f"Rollback failed: {exc}")
+        await ctx.reply(_tr("rollback.failed", error=exc))
         return
-    await ctx.reply(f"Rolled back to {restored.describe()}")
+    await ctx.reply(_tr("rollback.done", slot=restored.describe()))
 
 
 async def _cmd_restart(ctx: TelegramContext):
-    if not await ctx.confirm("Restart the server? Everyone online will be disconnected."):
-        await ctx.reply("Cancelled.")
+    if not await ctx.confirm(_tr("server.confirm_restart")):
+        await ctx.reply(_tr("rollback.cancelled"))
         return
-    await ctx.reply("Restarting...")
+    await ctx.reply(_tr("server.restarting"))
     await _state["server"].restart()
-    await ctx.reply("Restart issued.")
+    await ctx.reply(_tr("server.restarted"))
 
 
 async def _cmd_stop(ctx: TelegramContext):
-    if not await ctx.confirm("Stop the server?"):
-        await ctx.reply("Cancelled.")
+    if not await ctx.confirm(_tr("server.confirm_stop")):
+        await ctx.reply(_tr("rollback.cancelled"))
         return
     await _state["server"].stop()
-    await ctx.reply("Server stopped.")
+    await ctx.reply(_tr("server.stopped"))
 
 
 async def _cmd_start_server(ctx: TelegramContext):
     started = await _state["server"].start()
-    await ctx.reply("Starting..." if started else "It is already running.")
+    await ctx.reply(_tr("server.starting") if started else _tr("server.already_running"))
 
 
 async def _cmd_raw(ctx: TelegramContext):
     """Run an arbitrary FactorioReforge or Factorio command. Owner only."""
     if not ctx.text:
-        await ctx.reply("Usage: /cmd <command>")
+        await ctx.reply(_tr("cmd.usage"))
         return
 
     server = _state["server"]
@@ -431,6 +438,6 @@ async def _cmd_raw(ctx: TelegramContext):
                 action_flag=InfoActionFlag.default(),
             )
         )
-        replies.append("Sent to the server console.")
+        replies.append(_tr("cmd.sent"))
 
-    await ctx.reply("\n".join(replies) if replies else "(no output)")
+    await ctx.reply("\n".join(replies) if replies else _tr("cmd.no_output"))

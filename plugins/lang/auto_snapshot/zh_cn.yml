@@ -1,0 +1,11 @@
+help: 自动备份状态
+scheduled: "每 {minutes} 分钟自动备份一次"
+reason_scheduled: 定时
+reason_last_left: "最后一名玩家（{player}）离开"
+reason_manual: "手动触发（!!autosnap now）"
+failed: "自动备份失败：{error}"
+made: "自动备份：{slot}"
+report: "自动备份：每 {interval} 分钟一次，上次在 {when}"
+never: 从未
+taking: 正在备份……
+done: 完成。

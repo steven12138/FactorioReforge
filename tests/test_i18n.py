@@ -128,3 +128,103 @@ class TestShippedCatalogues:
             if key in chinese and placeholders(english[key]) != placeholders(chinese[key])
         }
         assert not mismatched, f"placeholder mismatch: {mismatched}"
+
+
+class TestPluginInterfaceWiring:
+    """The subclass must actually override tr; a silent miss looks like this.
+
+    When PluginServerInterface.tr was absent, plugins fell through to the core
+    catalogue and every plugin string rendered as its bare key -- with the
+    catalogue loaded and looking correct from the outside.
+    """
+
+    def test_the_plugin_interface_overrides_tr(self):
+        from factorio_reforge.plugin.interface import PluginServerInterface, ServerInterface
+
+        assert PluginServerInterface.tr is not ServerInterface.tr
+
+    def test_a_plugin_interface_resolves_its_own_namespace(self, tmp_path):
+        import yaml
+
+        from factorio_reforge.plugin.interface import PluginServerInterface
+
+        lang = tmp_path / "lang"
+        lang.mkdir()
+        (lang / "en.yml").write_text(yaml.safe_dump({"greeting": "from the plugin"}))
+
+        translator = Translator()
+        translator.load_directory(lang, namespace="demo")
+
+        class FakeCore:
+            i18n = translator
+
+        class FakePlugin:
+            id = "demo"
+
+        interface = PluginServerInterface(FakeCore(), FakePlugin())
+        assert interface.tr("greeting") == "from the plugin"
+
+
+class TestBundledPluginCatalogues:
+    """Every bundled plugin's languages must stay in step with each other.
+
+    This is the check that would have caught a half-translated plugin shipping
+    with English holes in the middle of a Chinese session.
+    """
+
+    PLUGINS = Path(__file__).resolve().parent.parent / "plugins"
+
+    def catalogues(self):
+        """Every plugin lang directory: solo ones plus packaged ones."""
+        found = []
+        solo = self.PLUGINS / "lang"
+        if solo.is_dir():
+            found.extend(d for d in solo.iterdir() if d.is_dir())
+        found.extend(
+            d / "lang" for d in self.PLUGINS.iterdir()
+            if d.is_dir() and d.name != "lang" and (d / "lang").is_dir()
+        )
+        return sorted(found)
+
+    def test_every_bundled_plugin_ships_translations(self):
+        modules = {
+            p.stem for p in self.PLUGINS.glob("*.py")
+        } | {
+            d.name for d in self.PLUGINS.iterdir()
+            if d.is_dir() and d.name != "lang" and (d / "__init__.py").is_file()
+        }
+        translated = {d.name if d.name != "lang" else d.parent.name for d in self.catalogues()}
+        assert modules <= translated, f"no translations for: {sorted(modules - translated)}"
+
+    @pytest.mark.parametrize("language", ["zh_cn"])
+    def test_each_plugin_catalogue_matches_english(self, language):
+        problems = {}
+        for directory in self.catalogues():
+            name = directory.name if directory.name != "lang" else directory.parent.name
+            translator = Translator()
+            translator.load_directory(directory)
+            missing = translator.missing_keys(language)
+            if missing:
+                problems[name] = missing
+        assert not problems, f"untranslated keys: {problems}"
+
+    @pytest.mark.parametrize("language", ["zh_cn"])
+    def test_placeholders_match_in_every_plugin(self, language):
+        import re
+
+        def placeholders(text):
+            return set(re.findall(r"\{(\w+)", text))
+
+        problems = {}
+        for directory in self.catalogues():
+            name = directory.name if directory.name != "lang" else directory.parent.name
+            translator = Translator()
+            translator.load_directory(directory)
+            english = translator._catalogue.get(DEFAULT_LANGUAGE, {})
+            other = translator._catalogue.get(language, {})
+            for key, template in english.items():
+                if key in other and placeholders(template) != placeholders(other[key]):
+                    problems[f"{name}.{key}"] = (
+                        placeholders(template), placeholders(other[key])
+                    )
+        assert not problems, f"placeholder mismatch: {problems}"

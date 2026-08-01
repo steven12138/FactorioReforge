@@ -1,0 +1,11 @@
+lines:
+  - "=== Welcome, {player}! ==="
+  - "Day {day} of this world - {uptime} played"
+  - "{online} online now, {total} have ever joined"
+  - "Evolution {evolution} | Research: {research}"
+  - "Last backup: {last_snapshot} ({snapshots} kept)"
+  - "Type !!FR help for commands"
+research_idle: idle
+never: never
+just_now: just now
+ago: "{minutes}m ago"

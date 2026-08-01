@@ -538,10 +538,25 @@ chart tag 与之互补：gps 标签说的是"现在看这里"，chart tag 说的
 !!FR lang missing zh_cn    具体缺失的键
 ```
 
-要加语言，把 `factorio_reforge/lang/en.yml` 复制成 `<语言代码>.yml` 再翻译值即可。
-插件可以自带 `lang/` 目录，它的键会挂在插件 id 下 ——
-插件里 `server.tr("failed")` 先找 `<插件id>.failed`，找不到再落到核心词表，
-所以公共文案不用每个插件重复一遍。
+**自带的 13 个插件全部已翻译**，不只是核心。
+
+要加语言：把 `factorio_reforge/lang/en.yml` 复制成 `<语言代码>.yml` 翻译，
+然后对每个插件在 `plugins/lang/<插件id>/` 下做同样的事。
+键会挂在插件 id 下 —— 插件里 `server.tr("failed")` 先找 `<插件id>.failed`，
+找不到再落到核心词表（比如 `common.yes` 这种公共文案）。
+
+文件位置：
+
+| 插件形态 | 翻译文件 |
+|---|---|
+| 单文件 `plugins/warp.py` | `plugins/lang/warp/<语言代码>.yml` |
+| 目录 `plugins/telegram_bridge/` | `plugins/telegram_bridge/lang/<语言代码>.yml` |
+
+单文件插件各自有子目录而不是共用一个 `plugins/lang/` ——
+因为一次加载只能挂一个命名空间，共用会互相覆盖。
+
+测试会断言：每个插件都带齐两种语言、两边的键完全一致、
+且同一个键在两种语言里的占位符相同 —— 占位符对不上会导致只有一种语言格式化出错。
 
 缺失的键会直接显示成键名而不是空白 ——
 聊天里出现一个 `save.restore.confirm` 正好告诉你该补什么。

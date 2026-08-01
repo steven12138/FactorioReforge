@@ -44,7 +44,7 @@ def on_load(server, prev):
         .then(Literal("kills").runs(_cmd_kills))
         .then(Literal("built").runs(_cmd_built))
     )
-    server.register_help_message("!!top [time|kills|built]", "rankings", PermissionLevel.USER)
+    server.register_help_message("!!top [time|kills|built]", server.tr("help"), PermissionLevel.USER)
 
 
 async def on_unload(server):
@@ -55,20 +55,21 @@ async def _cmd_playtime(source):
     try:
         players = await source.server.get_all_players()
     except QueryError as exc:
-        await source.reply(f"Could not read the player list: {exc}")
+        await source.reply(source.server.tr("playtime.failed", error=exc))
         return
     if not players:
-        await source.reply("Nobody has joined this server yet.")
+        await source.reply(source.server.tr("playtime.nobody"))
         return
 
     ranked = sorted(players, key=lambda p: p.get("online_time", 0), reverse=True)
     top = ranked[: _state["config"].get("top_n", 10)]
-    await source.reply("Most time played:")
+    await source.reply(source.server.tr("playtime.header"))
     for index, player in enumerate(top, start=1):
-        marker = " (online)" if player.get("connected") else ""
-        await source.reply(
-            f"  {index}. {player['name']} - {_ticks_to_text(player.get('online_time', 0))}{marker}"
-        )
+        marker = source.server.tr("playtime.online_tag") if player.get("connected") else ""
+        await source.reply(source.server.tr(
+            "playtime.entry", rank=index, name=player["name"],
+            played=_ticks_to_text(player.get("online_time", 0)), online=marker,
+        ))
 
 
 async def _cmd_kills(source):
@@ -78,14 +79,15 @@ async def _cmd_kills(source):
             lua.kill_counts(_state["config"].get("surface", "nauvis"), limit=12)
         )
     except QueryError as exc:
-        await source.reply(f"Could not read the kill counts: {exc}")
+        await source.reply(source.server.tr("kills.failed", error=exc))
         return
     if not rows:
-        await source.reply("Nothing has been killed yet.")
+        await source.reply(source.server.tr("kills.nothing"))
         return
-    await source.reply("Most-killed enemies (whole force):")
+    await source.reply(source.server.tr("kills.header"))
     for index, row in enumerate(rows, start=1):
-        await source.reply(f"  {index}. {row['name']}: {row['kills']:,}")
+        await source.reply(source.server.tr(
+            "kills.entry", rank=index, name=row["name"], count=f"{row['kills']:,}"))
 
 
 async def _cmd_built(source):
@@ -94,14 +96,15 @@ async def _cmd_built(source):
             lua.production_totals(_state["config"].get("surface", "nauvis"), limit=12)
         )
     except QueryError as exc:
-        await source.reply(f"Could not read the totals: {exc}")
+        await source.reply(source.server.tr("built.failed", error=exc))
         return
     if not rows:
-        await source.reply("Nothing has been produced yet.")
+        await source.reply(source.server.tr("built.nothing"))
         return
-    await source.reply("Most-produced items:")
+    await source.reply(source.server.tr("built.header"))
     for index, row in enumerate(rows, start=1):
-        await source.reply(f"  {index}. {row['name']}: {row['produced']:,}")
+        await source.reply(source.server.tr(
+            "built.entry", rank=index, name=row["name"], count=f"{row['produced']:,}"))
 
 
 def _ticks_to_text(ticks: int) -> str:

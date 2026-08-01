@@ -72,11 +72,11 @@ def on_load(server, prev):
     )
 
     help_entries = [
-        ("!!here", "share your position and pin it on the map"),
-        ("!!info [player]", "detailed player info"),
-        ("!!seen <player>", "playtime and last seen"),
-        ("!!list", "who is online"),
-        ("!!stats", "world statistics"),
+        ("!!here", server.tr("help.here")),
+        ("!!info [player]", server.tr("help.info")),
+        ("!!seen <player>", server.tr("help.seen")),
+        ("!!list", server.tr("help.list")),
+        ("!!stats", server.tr("help.stats")),
     ]
 
     # !!tp exists only when the operator opts in -- an unregistered command
@@ -89,8 +89,10 @@ def on_load(server, prev):
             .runs(_tp_usage)
             .then(Text("who").then(GreedyText("target").runs(_tp)))
         )
-        help_entries.append(("!!tp <player> <target>", f"teleport ({level.label}+)"))
-        server.logger.info("Teleport is enabled for %s and above", level.label)
+        help_entries.append(
+            ("!!tp <player> <target>", server.tr("help.tp", level=level.label))
+        )
+        server.logger.info(server.tr("tp.enabled_for", level=level.label))
 
     for prefix, message in help_entries:
         server.register_help_message(prefix, message)
@@ -113,7 +115,7 @@ def _parse_level(value, server) -> PermissionLevel:
 async def _here(source):
     player = source.player
     if player is None:
-        await source.reply("!!here only makes sense from in game -- the console has no position.")
+        await source.reply(source.server.tr("here.no_position"))
         return
 
     server = source.server
@@ -123,16 +125,16 @@ async def _here(source):
     last = _state["last_here"].get(player, 0.0)
     if cooldown and time.monotonic() - last < cooldown:
         remaining = int(cooldown - (time.monotonic() - last))
-        await source.reply(f"Slow down -- try !!here again in {remaining}s.")
+        await source.reply(source.server.tr("here.cooldown", seconds=remaining))
         return
 
     try:
         info = await server.get_player_info(player)
     except QueryError as exc:
-        await source.reply(f"Could not read your position: {exc}")
+        await source.reply(source.server.tr("here.read_failed", error=exc))
         return
     if not info or not info.get("position"):
-        await source.reply("Could not read your position -- are you controlling a character?")
+        await source.reply(source.server.tr("here.no_character"))
         return
 
     position = info["position"]
@@ -141,7 +143,7 @@ async def _here(source):
     _state["last_here"][player] = time.monotonic()
 
     # The gps tag is the clickable part: players can click it to ping the spot.
-    await server.game_print(f"{player} is at {lua.gps(x, y, surface)}")
+    await server.game_print(server.tr("here.announce", player=player, gps=lua.gps(x, y, surface)))
 
     if not config.get("here_marker", True):
         return
@@ -156,7 +158,7 @@ async def _here(source):
     if marker is None:
         # Factorio can reject a position outright; say so rather than leaving
         # the player believing a marker was pinned.
-        await server.game_print("(the map marker could not be placed there)")
+        await server.game_print(server.tr("here.marker_failed"))
 
 
 # ---------------------------------------------------------------------------
@@ -164,7 +166,7 @@ async def _here(source):
 # ---------------------------------------------------------------------------
 
 async def _seen_usage(source):
-    await source.reply("Usage: !!seen <player>")
+    await source.reply(source.server.tr("seen.usage"))
 
 
 async def _seen(source, ctx):
@@ -174,40 +176,43 @@ async def _seen(source, ctx):
         info = await server.get_player_info(name)
         stats = await server.get_server_stats()
     except QueryError as exc:
-        await source.reply(f"Could not look that up: {exc}")
+        await source.reply(source.server.tr("error.lookup_failed", error=exc))
         return
 
     if not info:
-        await source.reply(f"{name} has never joined this server.")
+        await source.reply(source.server.tr("seen.never", player=name))
         return
 
     played = _ticks_to_text(info.get("online_time", 0))
     if info.get("connected"):
-        await source.reply(f"{info['name']} is online now, {played} played.")
+        await source.reply(
+            source.server.tr("seen.online_now", player=info["name"], played=played)
+        )
         return
 
     ago_ticks = max(0, stats.get("tick", 0) - info.get("last_online", 0))
-    await source.reply(
-        f"{info['name']} was last seen {_ticks_to_text(ago_ticks)} ago (game time), "
-        f"{played} played."
-    )
+    await source.reply(source.server.tr(
+        "seen.last_seen", player=info["name"],
+        ago=_ticks_to_text(ago_ticks), played=played,
+    ))
 
 
 async def _list(source):
     try:
         players = await source.server.get_online_player_details()
     except QueryError as exc:
-        await source.reply(f"Could not read the player list: {exc}")
+        await source.reply(source.server.tr("error.lookup_failed", error=exc))
         return
     if not players:
-        await source.reply("Nobody is online.")
+        await source.reply(source.server.tr("list.nobody"))
         return
-    await source.reply(f"{len(players)} online:")
+    await source.reply(source.server.tr("list.header", count=len(players)))
     for entry in players:
-        tag = " [admin]" if entry.get("admin") else ""
-        await source.reply(
-            f"  {entry['name']}{tag} - {_ticks_to_text(entry.get('online_time', 0))} played"
-        )
+        tag = source.server.tr("list.admin_tag") if entry.get("admin") else ""
+        await source.reply(source.server.tr(
+            "list.entry", name=entry["name"], admin=tag,
+            played=_ticks_to_text(entry.get("online_time", 0)),
+        ))
 
 
 # ---------------------------------------------------------------------------
@@ -216,7 +221,7 @@ async def _list(source):
 
 async def _info_self(source):
     if source.player is None:
-        await source.reply("Usage: !!info <player>")
+        await source.reply(source.server.tr("info.usage"))
         return
     await _report_player(source, source.player)
 
@@ -231,31 +236,35 @@ async def _report_player(source, name):
         info = await server.get_player_info(name)
         stats = await server.get_server_stats()
     except QueryError as exc:
-        await source.reply(f"Could not look that up: {exc}")
+        await source.reply(source.server.tr("error.lookup_failed", error=exc))
         return
 
+    tr = server.tr
     if not info:
-        await source.reply(f"{name} has never joined this server.")
+        await source.reply(tr("info.never", player=name))
         return
 
     level = server.get_permission_level(info["name"])
-    await source.reply(f"=== {info['name']} ===")
-    await source.reply(f"  Status: {'online' if info.get('connected') else 'offline'}")
-    await source.reply(f"  Playtime: {_ticks_to_text(info.get('online_time', 0))}")
-    await source.reply(
-        f"  Game admin: {'yes' if info.get('admin') else 'no'}"
-        f" | FactorioReforge: {level.label}"
-    )
-    await source.reply(f"  Force: {info.get('force', '?')}")
+    await source.reply(tr("info.header", player=info["name"]))
+    await source.reply(tr("info.status", status=tr(
+        "info.online" if info.get("connected") else "info.offline")))
+    await source.reply(tr("info.playtime", played=_ticks_to_text(info.get("online_time", 0))))
+    await source.reply(tr(
+        "info.admin",
+        game=tr("common.yes" if info.get("admin") else "common.no"),
+        level=level.label,
+    ))
+    await source.reply(tr("info.force", force=info.get("force", "?")))
 
     if info.get("connected") and info.get("position"):
         position = info["position"]
-        await source.reply(
-            f"  At: ({int(position['x'])}, {int(position['y'])}) on {info.get('surface', '?')}"
-        )
+        await source.reply(tr(
+            "info.at", x=int(position["x"]), y=int(position["y"]),
+            surface=info.get("surface", "?"),
+        ))
     else:
         ago = max(0, stats.get("tick", 0) - info.get("last_online", 0))
-        await source.reply(f"  Last seen: {_ticks_to_text(ago)} ago (game time)")
+        await source.reply(tr("info.last_seen", ago=_ticks_to_text(ago)))
 
 
 # ---------------------------------------------------------------------------
@@ -266,18 +275,21 @@ async def _stats(source):
     try:
         stats = await source.server.get_server_stats()
     except QueryError as exc:
-        await source.reply(f"Could not read the world stats: {exc}")
+        await source.reply(source.server.tr("error.lookup_failed", error=exc))
         return
 
+    tr = source.server.tr
     research = stats.get("research")
     progress = stats.get("research_progress") or 0
-    await source.reply(f"Surface: {stats.get('surface', '?')}")
-    await source.reply(f"Played: {_ticks_to_text(stats.get('ticks_played', 0))}")
-    await source.reply(f"Players: {stats.get('players_online', 0)} online / {stats.get('players_total', 0)} total")
-    await source.reply(f"Evolution: {(stats.get('evolution') or 0) * 100:.2f}%")
-    await source.reply(f"Pollution: {stats.get('pollution', 0):.0f}")
+    await source.reply(tr("stats.surface", surface=stats.get("surface", "?")))
+    await source.reply(tr("stats.played", played=_ticks_to_text(stats.get("ticks_played", 0))))
+    await source.reply(tr("stats.players", online=stats.get("players_online", 0),
+                          total=stats.get("players_total", 0)))
+    await source.reply(tr("stats.evolution", value=f"{(stats.get('evolution') or 0) * 100:.2f}%"))
+    await source.reply(tr("stats.pollution", value=f"{stats.get('pollution', 0):.0f}"))
     await source.reply(
-        f"Research: {research} ({progress * 100:.0f}%)" if research else "Research: idle"
+        tr("stats.research", name=research, progress=f"{progress * 100:.0f}%")
+        if research else tr("stats.research_idle")
     )
 
 
@@ -286,7 +298,7 @@ async def _stats(source):
 # ---------------------------------------------------------------------------
 
 async def _tp_usage(source):
-    await source.reply("Usage: !!tp <player> <target player | x y>")
+    await source.reply(source.server.tr("tp.usage"))
 
 
 async def _tp(source, ctx):
@@ -303,10 +315,10 @@ async def _tp(source, ctx):
         try:
             info = await server.get_player_info(target)
         except QueryError as exc:
-            await source.reply(f"Could not look up {target}: {exc}")
+            await source.reply(server.tr("tp.lookup_failed", target=target, error=exc))
             return
         if not info or not info.get("position"):
-            await source.reply(f"{target} is not online, so there is nowhere to send {who}.")
+            await source.reply(server.tr("tp.target_offline", target=target, player=who))
             return
         position = info["position"]
         surface = info.get("surface")
@@ -315,19 +327,19 @@ async def _tp(source, ctx):
     try:
         result = await server.teleport_player(who, position, surface)
     except QueryError as exc:
-        await source.reply(f"Teleport failed: {exc}")
+        await source.reply(server.tr("tp.failed", reason=exc))
         return
 
     if not result.get("ok"):
-        await source.reply(f"Teleport failed: {result.get('reason', 'the destination is blocked')}")
+        await source.reply(server.tr(
+            "tp.failed", reason=result.get("reason") or server.tr("tp.blocked")))
         return
-    await source.reply(f"Teleported {who} to {destination}.")
+    await source.reply(server.tr("tp.done", player=who, destination=destination))
     if _state["config"].get("teleport_announce", True):
         # Say it out loud: a silent teleport looks like a desync or a cheat to
         # anyone standing nearby.
-        await server.game_print(
-            f"[FactorioReforge] {who} was teleported to {destination} by {source}"
-        )
+        await server.game_print(server.tr(
+            "tp.announced", player=who, destination=destination, by=source))
 
 
 # ---------------------------------------------------------------------------

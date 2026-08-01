@@ -1,0 +1,53 @@
+here:
+  no_position: "!!here 需要在游戏内使用 —— 控制台没有位置。"
+  cooldown: "太快了 —— {seconds} 秒后再试。"
+  read_failed: "读不到你的位置：{error}"
+  no_character: 读不到你的位置 —— 你现在控制着角色吗？
+  announce: "{player} 在 {gps}"
+  marker_failed: "（地图标记放置失败）"
+seen:
+  usage: "用法：!!seen <玩家>"
+  never: "{player} 从来没进过这个服务器。"
+  online_now: "{player} 正在线，已游玩 {played}。"
+  last_seen: "{player} 上次出现在 {ago} 前（游戏内时间），已游玩 {played}。"
+list:
+  nobody: 当前无人在线。
+  header: "在线 {count} 人："
+  entry: "  {name}{admin} —— 已游玩 {played}"
+  admin_tag: "［管理员］"
+info:
+  usage: "用法：!!info <玩家>"
+  never: "{player} 从来没进过这个服务器。"
+  header: "=== {player} ==="
+  status: "  状态：{status}"
+  online: 在线
+  offline: 离线
+  playtime: "  游玩时长：{played}"
+  admin: "  游戏管理员：{game} | FactorioReforge：{level}"
+  force: "  阵营：{force}"
+  at: "  位置：({x}, {y}) 于 {surface}"
+  last_seen: "  最后在线：{ago} 前（游戏内时间）"
+stats:
+  surface: "星球：{surface}"
+  played: "已游玩：{played}"
+  players: "玩家：{online} 在线 / {total} 总计"
+  evolution: "进化度：{value}"
+  pollution: "污染：{value}"
+  research: "科研：{name}（{progress}）"
+  research_idle: "科研：空闲"
+tp:
+  usage: "用法：!!tp <玩家> <目标玩家 | x y>"
+  lookup_failed: "查不到 {target}：{error}"
+  target_offline: "{target} 不在线，没地方可以把 {player} 送过去。"
+  failed: "传送失败：{reason}"
+  blocked: 目标位置被阻挡
+  done: "已把 {player} 传送到 {destination}。"
+  announced: "[FactorioReforge] {by} 把 {player} 传送到了 {destination}"
+  enabled_for: "传送已对 {level} 及以上开放"
+help:
+  here: 广播你的位置并在地图上钉标记
+  info: 玩家详细信息
+  seen: 游玩时长与最后在线
+  list: 谁在线
+  stats: 世界统计
+  tp: "传送（{level} 及以上）"

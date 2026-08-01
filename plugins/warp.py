@@ -60,7 +60,7 @@ def on_load(server, prev):
         )
         .then(GreedyText("name").runs(_cmd_goto))
     )
-    server.register_help_message("!!warp [name]", "named map locations", PermissionLevel.USER)
+    server.register_help_message("!!warp [name]", server.tr("help"), PermissionLevel.USER)
 
 
 async def on_unload(server):
@@ -119,14 +119,15 @@ def _find(name: str) -> tuple[str, dict] | None:
 async def _cmd_list(source):
     warps = _state["warps"]
     if not warps:
-        await source.reply("No warps yet. An admin can add one with !!warp set <name>")
+        await source.reply(source.server.tr("list.empty"))
         return
-    await source.reply(f"{len(warps)} warp(s):")
+    await source.reply(source.server.tr("list.header", count=len(warps)))
     for name, warp in sorted(warps.items()):
-        await source.reply(
-            f"  {name} - ({int(warp['x'])}, {int(warp['y'])}) on {warp.get('surface', 'nauvis')}"
-        )
-    await source.reply("Use !!warp <name> to have it pinged on your map.")
+        await source.reply(source.server.tr(
+            "list.entry", name=name, x=int(warp["x"]), y=int(warp["y"]),
+            surface=warp.get("surface", "nauvis"),
+        ))
+    await source.reply(source.server.tr("list.hint"))
 
 
 async def _cmd_goto(source, ctx):
@@ -134,7 +135,7 @@ async def _cmd_goto(source, ctx):
     name = ctx["name"].strip()
     found = _find(name)
     if found is None:
-        await source.reply(f"No warp called {name!r}. Try !!warp list")
+        await source.reply(source.server.tr("goto.not_found", name=name))
         return
     key, warp = found
     surface = warp.get("surface", "nauvis")
@@ -142,9 +143,10 @@ async def _cmd_goto(source, ctx):
 
     if source.player:
         # Send it to the asker only: a ping for one person should not spam chat.
-        await source.server.tell(source.player, f"{key}: {tag}")
+        await source.server.tell(source.player, source.server.tr("goto.told", name=key, gps=tag))
     else:
-        await source.reply(f"{key}: ({int(warp['x'])}, {int(warp['y'])}) on {surface}")
+        await source.reply(source.server.tr(
+            "goto.console", name=key, x=int(warp["x"]), y=int(warp["y"]), surface=surface))
     if warp.get("note"):
         await source.reply(f"  {warp['note']}")
 
@@ -153,26 +155,23 @@ async def _cmd_set(source, ctx):
     """Name the caller's current position."""
     name = ctx["name"].strip()
     if not name:
-        await source.reply("Usage: !!warp set <name>")
+        await source.reply(source.server.tr("set.usage"))
         return
     if source.player is None:
-        await source.reply(
-            "!!warp set uses your position, so it only works in game. "
-            "The console has nowhere to stand."
-        )
+        await source.reply(source.server.tr("set.console_only"))
         return
     if len(_state["warps"]) >= _state["config"].get("max_warps", 100) and not _find(name):
-        await source.reply(f"There are already {len(_state['warps'])} warps; delete one first.")
+        await source.reply(source.server.tr("set.full", count=len(_state["warps"])))
         return
 
     server = source.server
     try:
         info = await server.get_player_info(source.player)
     except QueryError as exc:
-        await source.reply(f"Could not read your position: {exc}")
+        await source.reply(server.tr("set.read_failed", error=exc))
         return
     if not info or not info.get("position"):
-        await source.reply("Could not read your position.")
+        await source.reply(server.tr("set.no_position"))
         return
 
     position = info["position"]
@@ -184,7 +183,7 @@ async def _cmd_set(source, ctx):
     _save_warps(server)
 
     x, y = int(position["x"]), int(position["y"])
-    await source.reply(f"Warp {name!r} set at ({x}, {y}) on {surface}.")
+    await source.reply(server.tr("set.done", name=name, x=x, y=y, surface=surface))
 
     if _state["config"].get("chart_tags", True):
         try:
@@ -195,15 +194,15 @@ async def _cmd_set(source, ctx):
         except QueryError as exc:
             server.logger.warning("Could not pin the warp on the map: %s", exc)
 
-    await server.game_print(f"New warp {name} at {lua.gps(x, y, surface)}")
+    await server.game_print(server.tr("set.announced", name=name, gps=lua.gps(x, y, surface)))
 
 
 async def _cmd_delete(source, ctx):
     found = _find(ctx["name"].strip())
     if found is None:
-        await source.reply(f"No warp called {ctx['name']!r}.")
+        await source.reply(source.server.tr("delete.not_found", name=ctx["name"]))
         return
     key, _ = found
     del _state["warps"][key]
     _save_warps(source.server)
-    await source.reply(f"Deleted warp {key!r}. (Its map marker stays until removed in game.)")
+    await source.reply(source.server.tr("delete.done", name=key))

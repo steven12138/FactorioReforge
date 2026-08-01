@@ -60,7 +60,7 @@ def on_load(server, prev):
               .then(Text("item").runs(_cmd_watch)))
         .then(GreedyText("item").runs(_cmd_item))
     )
-    server.register_help_message("!!prod [item]", "production rates", PermissionLevel.USER)
+    server.register_help_message("!!prod [item]", server.tr("help"), PermissionLevel.USER)
 
     if config.get("enabled", True):
         _state["task"] = asyncio.create_task(_sampler(server, config))
@@ -182,9 +182,9 @@ async def _cmd_overview(source):
     config = _state["config"]
     watched = config.get("watch", [])
     if not watched:
-        await source.reply("Nothing is being watched. Add items with !!prod watch <item>")
+        await source.reply(source.server.tr("overview.nothing_watched"))
         return
-    await source.reply("Production over the last minute:")
+    await source.reply(source.server.tr("overview.header"))
     for item in watched:
         series = _state["history"].get(item, [])
         try:
@@ -192,13 +192,13 @@ async def _cmd_overview(source):
                 lua.production_rate(item, "one_minute", config.get("surface", "nauvis"))
             )
         except QueryError as exc:
-            await source.reply(f"  {item}: unavailable ({exc})")
+            await source.reply(source.server.tr("overview.unavailable", item=item, error=exc))
             continue
         spark = sparkline([row[1] for row in series])
-        await source.reply(
-            f"  {item}: {data.get('produced', 0):,}/min"
-            + (f"  {spark}" if spark else "  (no history yet)")
-        )
+        await source.reply(source.server.tr(
+            "overview.entry", item=item, rate=f"{data.get('produced', 0):,}",
+            spark=f"  {spark}" if spark else source.server.tr("overview.no_history"),
+        ))
 
 
 async def _cmd_item(source, ctx):
@@ -214,19 +214,22 @@ async def _cmd_item(source, ctx):
             # Guessing what was meant is more use than repeating the error.
             await _suggest_item(source, item)
             return
-        await source.reply(f"Could not read production for {item}: {exc}")
+        await source.reply(source.server.tr("item.failed", item=item, error=exc))
         return
     if not data:
-        await source.reply(f"No production data for {item!r}.")
+        await source.reply(source.server.tr("item.none", item=item))
         return
 
-    await source.reply(f"{item}:")
-    await source.reply(f"  {data.get('produced', 0):,}/min produced, {data.get('consumed', 0):,}/min consumed")
-    await source.reply(f"  {data.get('total_produced', 0):,} produced in total")
+    tr = source.server.tr
+    await source.reply(tr("item.header", item=item))
+    await source.reply(tr("item.rates", produced=f"{data.get('produced', 0):,}",
+                          consumed=f"{data.get('consumed', 0):,}"))
+    await source.reply(tr("item.total", total=f"{data.get('total_produced', 0):,}"))
     series = _state["history"].get(item, [])
     if series:
         interval = config.get("sample_interval_seconds", 300) // 60
-        await source.reply(f"  {sparkline([row[1] for row in series])}  ({interval}min samples)")
+        await source.reply(tr("item.history",
+                              spark=sparkline([row[1] for row in series]), minutes=interval))
 
 
 async def _suggest_item(source, wanted: str) -> None:
@@ -237,23 +240,24 @@ async def _suggest_item(source, wanted: str) -> None:
     has actually produced turns a dead end into a list of things to try, and
     those are exactly the items the asker is likely to care about.
     """
-    await source.reply(f"There is no item called {wanted!r}.")
-    await source.reply("Factorio wants internal names, like 'iron-plate' rather than 'iron'.")
+    tr = source.server.tr
+    await source.reply(tr("unknown.no_such_item", item=wanted))
+    await source.reply(tr("unknown.internal_names"))
 
     try:
         rows = await source.server.lua_json(
             lua.production_totals(_state["config"].get("surface", "nauvis"), limit=200)
         )
     except QueryError:
-        await source.reply("Try !!prod top to see what this factory produces.")
+        await source.reply(tr("unknown.try_top"))
         return
 
     needle = wanted.lower().replace(" ", "-")
     matches = [row["name"] for row in rows or [] if needle in row["name"].lower()]
     if matches:
-        await source.reply("Did you mean: " + ", ".join(matches[:8]))
+        await source.reply(tr("unknown.did_you_mean", items=", ".join(matches[:8])))
     else:
-        await source.reply("Try !!prod top to see what this factory produces.")
+        await source.reply(tr("unknown.try_top"))
 
 
 async def _cmd_top(source):
@@ -263,14 +267,15 @@ async def _cmd_top(source):
             lua.production_totals(config.get("surface", "nauvis"), limit=15)
         )
     except QueryError as exc:
-        await source.reply(f"Could not read the totals: {exc}")
+        await source.reply(source.server.tr("top.failed", error=exc))
         return
     if not rows:
-        await source.reply("Nothing has been produced yet.")
+        await source.reply(source.server.tr("top.nothing"))
         return
-    await source.reply("Most-produced items, all time:")
+    await source.reply(source.server.tr("top.header"))
     for row in rows:
-        await source.reply(f"  {row['name']}: {row['produced']:,}")
+        await source.reply(source.server.tr(
+            "top.entry", name=row["name"], count=f"{row['produced']:,}"))
 
 
 async def _cmd_watch(source, ctx):
@@ -278,9 +283,9 @@ async def _cmd_watch(source, ctx):
     config = _state["config"]
     watch = list(config.get("watch", []))
     if item in watch:
-        await source.reply(f"{item} is already watched.")
+        await source.reply(source.server.tr("watch.already", item=item))
         return
     watch.append(item)
     config["watch"] = watch
     source.server.save_config_simple(config)
-    await source.reply(f"Now sampling {item}. It will appear once the next sample runs.")
+    await source.reply(source.server.tr("watch.added", item=item))

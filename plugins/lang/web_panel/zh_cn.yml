@@ -1,0 +1,27 @@
+help: Web 面板地址
+disabled: web_panel 在配置里被禁用了。
+not_serving: "web_panel 没有在服务 —— 查看日志里的绑定错误。"
+serving: "正在 http://{host}:{port} 提供服务（JSON 在 /api）。只读。"
+page:
+  status: 状态
+  rcon: RCON
+  uptime: 运行时长
+  surface: 星球
+  played: 已游玩
+  evolution: 进化度
+  pollution: 污染
+  research: 科研
+  overview: 概览
+  online: "在线（{count}）"
+  nobody: 当前无人在线。
+  backups: 最近备份
+  no_backups: 暂无备份。
+  blueprints: 蓝图库
+  no_blueprints: 蓝图库是空的。
+  map: 世界地图
+  no_map: "还没有渲染过地图。执行 !!map。"
+  production: 生产
+  no_production: 还没有采样到生产数据。
+  log: 最近输出
+  updated: "{age} 秒前更新 · 只读"
+  unavailable: "部分数据不可用：{error}"

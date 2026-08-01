@@ -312,3 +312,47 @@ class TestMetadata:
     )
     def test_version_requirements(self, version, requirement, expected):
         assert satisfies(version, requirement) is expected
+
+
+class TestTranslationDirectories:
+    """Where a plugin's language files are looked for."""
+
+    def test_a_multi_file_plugin_keeps_them_inside_its_package(self, tmp_path):
+        from factorio_reforge.plugin.manager import plugin_lang_dir
+
+        pkg = tmp_path / "telegram_bridge"
+        pkg.mkdir()
+        assert plugin_lang_dir(pkg, "telegram_bridge") == pkg / "lang"
+
+    def test_each_solo_plugin_gets_its_own_directory(self, tmp_path):
+        """A shared plugins/lang/ would have solo plugins clobber each other."""
+        from factorio_reforge.plugin.manager import plugin_lang_dir
+
+        warp = tmp_path / "warp.py"
+        blueprints = tmp_path / "blueprints.py"
+        assert plugin_lang_dir(warp, "warp") == tmp_path / "lang" / "warp"
+        assert plugin_lang_dir(blueprints, "blueprints") == tmp_path / "lang" / "blueprints"
+        assert plugin_lang_dir(warp, "warp") != plugin_lang_dir(blueprints, "blueprints")
+
+    async def test_a_solo_plugin_loads_its_own_catalogue(self, manager, plugin_dir):
+        import yaml
+
+        lang = plugin_dir / "lang" / "greeter"
+        lang.mkdir(parents=True)
+        (lang / "en.yml").write_text(yaml.safe_dump({"hello": "hi there"}))
+        write_plugin(plugin_dir, "greeter", "")
+        await manager.load_all()
+        assert manager.server.i18n.translate("greeter.hello") == "hi there"
+
+    async def test_unloading_drops_only_that_plugin_keys(self, manager, plugin_dir):
+        import yaml
+
+        for name in ("alpha", "beta"):
+            lang = plugin_dir / "lang" / name
+            lang.mkdir(parents=True)
+            (lang / "en.yml").write_text(yaml.safe_dump({"word": name}))
+            write_plugin(plugin_dir, name, "")
+        await manager.load_all()
+        await manager.unload("alpha")
+        assert manager.server.i18n.translate("alpha.word") == "alpha.word"
+        assert manager.server.i18n.translate("beta.word") == "beta"

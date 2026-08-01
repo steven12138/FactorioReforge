@@ -1,0 +1,11 @@
+lines:
+  - "=== 欢迎，{player}！ ==="
+  - "这个世界的第 {day} 天 —— 已游玩 {uptime}"
+  - "当前 {online} 人在线，累计 {total} 人来过"
+  - "进化度 {evolution} | 科研：{research}"
+  - "上次备份：{last_snapshot}（保留 {snapshots} 份）"
+  - "输入 !!FR help 查看命令"
+research_idle: 空闲
+never: 从未
+just_now: 刚刚
+ago: "{minutes} 分钟前"

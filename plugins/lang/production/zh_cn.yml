@@ -1,0 +1,27 @@
+help: 生产速率
+overview:
+  nothing_watched: "没有在监控任何物品。用 !!prod watch <物品> 添加。"
+  header: "最近一分钟的产量："
+  entry: "  {item}：{rate}/分钟{spark}"
+  unavailable: "  {item}：读取失败（{error}）"
+  no_history: "  （还没有历史数据）"
+item:
+  failed: "读不到 {item} 的产量：{error}"
+  none: "没有 {item!r} 的产量数据。"
+  header: "{item}："
+  rates: "  产出 {produced}/分钟，消耗 {consumed}/分钟"
+  total: "  累计产出 {total}"
+  history: "  {spark}  （每 {minutes} 分钟采样）"
+unknown:
+  no_such_item: "没有叫 {item!r} 的物品。"
+  internal_names: "Factorio 要的是内部名，比如 'iron-plate' 而不是 'iron'。"
+  did_you_mean: "你是不是想要：{items}"
+  try_top: "试试 !!prod top 看这个工厂在产什么。"
+top:
+  failed: "读不到产量统计：{error}"
+  nothing: 还没有生产任何东西。
+  header: "历史累计产量最高的物品："
+  entry: "  {name}：{count}"
+watch:
+  already: "{item} 已经在监控中。"
+  added: "已开始采样 {item}，下次采样后会出现。"

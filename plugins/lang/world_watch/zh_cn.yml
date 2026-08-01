@@ -1,0 +1,19 @@
+help: 告警与里程碑状态
+alert:
+  evolution: "⚠️ 进化度已超过 {threshold}（当前 {value}）"
+  evolution_detail: 虫子会更强了 —— 该检查防线了。
+  pollution: "⚠️ 污染已超过 {threshold}（当前 {value}）"
+  pollution_detail: 污染云更大意味着波及更多虫巢，也就意味着更大规模的进攻。
+milestone:
+  first_rocket: "🚀 第一枚火箭发射了！"
+  rocket: "🚀 第 {count} 枚火箭发射"
+  research: "🔬 科研完成：{tag} {name}"
+status:
+  failed: "读不到世界状态：{error}"
+  evolution: "进化度：{value}"
+  pollution: "污染：{value}"
+  research: "科研：{done}/{total} 已完成{current}"
+  researching: "，当前研究 {name}"
+  idle: "，空闲中"
+  rockets: "已发射火箭：{count}"
+  next_alert: "下一次进化度告警在 {threshold}"

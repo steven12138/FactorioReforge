@@ -23,6 +23,7 @@ from factorio_reforge.command.builder import ArgumentNode
 from factorio_reforge.core import lua
 from factorio_reforge.core.lua import parse_json_result
 from factorio_reforge.core.rcon import RconError
+from factorio_reforge.i18n import PluginTranslator
 from factorio_reforge.permission import PermissionLevel
 from factorio_reforge.plugin.events import Event
 
@@ -270,6 +271,16 @@ class PluginServerInterface(ServerInterface):
     def __init__(self, server: ReforgeServer, plugin: LoadedPlugin):
         super().__init__(server)
         self._plugin = plugin
+        self._tr = PluginTranslator(server.i18n, plugin.id)
+
+    def tr(self, key: str, /, *args: Any, **kwargs: Any) -> str:
+        """Translate, looking under this plugin's namespace first.
+
+        ``server.tr("failed")`` inside a plugin finds ``<plugin_id>.failed`` if
+        the plugin ships one, and otherwise falls through to the core
+        catalogue, so shared strings need not be repeated in every plugin.
+        """
+        return self._tr.translate(key, *args, **kwargs)
 
     @property
     def plugin_id(self) -> str:

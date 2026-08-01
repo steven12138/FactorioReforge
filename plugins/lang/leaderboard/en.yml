@@ -1,0 +1,17 @@
+help: rankings
+playtime:
+  failed: "Could not read the player list: {error}"
+  nobody: Nobody has joined this server yet.
+  header: "Most time played:"
+  entry: "  {rank}. {name} - {played}{online}"
+  online_tag: " (online)"
+kills:
+  failed: "Could not read the kill counts: {error}"
+  nothing: Nothing has been killed yet.
+  header: "Most-killed enemies (whole force):"
+  entry: "  {rank}. {name}: {count}"
+built:
+  failed: "Could not read the totals: {error}"
+  nothing: Nothing has been produced yet.
+  header: "Most-produced items:"
+  entry: "  {rank}. {name}: {count}"

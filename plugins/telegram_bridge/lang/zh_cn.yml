@@ -1,0 +1,54 @@
+no_token: "telegram_bridge 还没有 token；编辑 {path} 后重载插件"
+no_chats: "telegram_bridge 的 allowed_chat_ids 是空的，在你添加之前它会忽略所有消息（给 bot 发条消息，日志里就会显示 chat id）"
+polling: "telegram_bridge 已开始轮询，注册了 {count} 条命令"
+help_header: FactorioReforge 桥接
+status:
+  running: "服务器运行中：{value}"
+  startup: "启动完成：{value}"
+  rcon: "RCON：{value}"
+  backups: "备份：{count}"
+  online: "在线：{online}/{total}"
+  evolution: "进化度：{value}"
+  unavailable: "世界数据不可用：{error}"
+players:
+  failed: "读不到玩家列表：{error}"
+  nobody: 当前无人在线。
+say:
+  usage: "用法：/say <消息>"
+  sent: 已发送。
+save:
+  working: 正在存档并备份……
+  failed: "备份失败：{error}"
+  done: "已创建 {slot}"
+  none: 还没有任何备份。
+rollback:
+  usage: "用法：/rollback <槽位>（见 /saves）"
+  not_a_number: "槽位必须是数字，例如 /rollback 1"
+  empty: "槽位 {slot} 是空的。发送 /saves 查看有哪些。"
+  confirm: "回档到：\n{slot}\n\n这会停止服务器并替换当前世界。"
+  cancelled: 已取消。
+  working: 正在回档……
+  failed: "回档失败：{error}"
+  done: "已回档到 {slot}"
+server:
+  confirm_restart: "重启服务器？所有在线玩家都会被断开。"
+  restarting: 正在重启……
+  restarted: 重启指令已下达。
+  confirm_stop: "停止服务器？"
+  stopped: 服务器已停止。
+  starting: 正在启动……
+  already_running: 已经在运行了。
+cmd:
+  usage: "用法：/cmd <命令>"
+  sent: 已发送到服务器控制台。
+  no_output: "（无输出）"
+not_allowed: 你没有权限执行这个操作。
+failed: "执行失败：插件 {plugin} 内部错误"
+alerts:
+  joined: "➕ <b>{player}</b> 进入了游戏"
+  left: "➖ <b>{player}</b> 离开了游戏"
+  died: "💀 {message}"
+  server_up: "✅ 服务器已启动"
+  server_crashed: "🔥 <b>服务器意外退出</b>（退出码 {code}）"
+  restored: "♻️ 已回档到 {slot}"
+  restore_failed: "❌ 回档失败：{slot}"

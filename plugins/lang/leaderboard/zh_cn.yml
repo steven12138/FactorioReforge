@@ -1,0 +1,17 @@
+help: 排行榜
+playtime:
+  failed: "读不到玩家列表：{error}"
+  nobody: 还没有人进过这个服务器。
+  header: "游玩时长排行："
+  entry: "  {rank}. {name} —— {played}{online}"
+  online_tag: "（在线）"
+kills:
+  failed: "读不到击杀统计：{error}"
+  nothing: 还没有击杀记录。
+  header: "击杀最多的敌人（全阵营）："
+  entry: "  {rank}. {name}：{count}"
+built:
+  failed: "读不到产量统计：{error}"
+  nothing: 还没有生产任何东西。
+  header: "产量最高的物品："
+  entry: "  {rank}. {name}：{count}"

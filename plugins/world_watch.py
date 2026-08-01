@@ -63,7 +63,7 @@ def on_load(server, prev):
     server.register_command(
         Literal("!!watch").requires(PermissionLevel.USER).runs(_cmd_status)
     )
-    server.register_help_message("!!watch", "alert and milestone state", PermissionLevel.USER)
+    server.register_help_message("!!watch", server.tr("help"), PermissionLevel.USER)
     _state["task"] = asyncio.create_task(_poller(server, config))
 
 
@@ -148,8 +148,9 @@ async def _check_evolution(server, config, value: float) -> bool:
     for threshold in crossed:
         await _announce(
             server, config,
-            f"⚠️ Evolution has passed {threshold * 100:.0f}% (now {value * 100:.2f}%)",
-            "Biters are getting stronger -- time to check the defences.",
+            server.tr("alert.evolution", threshold=f"{threshold * 100:.0f}%",
+                      value=f"{value * 100:.2f}%"),
+            server.tr("alert.evolution_detail"),
         )
     return True
 
@@ -165,8 +166,8 @@ async def _check_pollution(server, config, value: float) -> bool:
     for threshold in crossed:
         await _announce(
             server, config,
-            f"⚠️ Pollution has passed {threshold:,.0f} (now {value:,.0f})",
-            "A bigger cloud reaches more nests, which means bigger attacks.",
+            server.tr("alert.pollution", threshold=f"{threshold:,.0f}", value=f"{value:,.0f}"),
+            server.tr("alert.pollution_detail"),
         )
     return True
 
@@ -179,8 +180,8 @@ async def _check_rockets(server, config, launched: int) -> bool:
         return False
     _state["seen"]["rockets"] = launched
     message = (
-        "🚀 The first rocket has launched!" if previous == 0 and launched == 1
-        else f"🚀 Rocket #{launched} launched"
+        server.tr("milestone.first_rocket") if previous == 0 and launched == 1
+        else server.tr("milestone.rocket", count=launched)
     )
     await _announce(server, config, message, "", milestone=True)
     return True
@@ -208,7 +209,7 @@ async def _check_research(server, config) -> bool:
     for name in sorted(new):
         await _announce(
             server, config,
-            f"🔬 Research complete: {lua.technology_tag(name)} {name}",
+            server.tr("milestone.research", tag=lua.technology_tag(name), name=name),
             "", milestone=True,
         )
     return True
@@ -250,19 +251,22 @@ async def _cmd_status(source):
         alerts = await source.server.lua_json(lua.world_alerts(config.get("surface", "nauvis")))
         research = await source.server.lua_json(lua.research_state())
     except QueryError as exc:
-        await source.reply(f"Could not read the world: {exc}")
+        await source.reply(source.server.tr("status.failed", error=exc))
         return
 
-    await source.reply(f"Evolution: {alerts.get('evolution', 0) * 100:.2f}%")
-    await source.reply(f"Pollution: {alerts.get('pollution', 0):,.0f}")
-    await source.reply(
-        f"Research: {research.get('researched', 0)}/{research.get('total', 0)} done"
-        + (f", now on {research['current']}" if research.get("current") else ", idle")
-    )
-    await source.reply(f"Rockets launched: {research.get('rockets_launched', 0)}")
+    tr = source.server.tr
+    await source.reply(tr("status.evolution", value=f"{alerts.get('evolution', 0) * 100:.2f}%"))
+    await source.reply(tr("status.pollution", value=f"{alerts.get('pollution', 0):,.0f}"))
+    await source.reply(tr(
+        "status.research",
+        done=research.get("researched", 0), total=research.get("total", 0),
+        current=(tr("status.researching", name=research["current"])
+                 if research.get("current") else tr("status.idle")),
+    ))
+    await source.reply(tr("status.rockets", count=research.get("rockets_launched", 0)))
 
     remaining = [
         t for t in config.get("evolution_thresholds", []) if t > seen.get("evolution", 0)
     ]
     if remaining:
-        await source.reply(f"Next evolution alert at {remaining[0] * 100:.0f}%")
+        await source.reply(tr("status.next_alert", threshold=f"{remaining[0] * 100:.0f}%"))

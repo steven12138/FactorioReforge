@@ -1,0 +1,31 @@
+help: shared blueprint library
+list:
+  empty: "The library is empty. Stand somewhere and use !!bp save <name>"
+  header: "{count} blueprint(s):"
+  entry: "  {name} - {entities} entities, by {by}"
+  hint: "!!bp get <name> puts one in your inventory."
+info:
+  not_found: "No blueprint called {name!r}."
+  header: "{name}:"
+  entities: "  {count} entities"
+  saved_by: "  saved by {by}"
+  contains: "  contains: {items}"
+save:
+  console_only: "!!bp save captures the area around you, so it only works in game."
+  bad_radius: "The radius must be between 1 and {max}."
+  full: "The library is full ({count}); delete one first."
+  read_failed: "Could not read your position: {error}"
+  no_position: Could not read your position.
+  capturing: "Capturing {size}x{size} tiles around you..."
+  failed: "Capture failed: {error}"
+  empty_area: "Nothing to blueprint there -- the area is empty. Stand near your build, or pass a bigger radius: !!bp save <name> <radius>"
+  done: "Saved {name!r}: {entities} entities."
+get:
+  not_found: "No blueprint called {name!r}. Try !!bp list"
+  console: "{name} ({entities} entities):"
+  failed: "Could not hand it over: {error}"
+  refused: "Could not give you {name!r}: {reason}"
+  done: "{name!r} is in your inventory ({entities} entities)."
+delete:
+  not_found: "No blueprint called {name!r}."
+  done: "Deleted {name!r}."

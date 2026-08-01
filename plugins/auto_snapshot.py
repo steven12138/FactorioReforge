@@ -45,11 +45,11 @@ def on_load(server, prev):
         .runs(_report)
         .then(Literal("now").runs(_snapshot_now))
     )
-    server.register_help_message("!!autosnap", "automatic snapshot status", PermissionLevel.HELPER)
+    server.register_help_message("!!autosnap", server.tr("help"), PermissionLevel.HELPER)
 
     if config.get("enabled", True):
         _state["task"] = asyncio.create_task(_timer(server, config))
-        server.logger.info("Snapshotting every %s minutes", config["interval_minutes"])
+        server.logger.info(server.tr("scheduled", minutes=config["interval_minutes"]))
 
 
 async def on_unload(server):
@@ -73,7 +73,7 @@ async def _timer(server, config):
             except Exception:
                 # RCON down: take the snapshot rather than skip it.
                 pass
-        await _take(server, "scheduled")
+        await _take(server, server.tr("reason_scheduled"))
 
 
 async def on_player_left(server, player, info=None):
@@ -85,27 +85,28 @@ async def on_player_left(server, player, info=None):
             return
     except Exception:
         return
-    await _take(server, f"last player ({player}) left")
+    await _take(server, server.tr("reason_last_left", player=player))
 
 
 async def _take(server, reason: str) -> None:
     try:
         snapshot = await server.snapshot(reason, created_by="auto_snapshot")
     except Exception as exc:
-        server.logger.error("Automatic snapshot failed: %s", exc)
+        server.logger.error(server.tr("failed", error=exc))
         return
     _state["last"] = time.time()
-    server.logger.info("Automatic snapshot: %s", snapshot.describe())
+    server.logger.info(server.tr("made", slot=snapshot.describe()))
 
 
 async def _report(source):
     last = _state.get("last", 0.0)
-    when = time.strftime("%H:%M:%S", time.localtime(last)) if last else "never"
+    tr = source.server.tr
+    when = time.strftime("%H:%M:%S", time.localtime(last)) if last else tr("never")
     interval = (_state.get("config") or {}).get("interval_minutes", "?")
-    await source.reply(f"Auto snapshot: every {interval} min, last taken at {when}")
+    await source.reply(tr("report", interval=interval, when=when))
 
 
 async def _snapshot_now(source):
-    await source.reply("Taking a snapshot...")
-    await _take(source.server, "manual via !!autosnap now")
-    await source.reply("Done.")
+    await source.reply(source.server.tr("taking"))
+    await _take(source.server, source.server.tr("reason_manual"))
+    await source.reply(source.server.tr("done"))

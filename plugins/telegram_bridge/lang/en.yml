@@ -1,0 +1,54 @@
+no_token: "telegram_bridge has no token yet; edit {path} and reload the plugin"
+no_chats: "telegram_bridge has no allowed_chat_ids; it will ignore every message until you add one (send the bot a message to see its id in this log)"
+polling: "telegram_bridge is polling with {count} command(s)"
+help_header: FactorioReforge bridge
+status:
+  running: "Server running: {value}"
+  startup: "Startup done: {value}"
+  rcon: "RCON: {value}"
+  backups: "Backups: {count}"
+  online: "Online: {online}/{total}"
+  evolution: "Evolution: {value}"
+  unavailable: "World stats unavailable: {error}"
+players:
+  failed: "Could not read the player list: {error}"
+  nobody: Nobody is online right now.
+say:
+  usage: "Usage: /say <message>"
+  sent: Sent.
+save:
+  working: Saving and backing up...
+  failed: "Backup failed: {error}"
+  done: "Created {slot}"
+  none: No backups yet.
+rollback:
+  usage: "Usage: /rollback <slot>  (see /saves)"
+  not_a_number: "The slot must be a number, e.g. /rollback 1"
+  empty: "Slot {slot} is empty. Send /saves to see what is there."
+  confirm: "Restore:\n{slot}\n\nThis stops the server and replaces the current world."
+  cancelled: Cancelled.
+  working: Restoring...
+  failed: "Restore failed: {error}"
+  done: "Restored {slot}"
+server:
+  confirm_restart: "Restart the server? Everyone online will be disconnected."
+  restarting: Restarting...
+  restarted: Restart issued.
+  confirm_stop: "Stop the server?"
+  stopped: Server stopped.
+  starting: Starting...
+  already_running: It is already running.
+cmd:
+  usage: "Usage: /cmd <command>"
+  sent: Sent to the server console.
+  no_output: "(no output)"
+not_allowed: You are not allowed to do that.
+failed: "That failed: internal error in {plugin}"
+alerts:
+  joined: "➕ <b>{player}</b> joined"
+  left: "➖ <b>{player}</b> left"
+  died: "💀 {message}"
+  server_up: "✅ Server is up"
+  server_crashed: "🔥 <b>Server exited unexpectedly</b> (code {code})"
+  restored: "♻️ Restored {slot}"
+  restore_failed: "❌ Restore FAILED for {slot}"

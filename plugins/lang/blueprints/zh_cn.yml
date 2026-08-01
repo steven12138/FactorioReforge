@@ -1,0 +1,31 @@
+help: 共享蓝图库
+list:
+  empty: "蓝图库是空的。站到某处，用 !!bp save <名字> 保存。"
+  header: "共 {count} 张蓝图："
+  entry: "  {name} —— {entities} 个实体，来自 {by}"
+  hint: "!!bp get <名字> 会把它放进你的物品栏。"
+info:
+  not_found: "没有叫 {name!r} 的蓝图。"
+  header: "{name}："
+  entities: "  {count} 个实体"
+  saved_by: "  保存者：{by}"
+  contains: "  包含：{items}"
+save:
+  console_only: "!!bp save 抓取的是你周围的区域，所以只能在游戏内使用。"
+  bad_radius: "半径必须在 1 到 {max} 之间。"
+  full: "蓝图库已满（{count} 张），先删一张。"
+  read_failed: "读不到你的位置：{error}"
+  no_position: 读不到你的位置。
+  capturing: "正在抓取你周围 {size}x{size} 格……"
+  failed: "抓取失败：{error}"
+  empty_area: "那里没有东西可做成蓝图 —— 区域是空的。站到你的建筑旁，或者加大半径：!!bp save <名字> <半径>"
+  done: "已保存 {name!r}：{entities} 个实体。"
+get:
+  not_found: "没有叫 {name!r} 的蓝图。试试 !!bp list"
+  console: "{name}（{entities} 个实体）："
+  failed: "递交失败：{error}"
+  refused: "无法把 {name!r} 给你：{reason}"
+  done: "{name!r} 已放进你的物品栏（{entities} 个实体）。"
+delete:
+  not_found: "没有叫 {name!r} 的蓝图。"
+  done: "已删除 {name!r}。"

@@ -1,0 +1,53 @@
+here:
+  no_position: "!!here only makes sense in game -- the console has nowhere to stand."
+  cooldown: "Slow down -- try !!here again in {seconds}s."
+  read_failed: "Could not read your position: {error}"
+  no_character: "Could not read your position -- are you controlling a character?"
+  announce: "{player} is at {gps}"
+  marker_failed: "(the map marker could not be placed there)"
+seen:
+  usage: "Usage: !!seen <player>"
+  never: "{player} has never joined this server."
+  online_now: "{player} is online now, {played} played."
+  last_seen: "{player} was last seen {ago} ago (game time), {played} played."
+list:
+  nobody: Nobody is online.
+  header: "{count} online:"
+  entry: "  {name}{admin} - {played} played"
+  admin_tag: " [admin]"
+info:
+  usage: "Usage: !!info <player>"
+  never: "{player} has never joined this server."
+  header: "=== {player} ==="
+  status: "  Status: {status}"
+  online: online
+  offline: offline
+  playtime: "  Playtime: {played}"
+  admin: "  Game admin: {game} | FactorioReforge: {level}"
+  force: "  Force: {force}"
+  at: "  At: ({x}, {y}) on {surface}"
+  last_seen: "  Last seen: {ago} ago (game time)"
+stats:
+  surface: "Surface: {surface}"
+  played: "Played: {played}"
+  players: "Players: {online} online / {total} total"
+  evolution: "Evolution: {value}"
+  pollution: "Pollution: {value}"
+  research: "Research: {name} ({progress})"
+  research_idle: "Research: idle"
+tp:
+  usage: "Usage: !!tp <player> <target player | x y>"
+  lookup_failed: "Could not look up {target}: {error}"
+  target_offline: "{target} is not online, so there is nowhere to send {player}."
+  failed: "Teleport failed: {reason}"
+  blocked: the destination is blocked
+  done: "Teleported {player} to {destination}."
+  announced: "[FactorioReforge] {player} was teleported to {destination} by {by}"
+  enabled_for: "Teleport is enabled for {level} and above"
+help:
+  here: share your position and pin it on the map
+  info: detailed player info
+  seen: playtime and last seen
+  list: who is online
+  stats: world statistics
+  tp: "teleport ({level}+)"
