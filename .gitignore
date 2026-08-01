@@ -1,0 +1,30 @@
+# --- Runtime state and secrets ------------------------------------------
+# config/ holds per-plugin configuration, which is where the Telegram bot token
+# and mod-portal credentials end up. config.yml holds the RCON password.
+# Neither belongs in a public repository.
+config/
+config.yml
+logs/
+snapshots/
+
+# The Factorio headless install, its saves and its mods. Large, and not ours.
+server/
+
+# --- Python --------------------------------------------------------------
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+*.whl
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# --- Editors and OS ------------------------------------------------------
+.idea/
+.vscode/
+*.swp
+.DS_Store

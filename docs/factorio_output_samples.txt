@@ -1,0 +1,75 @@
+### transport=pipe
+OK    | 72 lines, first at 0.01s, largest same-instant burst 20, InGame at 0.57s
+   0.007 |    0.000 2026-08-02 02:16:26; Factorio 2.0.77 (build 84539, linux64, headless, space-age)
+   0.014 |    0.007 Operating system: Linux (Arch rolling)
+   0.014 |    0.007 Program arguments: "/home/steven/project/FactorioReforge/server/factorio/bin/x64/factorio" "--start-server" "/home/steven/project/FactorioReforge/server/factorio/saves/probe.zip" "--server-settings" "/home/steven/project/FactorioReforge/server/factorio/server-settings.json" "--port" "34199" "--rcon-port" "27019" "--rcon-password" <private> 
+   0.014 |    0.007 Config path: /home/steven/project/FactorioReforge/server/factorio/config/config.ini
+   0.014 |    0.007 Read data path: /home/steven/project/FactorioReforge/server/factorio/data
+   0.014 |    0.007 Write data path: /home/steven/project/FactorioReforge/server/factorio [543644/943782MB]
+   0.014 |    0.007 Binaries path: /home/steven/project/FactorioReforge/server/factorio/bin
+   0.021 |    0.013 System info: [CPU: 12th Gen Intel(R) Core(TM) i9-12900H, 20 cores, RAM: 31810 MB]
+   0.021 |    0.013 Environment: DISPLAY=:0 WAYLAND_DISPLAY=wayland-0 DESKTOP_SESSION=/usr/share/wayland-sessions/plasma.desktop XDG_SESSION_DESKTOP=KDE XDG_CURRENT_DESKTOP=KDE SDL_VIDEODRIVER=<unset> __GL_FSAA_MODE=<unset> __GL_LOG_MAX_ANISO=<unset> __GL_SYNC_TO_VBLANK=<unset> __GL_SORT_FBCONFIGS=<unset> __GL_YIELD=<unset>
+   0.021 |    0.013 Running in headless mode
+   0.021 |    0.013 Audio is disabled
+   0.028 |    0.021 Info ModManager.cpp:449: FeatureFlag expansion-shaders = true
+   0.028 |    0.021 Info ModManager.cpp:449: FeatureFlag freezing = true
+   0.028 |    0.021 Info ModManager.cpp:449: FeatureFlag quality = true
+   0.028 |    0.021 Info ModManager.cpp:449: FeatureFlag rail-bridges = true
+   0.028 |    0.021 Info ModManager.cpp:449: FeatureFlag segmented-units = true
+   0.028 |    0.021 Info ModManager.cpp:449: FeatureFlag space-travel = true
+   0.028 |    0.021 Info ModManager.cpp:449: FeatureFlag spoiling = true
+   0.030 |    0.023 Loading mod core 0.0.0 (data.lua)
+   0.038 |    0.031 Loading mod base 2.0.77 (data.lua)
+   0.114 |    0.107 Loading mod elevated-rails 2.0.77 (data.lua)
+   0.126 |    0.118 Loading mod quality 2.0.77 (data.lua)
+   0.133 |    0.126 Loading mod space-age 2.0.77 (data.lua)
+   0.226 |    0.219 Loading mod base 2.0.77 (data-updates.lua)
+   0.233 |    0.226 Loading mod quality 2.0.77 (data-updates.lua)
+   0.257 |    0.249 Loading mod space-age 2.0.77 (data-updates.lua)
+   0.299 |    0.291 Checksum for core: 4187927925
+   0.299 |    0.291 Checksum of base: 1879415942
+   0.299 |    0.291 Checksum of elevated-rails: 70351106
+   0.299 |    0.291 Checksum of quality: 1142589254
+   0.299 |    0.291 Checksum of space-age: 1510664043
+   0.523 |    0.515 Prototype list checksum: 3295867752
+   0.549 |    0.541 Info PlayerData.cpp:64: Local player-data.json available, timestamp 1785608172
+   0.549 |    0.542 Info PlayerData.cpp:71: Cloud player-data.json unavailable
+   0.549 |    0.542 Factorio initialised
+   0.550 |    0.542 Info ServerSynchronizer.cpp:22: nextHeartbeatSequenceNumber(0) initialized Synchronizer nextTickClosureTick(0).
+   0.550 |    0.542 Info ServerMultiplayerManager.cpp:808: updateTick(18446744073709551615) changing state from(Ready) to(PreparedToHostGame)
+   0.550 |    0.542 Info ServerMultiplayerManager.cpp:808: updateTick(18446744073709551615) changing state from(PreparedToHostGame) to(CreatingGame)
+   0.550 |    0.543 Loading map /home/steven/project/FactorioReforge/server/factorio/saves/probe.zip: 863501 bytes.
+   0.561 |    0.553 Loading level.dat: 1012258 bytes.
+   0.561 |    0.553 Info Scenario.cpp:154: Map version 2.0.77-0
+   0.572 |    0.564 Blueprint storage "blueprint-storage-2.dat" was not found, trying to load previous version storage "blueprint-storage.dat"
+   0.572 |    0.565 Loading script.dat: 1211 bytes.
+   0.573 |    0.566 Checksum for script __level__/control.lua: 2722821277
+   0.574 |    0.567 Info UDPSocket.cpp:38: Opening socket at (IP ADDR:({0.0.0.0:34199}))
+   0.574 |    0.567 Hosting game at IP ADDR:({0.0.0.0:34199})
+   0.574 |    0.567 Info ServerMultiplayerManager.cpp:808: updateTick(0) changing state from(CreatingGame) to(InGame)
+   0.574 |    0.567 Info UDPSocket.cpp:50: Opening socket for broadcast
+   0.574 |    0.567 Info RemoteCommandProcessor.cpp:126: Starting RCON interface at IP ADDR:({0.0.0.0:27019})
+   0.574 |    0.567 Info CommandLineMultiplayer.cpp:292: Maximum segment size = 100; minimum segment size = 25; maximum-segment-size peer count = 10; minimum-segment-size peer count = 20
+   6.025 | Players (0):
+   7.024 | 2.0.77
+   8.024 | 7 seconds
+   9.025 | 2026-08-02 02:16:35 [CHAT] <server>: hello from probe
+  16.018 |   16.011 Received SIGINT, shutting down
+  16.018 |   16.011 Quitting: signal.
+  16.018 |   16.011 Info MainLoop.cpp:437: Saving map as /home/steven/project/FactorioReforge/server/factorio/saves/probe.zip
+  16.035 |   16.028 Info MainLoop.cpp:448: Saving progress: 0.244499%
+  16.038 |   16.030 Info MainLoop.cpp:448: Saving progress: 100.000000%
+  16.054 |   16.046 Info ServerMultiplayerManager.cpp:119: Disconnecting multiplayer connection.
+  16.054 |   16.046 Info ServerMultiplayerManager.cpp:808: updateTick(926) changing state from(InGame) to(DisconnectingScheduled)
+  16.087 |   16.080 Info ServerMultiplayerManager.cpp:808: updateTick(926) changing state from(DisconnectingScheduled) to(Disconnecting)
+  16.121 |   16.113 Info ServerMultiplayerManager.cpp:808: updateTick(926) changing state from(Disconnecting) to(Disconnected)
+  16.121 |   16.113 Info ServerMultiplayerManager.cpp:146: Quitting multiplayer connection.
+  16.121 |   16.113 Info ServerMultiplayerManager.cpp:808: updateTick(926) changing state from(Disconnected) to(Closed)
+  16.121 |   16.113 Info ServerMultiplayerManager.cpp:166: Deleting active scenario (global = true).
+  16.407 |   16.400 Info UDPSocket.cpp:238: Closing socket
+  16.407 |   16.400 Info UDPSocket.cpp:268: Socket closed
+  16.407 |   16.400 Info UDPSocket.cpp:238: Closing socket
+  16.507 |   16.499 Info UDPSocket.cpp:238: Closing socket
+  16.507 |   16.499 Info UDPSocket.cpp:268: Socket closed
+  16.535 |   16.528 Goodbye
+

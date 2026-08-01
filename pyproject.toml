@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "factorio-reforge"
+version = "0.1.0"
+description = "MCDReforged-style process manager and plugin framework for Factorio headless servers"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+dependencies = ["PyYAML>=6.0"]
+
+[project.optional-dependencies]
+# prompt_toolkit keeps the input line intact while server output scrolls past.
+console = ["prompt_toolkit>=3.0"]
+telegram = ["python-telegram-bot>=21"]
+dev = ["pytest>=8.0", "pytest-asyncio>=0.23"]
+
+[project.scripts]
+factorio-reforge = "factorio_reforge.__main__:main"
+
+[tool.setuptools.packages.find]
+include = ["factorio_reforge*"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+filterwarnings = ["ignore::DeprecationWarning"]
