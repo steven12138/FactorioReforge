@@ -16,14 +16,15 @@
 3. [第一次启动](#3-第一次启动)
 4. [从游戏里连进去](#4-从游戏里连进去)
 5. [把自己设成管理员](#5-把自己设成管理员)
-6. [快照与回档](#6-快照与回档)
+6. [备份与回档](#6-备份与回档)
 7. [安装 mod](#7-安装-mod)
 8. [用 Telegram 控制](#8-用-telegram-控制)
-9. [Web 面板](#9-web-面板)
+9. [Web 面板与地图](#9-web-面板与地图)
 10. [开放到公网](#10-开放到公网)
 11. [无人值守运行](#11-无人值守运行)
 12. [写你的第一个插件](#12-写你的第一个插件)
-13. [出问题的时候](#13-出问题的时候)
+13. [切换语言](#13-切换语言)
+14. [出问题的时候](#14-出问题的时候)
 
 ---
 
@@ -116,7 +117,7 @@ Setup complete.
 你应该看到插件加载，然后服务器起来：
 
 ```
-[INFO] [reforge] Loaded 12 plugin(s)
+[INFO] [reforge] Loaded 13 plugin(s)
 [INFO] [reforge] Starting server: ./bin/x64/factorio --start-server ... --rcon-password <redacted>
 [INFO] [reforge] Server started, pid=34246
 [INFO] [reforge] Server startup complete
@@ -142,8 +143,8 @@ Setup complete.
 FactorioReforge 0.1.0 - up 12s
 Server: running (pid 34246, up 12s)
 RCON: connected
-Plugins: 12 loaded
-Snapshots: 0
+Plugins: 13 loaded
+Backups: 0 slots in use
 Online (0): -
 ```
 
@@ -220,25 +221,31 @@ echo '["你的Factorio用户名"]' > server/factorio/server-adminlist.json
 
 ---
 
-## 6. 快照与回档
+## 6. 备份与回档
 
 这是最值得在你真正需要它之前就搞懂的功能。
 
-### 做一次快照
+### 做一次备份
 
 ```
 !!save make 大改造之前
 ```
 
 ```
-Saving and snapshotting...
-Created #1 2026-08-02 10:12:03 by console (24.8 MiB) - 大改造之前
+正在存档……
+已备份到 槽位 1：2026-08-02 10:12:03 由 console（24.8 MiB）—— 大改造之前
 ```
 
-它会让服务器把地图写到磁盘，**等待存档完成的那条消息**，然后才复制文件。
-正是这个等待，让快照里装的是当前世界，而不是上一次自动存档碰巧写下的内容。
+服务器自己把备份写成一份独立文件，FactorioReforge 等到完成消息才登记它。
+备份**完全不碰实时存档**，也不需要复制 —— 早期版本用的是裸 `/server-save`，
+那会覆盖掉它正要备份的那个世界。
 
-### 列出快照
+备份遵循 [QuickBackupM](https://github.com/TISUnion/QuickBackupM) 的模型：
+新备份永远进**槽位 1**，其余后移一位。被挤掉的是第一个空槽位，
+或者编号最大且已过 `delete_protection` 保护期的那个 ——
+如果所有槽位都还在保护期内，备份会被拒绝，而不是毁掉你想留的东西。
+
+### 列出备份
 
 ```
 !!save list
@@ -253,8 +260,8 @@ Created #1 2026-08-02 10:12:03 by console (24.8 MiB) - 大改造之前
 ```
 
 ```
-About to roll back to #1 2026-08-02 10:12:03 by console (24.8 MiB) - 大改造之前
-This stops the server and replaces the current world. Type '!!save confirm' within 60s to proceed.
+即将回档到 槽位 1：2026-08-02 10:12:03 由 console（24.8 MiB）—— 大改造之前
+这会停止服务器并替换当前世界。60 秒内输入 '!!save confirm' 继续，'!!save abort' 取消。
 ```
 
 ```
@@ -263,18 +270,20 @@ This stops the server and replaces the current world. Type '!!save confirm' with
 
 接下来按顺序发生：
 
-1. 校验快照是合法 zip
-2. 游戏内倒计时广播
-3. **先给当前世界做一次快照** —— 这样回错了还能退回来
-4. 停服，并等待进程真正退出
+1. 校验槽位里是合法 zip
+2. 游戏内逐秒倒计时 —— 期间 `!!save abort` 仍然能取消
+3. 停服，并等待进程真正退出
+4. **把当前世界复制到 `overwrite` 槽位** —— 这样回错槽位也能救回来
 5. 通过临时文件 + rename 替换存档
 6. 重新启动服务器
-7. 如果起不来，恢复第 3 步的快照并明确报告
+7. 如果起不来，把 `overwrite` 里的世界放回去并明确报告
 
-如果第 3 步失败，整个回档会被拒绝执行。
+如果第 4 步失败，整个回档会被拒绝执行。
 没有退路的回档是一扇单向门，这里刻意不会走进去。
 
-### 自动快照
+回错槽位了？`!!save` 里会列出 `overwrite` 那一条 —— 那就是回档前一刻的世界。
+
+### 自动备份
 
 `auto_snapshot` 默认每 30 分钟一次，最后一个玩家离开时再补一次。
 改 `config/auto_snapshot/config.json`，然后：
@@ -283,9 +292,9 @@ This stops the server and replaces the current world. Type '!!save confirm' with
 !!FR plugin reload auto_snapshot
 ```
 
-保留策略在 `config.yml` 的 `saves:` 下 —— `max_snapshots` 和
-`max_snapshot_age_days`。**只有自动快照会被轮转清理**；
-你手打了备注的那些，说明你想留着。
+槽位数量、以及每个槽位多久之内不会被复用，都在 `config.yml` 的
+`saves.slot_protection` 里 —— 一个秒数列表，每个槽位一项。
+默认让最旧的两个槽位分别保护 3 小时和 3 天。
 
 ---
 
@@ -423,7 +432,7 @@ Searching the portal for 'krastorio'...
 
 ---
 
-## 9. Web 面板
+## 9. Web 面板与地图
 
 已经在 **http://127.0.0.1:8080** 上跑着了，`/api` 提供 JSON。
 
@@ -431,8 +440,22 @@ Searching the portal for 'krastorio'...
 !!web
 ```
 
-上面有服务器状态、在线玩家、世界统计、最近快照、蓝图库、生产曲线，
-以及服务器日志的尾巴。
+上面有服务器状态、在线玩家、世界统计、最近备份、蓝图库、生产曲线、
+渲染出的世界地图，以及服务器日志的尾巴。
+
+### 世界地图
+
+```
+!!map
+```
+
+按 1 像素 = 1 tile 绘制：地形、每一棵树、每一格矿、每一个建筑都在真实位置上。
+Factorio 在 headless 上无法截图 —— `game.take_screenshot` 能调用但不产生文件，
+因为进程里没有渲染器 —— 所以地图是用数据在这边合成的。
+
+结果写到 `config/map_render/map.png`，Web 面板在 `/map.png` 提供，
+发到 Telegram 时走**文件**而不是照片，因为 Telegram 会重新压缩照片，
+而这恰好会毁掉 1 像素 1 tile 的细节。
 
 **它是只读的，这是刻意的。** 没有停服按钮、没有回档、没有控制台。
 一个没有鉴权也没有写入路径的页面，无法被利用来造成破坏。
@@ -609,12 +632,34 @@ async def on_player_joined(server, player, info):
 
 `QueryError` 同时覆盖"RCON 断了"和"Lua 执行失败"，插件只需要 catch 一个。
 
-完整 API 见 [README](../README_zh.md#写一个插件)，`plugins/` 下自带的十二个插件
+完整 API 见 [README](../README_zh.md#写一个插件)，`plugins/` 下自带的十三个插件
 都是可读的工作示例 —— `warp.py` 是其中做了实事的最小的一个。
 
 ---
 
-## 13. 出问题的时候
+## 13. 切换语言
+
+在 `config.yml` 里设 `language`：
+
+```yaml
+language: zh_cn      # 或 en
+```
+
+然后重启，或者 `!!FR reload`。自带 `en` 和 `zh_cn`；
+某个语言缺失的词条会回落到英文，所以翻译一半也不影响使用。
+
+```
+!!FR lang                  当前语言，以及各语言还缺哪些词条
+!!FR lang missing zh_cn    具体缺失的键
+```
+
+要加语言，把 `factorio_reforge/lang/en.yml` 复制成 `<语言代码>.yml` 再翻译值。
+缺失的键会直接显示成键名而不是空白 ——
+聊天里出现一个 `save.restore.confirm` 正好告诉你该补什么。
+
+---
+
+## 14. 出问题的时候
 
 ### 服务器退出了，但不知道为什么
 
@@ -644,6 +689,8 @@ Last unexpected exit: code 1
 | 玩家连不上 | 端口按 TCP 转发了 | 转发 **34197/UDP** |
 | 玩家提示 mod 不匹配 | 他们的 mod 集合不同 | 需要完全相同的 mod 和版本 |
 | 回档后加载的是错误的地图 | `start_command` 里用了 `--start-server-load-latest` | 改用 `--start-server <路径>`；FactorioReforge 遇到前者会直接拒绝启动 |
+| 备份时提示没有可用槽位 | 所有槽位都还在保护期内 | `!!save del <槽位>`，或调低 `saves.slot_protection` |
+| 回错槽位了 | — | `!!save` 里有 `overwrite` 一条，那是回档前一刻的世界 |
 | Telegram bot 不理你 | 你的 chat id 不在允许列表 | 从日志里找到 id，加进 `allowed_chat_ids` |
 
 ### 日志
@@ -672,4 +719,4 @@ rm -rf .venv config.yml config/ logs/ snapshots/
 - [README](../README_zh.md) —— 完整参考
 - [M0-findings.md](M0-findings.md) —— 实测真实服务器得到的结论，
   包括三处官方文档说错了的地方
-- `plugins/` —— 十二个可以直接读和抄的工作插件
+- `plugins/` —— 十三个可以直接读和抄的工作插件

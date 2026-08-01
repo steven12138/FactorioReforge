@@ -17,14 +17,15 @@ worth stopping on rather than pushing past.
 3. [First start](#3-first-start)
 4. [Connect from the game](#4-connect-from-the-game)
 5. [Make yourself an admin](#5-make-yourself-an-admin)
-6. [Snapshots and rolling back](#6-snapshots-and-rolling-back)
+6. [Backups and restoring](#6-backups-and-restoring)
 7. [Installing mods](#7-installing-mods)
 8. [Control it from Telegram](#8-control-it-from-telegram)
-9. [The web panel](#9-the-web-panel)
+9. [The web panel and the map](#9-the-web-panel-and-the-map)
 10. [Opening the server to the internet](#10-opening-the-server-to-the-internet)
 11. [Running it unattended](#11-running-it-unattended)
 12. [Writing your first plugin](#12-writing-your-first-plugin)
-13. [When something breaks](#13-when-something-breaks)
+13. [Changing the language](#13-changing-the-language)
+14. [When something breaks](#14-when-something-breaks)
 
 ---
 
@@ -119,7 +120,7 @@ The script is not magic; the manual equivalent is in the
 You should see the plugins load, then the server come up:
 
 ```
-[INFO] [reforge] Loaded 12 plugin(s)
+[INFO] [reforge] Loaded 13 plugin(s)
 [INFO] [reforge] Starting server: ./bin/x64/factorio --start-server ... --rcon-password <redacted>
 [INFO] [reforge] Server started, pid=34246
 [INFO] [reforge] Server startup complete
@@ -145,8 +146,8 @@ Now type into the same terminal:
 FactorioReforge 0.1.0 - up 12s
 Server: running (pid 34246, up 12s)
 RCON: connected
-Plugins: 12 loaded
-Snapshots: 0
+Plugins: 13 loaded
+Backups: 0 slots in use
 Online (0): -
 ```
 
@@ -226,24 +227,31 @@ to `user`. To check:
 
 ---
 
-## 6. Snapshots and rolling back
+## 6. Backups and restoring
 
 This is the feature most worth understanding before you need it.
 
-### Take a snapshot
+### Take a backup
 
 ```
 !!save make before the big refactor
 ```
 
 ```
-Saving and snapshotting...
-Created #1 2026-08-02 10:12:03 by console (24.8 MiB) - before the big refactor
+Saving...
+Backed up to slot 1: 2026-08-02 10:12:03 by console (24.8 MiB) - before the big refactor
 ```
 
-It asks the server to write the map to disk, **waits for the completion
-message**, then copies the file. That wait is why the snapshot contains the
-current world instead of whatever autosave last happened to write.
+The server writes the backup itself, into its own file, and FactorioReforge
+waits for the completion message before recording it. The **live save is never
+touched** by taking a backup, and no copy is made -- an earlier version ran a
+bare `/server-save`, which overwrote the very world it was backing up.
+
+Backups follow [QuickBackupM](https://github.com/TISUnion/QuickBackupM): a new
+one always lands in **slot 1** and the rest shift down. Whichever slot falls off
+the end is the first empty one, or the highest-numbered slot past its
+`delete_protection` -- and if every slot is still protected the backup is
+refused rather than destroying something you asked to keep.
 
 ### List them
 
@@ -251,7 +259,7 @@ current world instead of whatever autosave last happened to write.
 !!save list
 ```
 
-### Roll back
+### Restore
 
 Rolling back is two steps on purpose:
 
@@ -260,8 +268,9 @@ Rolling back is two steps on purpose:
 ```
 
 ```
-About to roll back to #1 2026-08-02 10:12:03 by console (24.8 MiB) - before the big refactor
-This stops the server and replaces the current world. Type '!!save confirm' within 60s to proceed.
+About to restore slot 1: 2026-08-02 10:12:03 by console (24.8 MiB) - before the big refactor
+This stops the server and replaces the current world. '!!save confirm' within 60s to go
+ahead, '!!save abort' to cancel.
 ```
 
 ```
@@ -270,19 +279,22 @@ This stops the server and replaces the current world. Type '!!save confirm' with
 
 What then happens, in order:
 
-1. Verify the snapshot is a valid zip
-2. Broadcast a countdown in game
-3. **Snapshot the current world first** — so rolling back to the wrong point is
-   recoverable
-4. Stop the server and wait for the process to actually exit
+1. Verify the slot holds a valid zip
+2. Count down in chat, one second at a time -- `!!save abort` still cancels
+3. Stop the server and wait for the process to actually exit
+4. **Copy the current world into the `overwrite` slot** — so restoring the wrong
+   slot is recoverable
 5. Replace the save via a temp file and rename
 6. Start the server again
-7. If it does not come back up, restore the step-3 snapshot and say so
+7. If it does not come back up, put the `overwrite` world back and say so
 
-If step 3 fails, the whole rollback is refused. A rollback with no way back is a
+If step 4 fails, the whole restore is refused. A restore with no way back is a
 one-way door, and this deliberately will not walk through one.
 
-### Automatic snapshots
+Restored the wrong slot? `!!save` lists the `overwrite` entry -- that is the
+world as it was a moment before.
+
+### Automatic backups
 
 `auto_snapshot` runs every 30 minutes by default, and once more when the last
 player leaves. Edit `config/auto_snapshot/config.json`, then:
@@ -291,9 +303,9 @@ player leaves. Edit `config/auto_snapshot/config.json`, then:
 !!FR plugin reload auto_snapshot
 ```
 
-Retention lives in `config.yml` under `saves:` — `max_snapshots` and
-`max_snapshot_age_days`. **Only automatic snapshots are rotated away**; if you
-typed a comment, you meant to keep it.
+How many slots there are, and how long each is protected from being reused,
+lives in `config.yml` under `saves.slot_protection` — a list of seconds, one per
+slot. The defaults keep the two oldest safe for three hours and three days.
 
 ---
 
@@ -435,7 +447,7 @@ Everything destructive asks for confirmation with inline buttons.
 
 ---
 
-## 9. The web panel
+## 9. The web panel and the map
 
 Already running at **http://127.0.0.1:8080**, with JSON at `/api`.
 
@@ -443,8 +455,25 @@ Already running at **http://127.0.0.1:8080**, with JSON at `/api`.
 !!web
 ```
 
-It shows server state, online players, world statistics, recent snapshots, the
-blueprint library, production charts, and a tail of the server log.
+It shows server state, online players, world statistics, recent backups, the
+blueprint library, production charts, the rendered map, and a tail of the
+server log.
+
+### The map
+
+```
+!!map
+```
+
+Draws the world at one pixel per tile: terrain, every tree, every ore tile and
+every built entity at its real position. Factorio cannot screenshot a headless
+server — `game.take_screenshot` runs there but writes no file, because there is
+no renderer — so the map is composed here from data instead.
+
+The result is written to `config/map_render/map.png`, served by the web panel at
+`/map.png`, and sent to Telegram as a **document** rather than a photo, since
+Telegram recompresses photos and that is exactly what destroys one-pixel-per-tile
+detail.
 
 **It is read-only on purpose.** No stop button, no rollback, no console. A page
 with no authentication and no write path cannot be abused into doing damage.
@@ -625,13 +654,36 @@ async def on_player_joined(server, player, info):
 `QueryError` covers both "RCON is down" and "the Lua failed", so plugin code
 catches one thing.
 
-The full API is in the [README](../README.md#writing-a-plugin), and the twelve
+The full API is in the [README](../README.md#writing-a-plugin), and the thirteen
 bundled plugins in `plugins/` are all readable working examples — `warp.py` is
 the smallest one that does something real.
 
 ---
 
-## 13. When something breaks
+## 13. Changing the language
+
+Set `language` in `config.yml`:
+
+```yaml
+language: zh_cn      # or en
+```
+
+Then restart, or reload with `!!FR reload`. `en` and `zh_cn` ship; anything a
+language is missing falls back to English, so a partial translation stays
+usable.
+
+```
+!!FR lang                  the active language and what each catalogue is missing
+!!FR lang missing zh_cn    the specific keys still to translate
+```
+
+To add one, copy `factorio_reforge/lang/en.yml` to `<code>.yml` beside it and
+translate the values. A missing key renders as the key itself rather than as
+blank text — a visible `save.restore.confirm` in chat says exactly what to add.
+
+---
+
+## 14. When something breaks
 
 ### The server exited and you do not know why
 
@@ -661,7 +713,9 @@ If nothing matched, it prints the last lines of output instead of guessing.
 | `Address already in use` | An old Factorio is still running | `pkill -f 'bin/x64/factorio'` |
 | Players cannot connect | Port forwarded as TCP | Forward **34197/UDP** |
 | Players get "mods do not match" | Their mod set differs | They need the same mods and versions |
-| Rollback restored the wrong map | `--start-server-load-latest` in `start_command` | Use `--start-server <path>`; FactorioReforge refuses to start with the former |
+| A restore loaded the wrong map | `--start-server-load-latest` in `start_command` | Use `--start-server <path>`; FactorioReforge refuses to start with the former |
+| `No slot free` when backing up | Every slot is inside its protection window | `!!save del <slot>`, or lower `saves.slot_protection` |
+| Restored the wrong slot | — | `!!save` lists an `overwrite` entry: the world from just before |
 | Telegram bot ignores you | Your chat id is not allowed | Check the log for the id, add it to `allowed_chat_ids` |
 
 ### Logs
@@ -691,4 +745,4 @@ throw away the world too, delete `server/` as well.
 - [README](../README.md) — the full reference
 - [M0-findings.md](M0-findings.md) — what measuring a real server actually
   revealed, including three things the documentation gets wrong
-- `plugins/` — twelve working plugins to read and copy
+- `plugins/` — thirteen working plugins to read and copy

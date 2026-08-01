@@ -323,3 +323,29 @@ class TestConfigUpgrade:
 
         with pytest.raises(ConfigError, match="save_timout"):
             _sub(SavesConfig, {"save_timout": 60.0}, "saves")
+
+
+class TestSerialisation:
+    """A slot carries a translator; serialising must not follow it."""
+
+    async def test_to_dict_excludes_the_injected_translator(self, manager):
+        slot = await manager.create("x")
+        slot._tr = lambda *a, **k: "translated"
+        assert "_tr" not in slot.to_dict()
+
+    async def test_writing_info_works_with_a_translator_attached(self, manager):
+        """asdict would deep-copy the translator's closure and die on it."""
+        manager.tr = lambda key, **kwargs: f"tr:{key}"
+        await manager.create("with a translator")
+        assert manager.info_path(1).is_file()
+        assert manager.get(1).comment == "with a translator"
+
+    async def test_describe_uses_the_translator_when_present(self, manager):
+        manager.tr = lambda key, **kwargs: f"[{key}] slot={kwargs.get('slot')}"
+        await manager.create("x")
+        assert manager.get(1).describe() == "[save.slot_describe] slot=1"
+
+    async def test_describe_without_a_translator_still_reads_well(self, manager):
+        slot = await manager.create("plain")
+        slot._tr = None
+        assert "slot 1:" in slot.describe() and "plain" in slot.describe()

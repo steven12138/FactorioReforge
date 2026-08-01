@@ -6,7 +6,8 @@
   <img alt="Python 3.11+" src="https://img.shields.io/badge/python-3.11%2B-3776ab?logo=python&logoColor=white">
   <img alt="Factorio 2.0" src="https://img.shields.io/badge/factorio-2.0%20headless-d4761a">
   <img alt="License MIT" src="https://img.shields.io/badge/license-MIT-green">
-  <img alt="174 tests" src="https://img.shields.io/badge/tests-174%20passing-brightgreen">
+  <img alt="222 tests" src="https://img.shields.io/badge/tests-222%20passing-brightgreen">
+  <img alt="i18n" src="https://img.shields.io/badge/i18n-en%20%C2%B7%20zh__cn-blue">
 </p>
 
 <p align="center">
@@ -125,7 +126,7 @@ cd ~/project/FactorioReforge/server/factorio
 | 参数 | 含义 |
 |---|---|
 | `--start-server FILE` | 加载指定存档 |
-| `--start-server-load-latest` | 加载最新存档 —— **不要和 FactorioReforge 一起用**，原因见回档一节 |
+| `--start-server-load-latest` | 加载最新存档 —— **不要和 FactorioReforge 一起用**，原因见备份一节 |
 | `--start-server-load-scenario [MOD/]NAME` | 从场景开服 |
 | `--console-log FILE` | 把控制台输出（含聊天）另存一份 |
 | `--port N` / `--bind ADDR[:PORT]` | 游戏端口，默认 34197/**UDP** |
@@ -165,9 +166,11 @@ Players (0):                                                     命令回执，
 ## 存档与回档
 
 自动存档轮转 `saves/_autosave1.zip`…`_autosaveN.zip`。
+FactorioReforge **不复用**它们：备份是让服务器另写独立文件，
+所以自动存档的轮转永远不会覆盖掉你想留的备份。
 
 **Factorio 无法在运行时换存档。** 回档就意味着：停服 → 替换存档文件 → 重新启动。
-第二部分的整套回档机制都是围绕这个约束设计的。
+第二部分的整套备份机制都是围绕这个约束设计的。
 
 ---
 
@@ -178,9 +181,10 @@ Players (0):                                                     命令回执，
 - 托管 Factorio 进程：启动、优雅停止、崩溃检测、可选自动重启
 - 把 stdout 解析成结构化事件并分发给插件
 - 支持从控制台**和游戏内聊天**发 `!!` 前缀命令，五级权限模型
-- 快照与编排式回档，不会让你在中途失去世界
+- 槽位式备份与编排式回档，不会让你在中途失去世界
 - 插件热重载
-- 自带 Telegram 桥接、mod 管理、定时快照等 12 个插件
+- 全程中英双语
+- 自带 13 个插件：Telegram 控制、mod 安装、地图渲染、崩溃诊断、蓝图库、生产曲线等
 
 ## 安装
 
@@ -219,7 +223,7 @@ python -m factorio_reforge
 
 ```
 !!FR help                        列出命令
-!!FR status                      服务器、RCON、插件、快照状态
+!!FR status                      服务器、RCON、插件、备份状态
 !!FR plugin list                 已加载插件（会标记文件已改动的）
 !!FR plugin reload <id>          重载单个插件
 !!FR plugin unload <id>
@@ -230,12 +234,13 @@ python -m factorio_reforge
 !!FR permission set <玩家> <guest|user|helper|admin|owner>
 !!FR exit                        停服并退出
 
-!!save                           列出快照
-!!save make [备注]                先存档，再做快照
-!!save back <id>                 准备回档
-!!save confirm                   确认执行
-!!save abort
-!!save del <id>
+!!save                           列出备份槽位
+!!save make [备注]                备份到槽位 1
+!!save back [槽位]                准备回档（默认槽位 1）
+!!save confirm                   确认执行，随后进入倒计时
+!!save abort                     取消（待确认的和倒计时中的都能取消）
+!!save del <槽位>
+!!save rename <槽位> <备注>
 
 !!here                           广播你的位置并在地图上钉标记
 !!info [玩家]                     游玩时长、权限、位置
@@ -259,6 +264,8 @@ python -m factorio_reforge
 !!watch                          进化度、污染、科研、火箭
 !!why                            服务器上次为什么退出（admin）
 !!web                            Web 面板地址（admin）
+!!map                            渲染世界地图并发送
+!!FR lang                        翻译状态
 ```
 
 权限：`guest(0) user(1) helper(2) admin(3) owner(4)`，持久化在
@@ -363,7 +370,11 @@ async def on_unload(server):
 `on_player_death` `on_server_start_pre` `on_server_start` `on_server_startup`
 `on_server_stop` `on_server_crash` `on_rcon_connected` `on_rcon_lost`
 `on_snapshot_created` `on_rollback_started` `on_rollback_finished`
-`on_reforge_start` `on_reforge_stop` `on_load` `on_unload`。
+`on_server_stop_pre` `on_reforge_start` `on_reforge_stop` `on_load` `on_unload`。
+
+`on_server_stop` 是在进程**真正退出之后**触发的，并带上返回码 ——
+任何要碰 Factorio 占用过的文件（尤其是 `mod-list.json`）的操作都必须等它。
+`on_server_stop_pre` 才是服务器还活着时触发的那个。
 
 也可以显式注册（带优先级）或用装饰器：
 
@@ -516,6 +527,24 @@ await server.game_print(f"{player} is at {lua.gps(x, y, surface)}")
 
 这才是 `!!here` 和 `!!warp` 真正有用的原因，而不只是打印一串坐标。
 chart tag 与之互补：gps 标签说的是"现在看这里"，chart tag 说的是"这地方有名字"。
+
+## 多语言
+
+所有给人看的文本都走翻译层。在 `config.yml` 里设 `language`；
+自带 `en` 和 `zh_cn`，缺失的键回落到英文，所以翻译一半也不影响使用。
+
+```
+!!FR lang                  当前语言，以及各语言还缺哪些词条
+!!FR lang missing zh_cn    具体缺失的键
+```
+
+要加语言，把 `factorio_reforge/lang/en.yml` 复制成 `<语言代码>.yml` 再翻译值即可。
+插件可以自带 `lang/` 目录，它的键会挂在插件 id 下 ——
+插件里 `server.tr("failed")` 先找 `<插件id>.failed`，找不到再落到核心词表，
+所以公共文案不用每个插件重复一遍。
+
+缺失的键会直接显示成键名而不是空白 ——
+聊天里出现一个 `save.restore.confirm` 正好告诉你该补什么。
 
 ## 测试
 

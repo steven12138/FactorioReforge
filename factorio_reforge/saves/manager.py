@@ -87,9 +87,18 @@ class Slot:
         return time.time() - self.created_at
 
     def to_dict(self) -> dict[str, Any]:
-        data = dataclasses.asdict(self)
-        data.pop("_tr", None)
-        return data
+        """Serialise the data fields only.
+
+        Not ``dataclasses.asdict``: that deep-copies every field, and ``_tr``
+        holds a bound method of the running server, so copying it drags in the
+        whole object graph and dies on an asyncio Future. Popping the key
+        afterwards is too late -- the copy has already happened.
+        """
+        return {
+            field.name: getattr(self, field.name)
+            for field in dataclasses.fields(self)
+            if not field.name.startswith("_")
+        }
 
     @classmethod
     def from_dict(cls, data: dict[str, Any], slot_id: int) -> Slot:

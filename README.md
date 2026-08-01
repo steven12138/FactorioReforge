@@ -6,7 +6,8 @@
   <img alt="Python 3.11+" src="https://img.shields.io/badge/python-3.11%2B-3776ab?logo=python&logoColor=white">
   <img alt="Factorio 2.0" src="https://img.shields.io/badge/factorio-2.0%20headless-d4761a">
   <img alt="License MIT" src="https://img.shields.io/badge/license-MIT-green">
-  <img alt="174 tests" src="https://img.shields.io/badge/tests-174%20passing-brightgreen">
+  <img alt="222 tests" src="https://img.shields.io/badge/tests-222%20passing-brightgreen">
+  <img alt="i18n" src="https://img.shields.io/badge/i18n-en%20%C2%B7%20zh__cn-blue">
 </p>
 
 <p align="center">
@@ -71,7 +72,7 @@ live under `factorio/`:
 factorio/
 ├── bin/x64/factorio
 ├── data/                 # base game data; also the .example.json configs
-├── saves/                # .zip saves — what rollback operates on
+├── saves/                # .zip saves — what a restore operates on
 ├── mods/
 └── config/config.ini
 ```
@@ -128,7 +129,7 @@ cd ~/project/FactorioReforge/server/factorio
 | Flag | Meaning |
 |---|---|
 | `--start-server FILE` | Load this save |
-| `--start-server-load-latest` | Load the newest save — **do not use with FactorioReforge**, see rollback below |
+| `--start-server-load-latest` | Load the newest save — **do not use with FactorioReforge**, see backups below |
 | `--start-server-load-scenario [MOD/]NAME` | Start from a scenario |
 | `--console-log FILE` | Mirror console output, chat included, to a file |
 | `--port N` / `--bind ADDR[:PORT]` | Game port, default 34197/**UDP** |
@@ -166,12 +167,14 @@ Output comes in four shapes, which is why the parser looks the way it does:
 Players (0):                                                     command output, no prefix
 ```
 
-## Saves and rollback
+## Saves and restoring
 
-Autosaves rotate through `saves/_autosave1.zip`…`_autosaveN.zip`.
+Autosaves rotate through `saves/_autosave1.zip`…`_autosaveN.zip`. FactorioReforge
+does not reuse them: it asks the server to write its own backup files, so an
+autosave cycle can never overwrite a backup you meant to keep.
 
-**Factorio cannot swap the loaded map at runtime.** Rolling back means: stop the
-server, replace the save file, start it again. Everything in Part 2's rollback
+**Factorio cannot swap the loaded map at runtime.** Restoring means: stop the
+server, replace the save file, start it again. Everything in Part 2's backup
 support is built around that constraint.
 
 ---
@@ -183,9 +186,11 @@ support is built around that constraint.
 - Owns the Factorio process: start, graceful stop, crash detection, optional auto-restart
 - Parses stdout into structured events and dispatches them to plugins
 - `!!`-prefixed commands from the console **and** from in-game chat, with a five-level permission model
-- Snapshots and orchestrated rollback that will not leave you without a world
+- Slot-based backups and an orchestrated restore that will not leave you without a world
 - Hot-reloadable plugins
-- Ships with a Telegram bridge and a scheduled-snapshot plugin
+- English and Simplified Chinese throughout
+- Thirteen bundled plugins: Telegram control, mod installs, map rendering,
+  crash diagnosis, a blueprint library, production charts and more
 
 ## Install
 
@@ -207,11 +212,11 @@ headless install from Part 1, and set `rcon.password` to match the one in
 
 Two things are checked at startup and refused rather than silently misbehaving:
 
-- `start_command` must not use `--start-server-load-latest`. Rollback replaces
+- `start_command` must not use `--start-server-load-latest`. Restoring replaces
   `saves.current_save`, but autosaves are newer, so the server would come back on
   the wrong map.
 - The file named by `--start-server` must be the same file as
-  `saves.current_save`, or a rollback would write somewhere the server never reads.
+  `saves.current_save`, or a restore would write somewhere the server never reads.
 
 ## Run
 
@@ -237,12 +242,13 @@ lines are FactorioReforge commands, anything else is passed to Factorio's stdin.
 !!FR permission set <player> <guest|user|helper|admin|owner>
 !!FR exit                        stop the server and quit
 
-!!save                           list snapshots
-!!save make [comment]            save the map, then snapshot it
-!!save back <id>                 arm a rollback
-!!save confirm                   perform it
-!!save abort
-!!save del <id>
+!!save                           list backup slots
+!!save make [comment]            back up into slot 1
+!!save back [slot]               stage a restore (default slot 1)
+!!save confirm                   perform it, after a countdown
+!!save abort                     cancel, staged or counting down
+!!save del <slot>
+!!save rename <slot> <comment>
 
 !!here                           announce your position and pin it on the map
 !!info [player]                  playtime, permissions, position
@@ -266,6 +272,8 @@ lines are FactorioReforge commands, anything else is passed to Factorio's stdin.
 !!watch                          evolution, pollution, research, rockets
 !!why                            why the server last exited (admin)
 !!web                            web panel address (admin)
+!!map                            render the map and send it
+!!FR lang                        translation status
 ```
 
 Permissions: `guest(0) user(1) helper(2) admin(3) owner(4)`, stored in
@@ -326,20 +334,42 @@ Verified against 2.0.77. Watch out for API that moved since 1.1:
 now takes a surface; `force.item_production_statistics` →
 `force.get_item_production_statistics(surface)`.
 
-## Rollback
+## Backups and restoring
 
-`!!save back <id>` then `!!save confirm` runs:
+Modelled on [QuickBackupM](https://github.com/TISUnion/QuickBackupM), which has
+been doing this on Minecraft servers for years. Its logic is copied rather than
+reinvented.
 
-1. Verify the snapshot exists and is a valid zip
-2. Announce a countdown in game
-3. **Snapshot the current world first**, so rolling back to the wrong point is recoverable
-4. Stop the server and wait for it
-5. Replace `current_save` via a temp file and rename, so an interrupted copy cannot truncate it
+**Slots.** A backup always goes to **slot 1**; the others shift down one. The
+slot sacrificed to make room is the first empty one, or failing that the
+highest-numbered slot past its `delete_protection`. If every slot is still
+protected the backup is **refused** rather than destroying something someone
+asked to keep. `saves.slot_protection` in `config.yml` is a list of seconds —
+its length is the number of slots, and the defaults keep the two oldest safe
+from a burst of backups.
+
+**Restoring**, via `!!save back <slot>` then `!!save confirm`:
+
+1. Verify the slot holds a valid zip
+2. Count down in chat, one second at a time, abortable with `!!save abort`
+3. Stop the server and wait for the process to actually exit
+4. **Copy the current world into the fixed `overwrite` slot** — QBM's undo for
+   restoring the wrong thing
+5. Replace `current_save` via a temp file and rename, so an interrupted copy
+   cannot truncate it
 6. Start the server again
-7. On failure, restore the step-3 snapshot and say so
+7. On failure, put the `overwrite` world back and say so
 
-Refusing to proceed when step 3 fails is deliberate: without a way back, a
-rollback is a one-way door.
+Refusing to proceed when step 4 fails is deliberate: without a way back, a
+restore is a one-way door.
+
+### Two things Factorio does better than Minecraft here
+
+`/server-save <name>` writes a **separate, complete** save and leaves the live
+one alone, so a backup is written straight into its slot. No copy, and no more
+overwriting the world in order to back it up — which is what a bare
+`/server-save` was doing before. And a world is one zip rather than a live
+directory, so QBM's `save-off` / `save-all flush` dance is unnecessary.
 
 ## Writing a plugin
 
@@ -374,7 +404,11 @@ Events: `on_info` `on_user_info` `on_player_joined` `on_player_left`
 `on_player_death` `on_server_start_pre` `on_server_start` `on_server_startup`
 `on_server_stop` `on_server_crash` `on_rcon_connected` `on_rcon_lost`
 `on_snapshot_created` `on_rollback_started` `on_rollback_finished`
-`on_reforge_start` `on_reforge_stop` `on_load` `on_unload`.
+`on_server_stop_pre` `on_reforge_start` `on_reforge_stop` `on_load` `on_unload`.
+
+`on_server_stop` fires **after** the process has exited, with its return code —
+anything that touches files Factorio held (`mod-list.json` above all) must wait
+for that. `on_server_stop_pre` is the one that runs while the server is still up.
 
 You can also register explicitly, with a priority, or by decorator:
 
@@ -535,9 +569,29 @@ them per player, and a made-up number on a leaderboard is worse than no
 leaderboard.
 
 **`web_panel`** — a read-only status page on `127.0.0.1:8080`, with JSON at
-`/api`. Read-only on purpose: no stop button, no rollback, no console. A page
-with no auth and no write path cannot be abused into doing damage. Control from
-outside the machine goes through Telegram, which authenticates.
+`/api` and the latest map at `/map.png`. Read-only on purpose: no stop button,
+no restore, no console. A page with no auth and no write path cannot be abused
+into doing damage. Control from outside the machine goes through Telegram,
+which authenticates.
+
+**`map_render`** — `!!map` draws an overview of the world.
+
+Factorio **cannot screenshot a headless server**: `game.take_screenshot` exists
+there and accepts the call without complaint, but writes no file, because there
+is no renderer in the process. So the map is not captured, it is drawn — one
+character per tile comes back from Lua and the picture is composed here, with
+terrain, every tree, every ore tile and every built entity at its real position.
+A whole 409-chunk world is 421 KB and about half a second at one pixel per tile.
+
+Reading the save directly was considered and rejected: a Factorio save is an
+undocumented binary blob, unlike Minecraft's NBT regions that tools like unmined
+parse, so there is nothing to read without reverse engineering the format.
+
+The sampling step is chosen from the world size against `max_dimension`, so a
+megabase degrades to a coarser map rather than refusing or producing a
+hundred-megapixel PNG. Maps reach Telegram as **documents**, not photos —
+Telegram recompresses photos, and one pixel per tile is exactly the detail that
+destroys.
 
 ### Rich text
 
@@ -552,6 +606,26 @@ await server.game_print(f"{player} is at {lua.gps(x, y, surface)}")
 This is what makes `!!here` and `!!warp` genuinely useful rather than a way to
 print coordinates. Chart tags complement it: a gps tag says "look here now", a
 chart tag says "this place has a name".
+
+## Languages
+
+Everything a person reads goes through a translator. Set `language` in
+`config.yml`; `en` and `zh_cn` ship, and anything missing falls back to English
+so a partial translation stays usable.
+
+```
+!!FR lang                  active language, and what each catalogue is missing
+!!FR lang missing zh_cn    the specific keys still to translate
+```
+
+To add a language, copy `factorio_reforge/lang/en.yml` to `<code>.yml` beside
+it and translate the values. A plugin can ship its own `lang/` directory; its
+keys are namespaced under the plugin id, so `server.tr("failed")` inside a
+plugin finds `<plugin_id>.failed` and falls through to the core catalogue for
+shared strings.
+
+A missing key renders as the key itself rather than as blank text — a visible
+`save.restore.confirm` in chat says exactly what to add.
 
 ## Tests
 
