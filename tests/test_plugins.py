@@ -4,6 +4,7 @@ import textwrap
 
 import pytest
 
+from factorio_reforge.i18n import Translator
 from factorio_reforge.plugin.manager import PluginManager
 from factorio_reforge.plugin.metadata import Metadata, MetadataError, satisfies
 
@@ -18,6 +19,9 @@ class FakeCore:
         self.plugins = None
         self.commands = _FakeCommands()
         self.config = _FakeConfig(tmp_path)
+        # The manager loads and unloads each plugin's translations, so a stand-in
+        # core needs a real translator rather than a stub.
+        self.i18n = Translator()
 
 
 class _FakeCommands:

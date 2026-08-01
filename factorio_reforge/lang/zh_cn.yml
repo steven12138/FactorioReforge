@@ -1,0 +1,104 @@
+# 简体中文。缺失的键会回落到 en.yml，所以翻译一半也不会出现空白。
+# 对照 en.yml 检查缺了什么：!!FR lang missing zh_cn
+
+common:
+  yes: 是
+  no: 否
+  none: 无
+  empty: 空
+  unknown: 未知
+  console: 控制台
+  cancelled: 已取消
+  nothing_to_cancel: 没有可取消的操作
+
+server:
+  starting: 正在启动……
+  already_running: 服务器已经在运行
+  stopping: 正在停止服务器……
+  stopped: 服务器已停止
+  restarting: 正在重启服务器……
+  not_running: 服务器没有在运行
+  killing: SIGKILL —— 上次存档之后的一切都会丢失
+  exiting: 停止服务器并退出
+  startup_complete: 服务器启动完成
+  rcon_connected: RCON 已连接
+
+status:
+  header: "FactorioReforge {version} —— 已运行 {uptime}"
+  server: "服务器：{state}"
+  server_with_pid: "服务器：{state}（pid {pid}，已运行 {uptime}）"
+  rcon: "RCON：{state}"
+  connected: 已连接
+  disconnected: 未连接
+  plugins: "插件：已加载 {count} 个"
+  backups: "备份：已使用 {count} 个槽位"
+  online: "在线（{count}）：{names}"
+  online_unavailable: "在线：查询失败（{error}）"
+
+plugin:
+  none_loaded: 没有加载任何插件
+  count: "共 {count} 个插件："
+  file_changed: "［文件已改动］"
+  reloaded: "已重载 {id}"
+  reload_failed: "无法重载 {id}"
+  unloaded: "已卸载 {id}"
+  not_found: "没有这个插件：{id}"
+  reloaded_changed: "已重载：{names}"
+  nothing_changed: 没有插件文件发生改动
+
+permission:
+  default: "默认等级：{level}"
+  no_overrides: 没有针对个别玩家的设置
+  changed: "{player} 现在是 {level}"
+  denied: 权限不足
+  requires: "需要 {level} 权限"
+
+save:
+  slot_describe: "槽位 {slot}：{time} 由 {by}（{size} MiB）—— {comment}"
+  saving: 正在存档……
+  created: "已备份到 {slot}"
+  failed: "备份失败：{error}"
+  no_slot: "没有可用槽位：{error}"
+  header: "备份槽位（共 {size} MiB）："
+  slot_empty: "  槽位 {slot}：空"
+  protected: "  ［受保护，还剩 {duration}］"
+  protection_expired: "  ［保护已过期］"
+  overwrite: "  overwrite：{time} —— 上次回档之前的世界"
+  restore_hint: "用 '{prefix} back <槽位>' 然后 '{prefix} confirm' 来回档。"
+  about_to_restore: "即将回档到 {slot}"
+  confirm_hint: >-
+    这会停止服务器并替换当前世界。
+    {seconds} 秒内输入 '{prefix} confirm' 继续，'{prefix} abort' 取消。
+  nothing_staged: "没有待确认的回档。先执行 '{prefix} back <槽位>'"
+  confirm_expired: 确认已超时，请重新执行命令
+  restored: "已回档到 {slot}"
+  restore_failed: "回档失败：{error}"
+  cancelling_countdown: 正在取消倒计时中的回档
+  deleted: "已删除 {slot}"
+  renamed: "已重命名：{slot}"
+  countdown: "[FactorioReforge] {seconds} 秒后回档到槽位 {slot}（{time}）—— {prefix} abort 可取消"
+  countdown_cancelled: "[FactorioReforge] 回档已取消"
+
+help:
+  header: "FactorioReforge {version}"
+  status: 服务器与框架状态
+  plugin_list: 已加载的插件
+  plugin_reload: 重载单个插件
+  reload: 重载所有改动过的插件
+  server: 启动、停止、重启或强杀服务器
+  permission: 查看或修改权限
+  exit: 停止服务器并退出
+
+error:
+  rcon_down: RCON 未连接
+  lookup_failed: "查询失败：{error}"
+  unknown_command: "未知命令：{command}"
+  internal: "命令执行失败：插件 {plugin} 内部错误"
+  console_only: 这个命令需要在游戏内使用 —— 控制台没有位置。
+
+lang:
+  current: "语言：{language}"
+  available: "可用：{languages}"
+  keys: "已加载 {count} 条词条"
+  complete: "{language} 翻译完整"
+  incomplete: "{language} 缺少 {count} 条词条"

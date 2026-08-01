@@ -16,6 +16,7 @@ from factorio_reforge.core.info import Info
 from factorio_reforge.core.process import ServerProcess
 from factorio_reforge.core.rcon import RconClient, RconError, RconManager
 from factorio_reforge.core.reactor import InfoReactor
+from factorio_reforge.i18n import LANG_DIR_NAME, Translator
 from factorio_reforge.permission import PermissionManager
 from factorio_reforge.plugin import events as ev
 from factorio_reforge.plugin.manager import PluginManager
@@ -36,6 +37,10 @@ class ReforgeServer:
     def __init__(self, config: Config, logger: logging.Logger | None = None):
         self.config = config
         self.logger = logger or logging.getLogger("reforge")
+
+        self.i18n = Translator(config.language)
+        self.i18n.load_directory(Path(__file__).resolve().parent.parent / LANG_DIR_NAME)
+        self.i18n.set_language(config.language)
 
         self.handler = FactorioHandler()
         self.process = ServerProcess(
@@ -59,6 +64,7 @@ class ReforgeServer:
             config.snapshot_dir_path,
             slots=[SlotConfig(seconds) for seconds in config.saves.slot_protection],
             logger=self.logger,
+            tr=self.tr,
         )
 
         from factorio_reforge.plugin.interface import ServerInterface
@@ -90,6 +96,10 @@ class ReforgeServer:
         self._expect_stop = False
         self._crash_watch: asyncio.Task | None = None
         self.started_at = time.monotonic()
+
+    def tr(self, key: str, /, *args, **kwargs) -> str:
+        """Translate a core string."""
+        return self.i18n.translate(key, *args, **kwargs)
 
     def _plugin_interface(self, plugin_id: str):
         """Look up a plugin's own ServerInterface by id."""
@@ -368,13 +378,13 @@ class ReforgeServer:
             if self._abort_rollback.is_set():
                 self.logger.info("Restore cancelled during the countdown")
                 with contextlib.suppress(RuntimeError):
-                    await self.process.write("[FactorioReforge] Restore cancelled")
+                    await self.process.write(self.tr("save.countdown_cancelled"))
                 return False
             with contextlib.suppress(RuntimeError):
-                await self.process.write(
-                    f"[FactorioReforge] Restoring slot {info.id} "
-                    f"({info.created_at_text}) in {remaining}s -- !!save abort to cancel"
-                )
+                await self.process.write(self.tr(
+                    "save.countdown", slot=info.id, time=info.created_at_text,
+                    seconds=remaining, prefix=self.config.command_prefix + "save",
+                ))
             try:
                 await asyncio.wait_for(self._abort_rollback.wait(), timeout=1.0)
             except TimeoutError:

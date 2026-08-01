@@ -66,6 +66,11 @@ class Config:
     handler: str = "factorio"
     encoding: str = "utf-8"
 
+    #: Language for everything a person reads. Anything missing falls back to
+    #: English, so a partial translation stays usable. Ships with en and zh_cn;
+    #: drop a <code>.yml</code> into lang/ to add another.
+    language: str = "en"
+
     plugin_directories: list[str] = dataclasses.field(default_factory=lambda: ["plugins"])
     command_prefix: str = "!!"
 

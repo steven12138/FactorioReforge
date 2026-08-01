@@ -193,6 +193,13 @@ class PluginManager:
 
         plugin.interface = PluginServerInterface(self.server, plugin)
         self.plugins[plugin.id] = plugin
+        # A plugin may ship lang/<language>.yml beside its code; those keys land
+        # under its own id so two plugins can share key names.
+        lang_dir = (plugin.path if plugin.path.is_dir() else plugin.path.parent) / "lang"
+        if lang_dir.is_dir():
+            count = self.server.i18n.load_directory(lang_dir, namespace=plugin.id)
+            if count:
+                self.logger.debug("Loaded %d translation(s) for %s", count, plugin.id)
         try:
             self._collect_listeners(plugin)
             await self._call_load_hook(plugin)
@@ -249,6 +256,7 @@ class PluginManager:
                 self.logger.exception("Plugin %s raised in on_unload", plugin_id)
 
         plugin.registry.clear()
+        self.server.i18n.unload_namespace(plugin_id)
         self.plugins.pop(plugin_id, None)
         sys.modules.pop(plugin.module_name, None)
         for name in [n for n in sys.modules if n.startswith(plugin.module_name + ".")]:

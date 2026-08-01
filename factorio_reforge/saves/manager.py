@@ -87,7 +87,9 @@ class Slot:
         return time.time() - self.created_at
 
     def to_dict(self) -> dict[str, Any]:
-        return dataclasses.asdict(self)
+        data = dataclasses.asdict(self)
+        data.pop("_tr", None)
+        return data
 
     @classmethod
     def from_dict(cls, data: dict[str, Any], slot_id: int) -> Slot:
@@ -96,7 +98,23 @@ class Slot:
         kwargs["id"] = slot_id
         return cls(**kwargs)
 
+    #: Set by SaveManager so a slot can describe itself in the operator's
+    #: language. A dataclass carried through plugin code is the wrong place to
+    #: reach for global state, so it is injected instead.
+    _tr: Callable[..., str] | None = dataclasses.field(
+        default=None, repr=False, compare=False
+    )
+
     def describe(self) -> str:
+        if self._tr is not None:
+            return self._tr(
+                "save.slot_describe",
+                slot=self.id,
+                time=self.created_at_text,
+                by=self.created_by,
+                size=f"{self.size_bytes / (1024 * 1024):.1f}",
+                comment=self.comment or self._tr("common.empty"),
+            )
         who = f" by {self.created_by}" if self.created_by != "unknown" else ""
         note = f" - {self.comment}" if self.comment else ""
         size = f" ({self.size_bytes / (1024 * 1024):.1f} MiB)" if self.size_bytes else ""
@@ -111,7 +129,9 @@ class SaveManager:
         *,
         slots: list[SlotConfig] | None = None,
         logger: logging.Logger | None = None,
+        tr: Callable[..., str] | None = None,
     ):
+        self.tr = tr
         self.current_save = Path(current_save)
         self.snapshot_directory = Path(snapshot_directory)
         #: QBM's defaults: the two oldest slots are protected so a burst of
@@ -165,7 +185,9 @@ class SaveManager:
             self.logger.warning("%s is unreadable; treating the slot as empty", info_file)
             return None
         slot_id = slot if isinstance(slot, int) else 0
-        return Slot.from_dict(data, slot_id)
+        info = Slot.from_dict(data, slot_id)
+        info._tr = self.tr
+        return info
 
     def list(self) -> list[Slot]:
         """Occupied slots, in slot order -- slot 1 is always the newest."""
@@ -298,6 +320,7 @@ class SaveManager:
                 size_bytes=target.stat().st_size,
                 automatic=automatic,
             )
+            info._tr = self.tr
             self._write_info(1, info)
             self.logger.info("Created %s", info.describe())
             return info
@@ -338,6 +361,7 @@ class SaveManager:
             size_bytes=target.stat().st_size,
             automatic=True,
         )
+        info._tr = self.tr
         self._write_info(OVERWRITE_SLOT, info)
         self.logger.info("Preserved the current world in the overwrite slot")
         return info

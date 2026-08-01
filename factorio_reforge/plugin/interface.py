@@ -44,6 +44,16 @@ class ServerInterface:
     def logger(self) -> logging.Logger:
         return self._server.logger
 
+    # -- translation ---------------------------------------------------------
+
+    def tr(self, key: str, /, *args: Any, **kwargs: Any) -> str:
+        """Translate a string for the configured language."""
+        return self._server.i18n.translate(key, *args, **kwargs)
+
+    @property
+    def language(self) -> str:
+        return self._server.i18n.language
+
     # -- lifecycle -----------------------------------------------------------
 
     async def start(self) -> bool:

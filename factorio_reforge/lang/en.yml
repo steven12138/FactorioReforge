@@ -55,6 +55,7 @@ permission:
   requires: "Requires permission {level}"
 
 save:
+  slot_describe: "slot {slot}: {time} by {by} ({size} MiB) - {comment}"
   saving: Saving...
   created: "Backed up to {slot}"
   failed: "Backup failed: {error}"
@@ -95,3 +96,10 @@ error:
   unknown_command: "Unknown command: {command}"
   internal: "Command failed: internal error in plugin {plugin}"
   console_only: "That only works in game -- the console has no position."
+
+lang:
+  current: "Language: {language}"
+  available: "Available: {languages}"
+  keys: "{count} key(s) loaded"
+  complete: "{language} is complete"
+  incomplete: "{language} is missing {count} key(s)"
