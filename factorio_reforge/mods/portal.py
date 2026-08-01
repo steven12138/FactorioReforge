@@ -21,7 +21,6 @@ import time
 import urllib.parse
 import urllib.request
 from pathlib import Path
-from typing import Any, Iterable, Optional
 
 BASE_URL = "https://mods.factorio.com"
 API_URL = f"{BASE_URL}/api"
@@ -53,7 +52,7 @@ class Release:
     dependencies: list[str] = dataclasses.field(default_factory=list)
 
     @classmethod
-    def from_dict(cls, data: dict) -> "Release":
+    def from_dict(cls, data: dict) -> Release:
         info = data.get("info_json") or {}
         return cls(
             version=data.get("version", ""),
@@ -81,7 +80,7 @@ class Release:
         return required
 
 
-def parse_dependency(entry: str) -> tuple[Optional[str], str]:
+def parse_dependency(entry: str) -> tuple[str | None, str]:
     """Split a dependency string into ``(name, version_spec)``.
 
     Returns ``(None, ...)`` for entries that should not be installed --
@@ -123,7 +122,7 @@ class ModSummary:
     latest_factorio_version: str = ""
 
     @classmethod
-    def from_dict(cls, data: dict) -> "ModSummary":
+    def from_dict(cls, data: dict) -> ModSummary:
         latest = data.get("latest_release") or {}
         return cls(
             name=data.get("name", ""),
@@ -159,7 +158,7 @@ class ModPortal:
         token: str = "",
         index_ttl_hours: float = 6.0,
         timeout: float = 60.0,
-        logger: Optional[logging.Logger] = None,
+        logger: logging.Logger | None = None,
     ):
         self.cache_directory = Path(cache_directory)
         self.username = username
@@ -167,7 +166,7 @@ class ModPortal:
         self.index_ttl = index_ttl_hours * 3600
         self.timeout = timeout
         self.logger = logger or logging.getLogger(__name__)
-        self._index: Optional[list[ModSummary]] = None
+        self._index: list[ModSummary] | None = None
         self._index_fetched_at = 0.0
         self._index_lock = asyncio.Lock()
 
@@ -195,7 +194,7 @@ class ModPortal:
         data = await self.get_mod(name, full=True)
         return [Release.from_dict(entry) for entry in data.get("releases", [])]
 
-    async def get_release(self, name: str, version: Optional[str] = None) -> Release:
+    async def get_release(self, name: str, version: str | None = None) -> Release:
         """A specific version, or the newest one when ``version`` is None."""
         releases = await self.get_releases(name)
         if not releases:
@@ -208,7 +207,7 @@ class ModPortal:
         available = ", ".join(r.version for r in releases[-8:])
         raise PortalError(f"{name} has no version {version}. Recent versions: {available}")
 
-    async def latest_for_factorio(self, name: str, factorio_version: str) -> Optional[Release]:
+    async def latest_for_factorio(self, name: str, factorio_version: str) -> Release | None:
         """Newest release built for a given Factorio major.minor, if any.
 
         Factorio only loads mods whose ``factorio_version`` matches the running
@@ -384,7 +383,7 @@ def read_player_data_credentials(path: Path) -> tuple[str, str]:
     return data.get("service-username", "") or "", data.get("service-token", "") or ""
 
 
-def _match_rank(needle: str, mod: ModSummary) -> Optional[int]:
+def _match_rank(needle: str, mod: ModSummary) -> int | None:
     """Lower is better; None means no match at all."""
     name = mod.name.lower()
     title = mod.title.lower()

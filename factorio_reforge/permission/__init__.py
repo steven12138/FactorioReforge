@@ -10,7 +10,6 @@ from __future__ import annotations
 import enum
 import threading
 from pathlib import Path
-from typing import Optional
 
 import yaml
 
@@ -23,7 +22,7 @@ class PermissionLevel(enum.IntEnum):
     OWNER = 4
 
     @classmethod
-    def parse(cls, value: "str | int | PermissionLevel") -> "PermissionLevel":
+    def parse(cls, value: str | int | PermissionLevel) -> PermissionLevel:
         if isinstance(value, PermissionLevel):
             return value
         if isinstance(value, int):
@@ -52,7 +51,7 @@ class PermissionManager:
     case-insensitively, and operators type them by hand.
     """
 
-    def __init__(self, path: Path, default_level: "str | PermissionLevel" = PermissionLevel.USER):
+    def __init__(self, path: Path, default_level: str | PermissionLevel = PermissionLevel.USER):
         self.path = path
         self.default_level = PermissionLevel.parse(default_level)
         self._levels: dict[str, PermissionLevel] = {}
@@ -84,13 +83,13 @@ class PermissionManager:
             yaml.safe_dump(payload, sort_keys=False, allow_unicode=True), encoding="utf-8"
         )
 
-    def get(self, player: Optional[str]) -> PermissionLevel:
+    def get(self, player: str | None) -> PermissionLevel:
         if player is None:
             return CONSOLE_LEVEL
         with self._lock:
             return self._levels.get(player.lower(), self.default_level)
 
-    def set(self, player: str, level: "str | int | PermissionLevel") -> PermissionLevel:
+    def set(self, player: str, level: str | int | PermissionLevel) -> PermissionLevel:
         parsed = PermissionLevel.parse(level)
         with self._lock:
             self._levels[player.lower()] = parsed

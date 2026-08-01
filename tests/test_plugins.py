@@ -230,7 +230,7 @@ class TestReload:
         import os
         import time
 
-        stable = write_plugin(plugin_dir, "stable", "")
+        write_plugin(plugin_dir, "stable", "")
         edited = write_plugin(plugin_dir, "edited", "")
         await manager.load_all()
         time.sleep(0.01)

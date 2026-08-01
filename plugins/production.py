@@ -14,7 +14,6 @@ from __future__ import annotations
 import asyncio
 import json
 import time
-from typing import Optional
 
 from factorio_reforge.command.builder import GreedyText, Literal, Text
 from factorio_reforge.core import lua
@@ -135,7 +134,7 @@ def _save_history(server) -> None:
 
 # -- public helpers, used by web_panel --------------------------------------
 
-def get_history(item: Optional[str] = None) -> dict:
+def get_history(item: str | None = None) -> dict:
     """Sampled history: ``{item: [[epoch, produced_per_min, consumed_per_min]]}``."""
     history = _state.get("history") or {}
     return {item: history.get(item, [])} if item else dict(history)
@@ -210,10 +209,15 @@ async def _cmd_item(source, ctx):
             lua.production_rate(item, "one_minute", config.get("surface", "nauvis"))
         )
     except QueryError as exc:
+        if "Unknown item name" in str(exc):
+            # Factorio wants the internal name, and its message does not say so.
+            # Guessing what was meant is more use than repeating the error.
+            await _suggest_item(source, item)
+            return
         await source.reply(f"Could not read production for {item}: {exc}")
         return
     if not data:
-        await source.reply(f"No production data for {item!r} -- is that a real item name?")
+        await source.reply(f"No production data for {item!r}.")
         return
 
     await source.reply(f"{item}:")
@@ -223,6 +227,33 @@ async def _cmd_item(source, ctx):
     if series:
         interval = config.get("sample_interval_seconds", 300) // 60
         await source.reply(f"  {sparkline([row[1] for row in series])}  ({interval}min samples)")
+
+
+async def _suggest_item(source, wanted: str) -> None:
+    """Turn "Unknown item name" into something actionable.
+
+    Factorio takes internal names -- ``iron-plate``, not ``iron`` -- and its
+    error says only that the name is unknown. Matching against what the factory
+    has actually produced turns a dead end into a list of things to try, and
+    those are exactly the items the asker is likely to care about.
+    """
+    await source.reply(f"There is no item called {wanted!r}.")
+    await source.reply("Factorio wants internal names, like 'iron-plate' rather than 'iron'.")
+
+    try:
+        rows = await source.server.lua_json(
+            lua.production_totals(_state["config"].get("surface", "nauvis"), limit=200)
+        )
+    except QueryError:
+        await source.reply("Try !!prod top to see what this factory produces.")
+        return
+
+    needle = wanted.lower().replace(" ", "-")
+    matches = [row["name"] for row in rows or [] if needle in row["name"].lower()]
+    if matches:
+        await source.reply("Did you mean: " + ", ".join(matches[:8]))
+    else:
+        await source.reply("Try !!prod top to see what this factory produces.")
 
 
 async def _cmd_top(source):

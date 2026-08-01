@@ -5,7 +5,6 @@ from __future__ import annotations
 import dataclasses
 import enum
 import itertools
-from typing import Optional
 
 _id_counter = itertools.count()
 
@@ -64,16 +63,16 @@ class InfoActionFlag(enum.Flag):
     """Command dispatch and plugin event dispatch may proceed."""
 
     @classmethod
-    def default(cls) -> "InfoActionFlag":
+    def default(cls) -> InfoActionFlag:
         return cls.SEND_TO_SERVER | cls.ECHO_TO_CONSOLE | cls.PROCESS
 
     @classmethod
-    def hidden(cls) -> "InfoActionFlag":
+    def hidden(cls) -> InfoActionFlag:
         """Act on it, but keep it off the console."""
         return cls.SEND_TO_SERVER | cls.PROCESS
 
     @classmethod
-    def discarded(cls) -> "InfoActionFlag":
+    def discarded(cls) -> InfoActionFlag:
         return cls(0)
 
 
@@ -87,19 +86,19 @@ class Info:
     content: str = ""
     """The message body with every prefix stripped off."""
 
-    tag: Optional[str] = None
+    tag: str | None = None
     """``CHAT`` / ``JOIN`` / ``LEAVE`` / ... for :attr:`InfoKind.GAME_EVENT`."""
 
-    player: Optional[str] = None
+    player: str | None = None
     """The player this line is attributed to, when one could be determined."""
 
-    level: Optional[str] = None
+    level: str | None = None
     """``Info`` / ``Error`` / ``Warning`` for engine logs."""
 
-    elapsed: Optional[float] = None
+    elapsed: float | None = None
     """Server uptime in seconds, from the engine log prefix."""
 
-    timestamp: Optional[str] = None
+    timestamp: str | None = None
     """``YYYY-MM-DD HH:MM:SS`` for game events."""
 
     action_flag: InfoActionFlag = dataclasses.field(default_factory=InfoActionFlag.default)

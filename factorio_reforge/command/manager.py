@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-from typing import Optional
 
 from factorio_reforge.command.builder import (
     ArgumentNode,
@@ -16,7 +15,7 @@ from factorio_reforge.command.source import CommandSource
 
 
 class CommandManager:
-    def __init__(self, prefix: str = "!!", logger: Optional[logging.Logger] = None):
+    def __init__(self, prefix: str = "!!", logger: logging.Logger | None = None):
         self.prefix = prefix
         self.logger = logger or logging.getLogger(__name__)
         #: root literal -> [(plugin_id, node)]; a list so a collision is visible

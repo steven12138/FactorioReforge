@@ -17,7 +17,6 @@ from __future__ import annotations
 
 import json
 import time
-from typing import Optional
 
 from factorio_reforge.command.builder import GreedyText, Integer, Literal, Text
 from factorio_reforge.core import lua
@@ -110,7 +109,7 @@ def _save_library(server) -> None:
     temp.replace(path)
 
 
-def _find(name: str) -> Optional[tuple[str, dict]]:
+def _find(name: str) -> tuple[str, dict] | None:
     library = _state["library"]
     if name in library:
         return name, library[name]

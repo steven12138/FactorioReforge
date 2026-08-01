@@ -10,7 +10,7 @@ everything after the echo.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 from factorio_reforge.command.source import (
     CommandSource,
@@ -26,7 +26,7 @@ if TYPE_CHECKING:
 
 
 class InfoReactor:
-    def __init__(self, server: "ReforgeServer", logger: Optional[logging.Logger] = None):
+    def __init__(self, server: ReforgeServer, logger: logging.Logger | None = None):
         self.server = server
         self.handler: FactorioHandler = server.handler
         self.logger = logger or logging.getLogger(__name__)

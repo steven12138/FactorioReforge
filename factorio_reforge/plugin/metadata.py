@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import dataclasses
 import re
-from typing import Any, Optional
+from typing import Any
 
 ID_PATTERN = re.compile(r"[a-z0-9_]{1,64}")
 _VERSION_PART = re.compile(r"(\d+)")
@@ -35,7 +35,7 @@ class Metadata:
             self.name = self.id
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any], *, fallback_id: Optional[str] = None) -> "Metadata":
+    def from_dict(cls, data: dict[str, Any], *, fallback_id: str | None = None) -> Metadata:
         if not isinstance(data, dict):
             raise MetadataError("PLUGIN_METADATA must be a dict")
         plugin_id = data.get("id", fallback_id)

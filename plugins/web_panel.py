@@ -19,7 +19,7 @@ import json
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from typing import Any, Optional
+from typing import Any
 
 from factorio_reforge.command.builder import Literal
 from factorio_reforge.core.errors import QueryError
@@ -321,10 +321,10 @@ def _render_html() -> bytes:
   <div class="wide">{card("Production", charts)}</div>
   <div class="wide">{card("Recent output", log_html)}</div>
 </div>
-</body></html>""".encode("utf-8")
+</body></html>""".encode()
 
 
-def _duration(seconds: Optional[float]) -> str:
+def _duration(seconds: float | None) -> str:
     if not seconds:
         return "-"
     seconds = int(seconds)

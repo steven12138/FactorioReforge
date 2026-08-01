@@ -18,7 +18,6 @@ import logging
 import re
 import zipfile
 from pathlib import Path
-from typing import Iterable, Optional
 
 from factorio_reforge.mods.portal import ModPortal, PortalError, Release
 
@@ -54,7 +53,7 @@ class ModManager:
         mods_directory: Path,
         portal: ModPortal,
         *,
-        logger: Optional[logging.Logger] = None,
+        logger: logging.Logger | None = None,
     ):
         self.mods_directory = Path(mods_directory)
         self.portal = portal
@@ -92,7 +91,7 @@ class ModManager:
             )
         return mods
 
-    def get_installed(self, name: str) -> Optional[InstalledMod]:
+    def get_installed(self, name: str) -> InstalledMod | None:
         return next((mod for mod in self.list_installed() if mod.name == name), None)
 
     def _scan_zips(self) -> dict[str, tuple[str, str]]:
@@ -213,10 +212,10 @@ class ModManager:
         self,
         name: str,
         *,
-        version: Optional[str] = None,
+        version: str | None = None,
         factorio_version: str = "",
         with_dependencies: bool = True,
-        _seen: Optional[set[str]] = None,
+        _seen: set[str] | None = None,
     ) -> list[InstalledMod]:
         """Download a mod and enable it. Returns everything that got installed.
 
@@ -232,7 +231,7 @@ class ModManager:
     async def _install_locked(
         self,
         name: str,
-        version: Optional[str],
+        version: str | None,
         factorio_version: str,
         with_dependencies: bool,
         seen: set[str],
@@ -281,7 +280,7 @@ class ModManager:
         return installed
 
     async def _pick_release(
-        self, name: str, version: Optional[str], factorio_version: str
+        self, name: str, version: str | None, factorio_version: str
     ) -> Release:
         if version is not None:
             return await self.portal.get_release(name, version)
@@ -365,7 +364,7 @@ class ModManager:
         return updates
 
 
-def _read_info_json(path: Path) -> Optional[dict]:
+def _read_info_json(path: Path) -> dict | None:
     try:
         with zipfile.ZipFile(path) as archive:
             for entry in archive.namelist():

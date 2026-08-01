@@ -22,9 +22,10 @@ import inspect
 import logging
 import sys
 import traceback
+from collections.abc import Iterable
 from pathlib import Path
 from types import ModuleType
-from typing import TYPE_CHECKING, Any, Iterable, Optional
+from typing import TYPE_CHECKING, Any
 
 from factorio_reforge.plugin import events as ev
 from factorio_reforge.plugin.metadata import Metadata, MetadataError, satisfies
@@ -68,7 +69,7 @@ class LoadedPlugin:
         self.module = module
         self.path = path
         self.registry = PluginRegistry(metadata.id)
-        self.interface: Optional["PluginServerInterface"] = None
+        self.interface: PluginServerInterface | None = None
         self.mtime: float = _mtime(path)
 
     @property
@@ -89,9 +90,9 @@ class LoadedPlugin:
 class PluginManager:
     def __init__(
         self,
-        server: "ReforgeServer",
+        server: ReforgeServer,
         directories: Iterable[Path],
-        logger: Optional[logging.Logger] = None,
+        logger: logging.Logger | None = None,
     ):
         #: The core, not a ServerInterface -- PluginServerInterface wraps this.
         self.server = server
@@ -113,9 +114,7 @@ class PluginManager:
             for entry in sorted(directory.iterdir()):
                 if entry.name.startswith(("_", ".")) or entry.name.endswith(DISABLED_SUFFIX):
                     continue
-                if entry.is_file() and entry.suffix == ".py":
-                    found.append(entry)
-                elif entry.is_dir() and (entry / "__init__.py").is_file():
+                if entry.is_file() and entry.suffix == ".py" or entry.is_dir() and (entry / "__init__.py").is_file():
                     found.append(entry)
         return found
 
@@ -207,7 +206,7 @@ class PluginManager:
 
     def _collect_listeners(self, plugin: LoadedPlugin) -> None:
         """Pick up both name-based hooks and @event_listener decorations."""
-        for name, obj in vars(plugin.module).items():
+        for obj in vars(plugin.module).values():
             if not callable(obj):
                 continue
             for event_id, priority in getattr(obj, "_reforge_listeners", []):
@@ -296,7 +295,7 @@ class PluginManager:
 
     # -- dispatch ------------------------------------------------------------
 
-    async def dispatch(self, event: "ev.Event | str", *args: Any) -> None:
+    async def dispatch(self, event: ev.Event | str, *args: Any) -> None:
         """Fire an event at every listener, in priority order.
 
         A listener that raises is logged and skipped; one broken plugin must not
@@ -312,7 +311,7 @@ class PluginManager:
                     "Plugin %s raised while handling %s", listener.plugin_id, event
                 )
 
-    def get(self, plugin_id: str) -> Optional[LoadedPlugin]:
+    def get(self, plugin_id: str) -> LoadedPlugin | None:
         return self.plugins.get(plugin_id)
 
     def list_ids(self) -> list[str]:

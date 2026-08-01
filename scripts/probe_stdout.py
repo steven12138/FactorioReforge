@@ -155,7 +155,7 @@ async def _shutdown(proc, pump: asyncio.Task) -> None:
     try:
         proc.send_signal(signal.SIGINT)
         await asyncio.wait_for(proc.wait(), timeout=30)
-    except (asyncio.TimeoutError, ProcessLookupError):
+    except (TimeoutError, ProcessLookupError):
         try:
             proc.kill()
         except ProcessLookupError:

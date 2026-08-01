@@ -19,7 +19,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import sys
-from typing import Awaitable, Callable, Optional
+from collections.abc import Awaitable, Callable
 
 LineHandler = Callable[[str], Awaitable[None]]
 InterruptHandler = Callable[[], None]
@@ -30,9 +30,9 @@ class ConsoleReader:
         self,
         on_line: LineHandler,
         *,
-        on_interrupt: Optional[InterruptHandler] = None,
+        on_interrupt: InterruptHandler | None = None,
         prompt: str = "",
-        logger: Optional[logging.Logger] = None,
+        logger: logging.Logger | None = None,
     ):
         self.on_line = on_line
         #: Called when the operator asks to leave from an interactive terminal
@@ -41,7 +41,7 @@ class ConsoleReader:
         self.on_interrupt = on_interrupt
         self.prompt = prompt
         self.logger = logger or logging.getLogger(__name__)
-        self._task: Optional[asyncio.Task] = None
+        self._task: asyncio.Task | None = None
         self._stop = asyncio.Event()
 
     @property

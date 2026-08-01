@@ -8,7 +8,6 @@ import logging
 import shutil
 import time
 from pathlib import Path
-from typing import Optional
 
 from factorio_reforge.command.manager import CommandManager
 from factorio_reforge.config import Config
@@ -34,7 +33,7 @@ class RollbackError(Exception):
 
 
 class ReforgeServer:
-    def __init__(self, config: Config, logger: Optional[logging.Logger] = None):
+    def __init__(self, config: Config, logger: logging.Logger | None = None):
         self.config = config
         self.logger = logger or logging.getLogger("reforge")
 
@@ -66,7 +65,7 @@ class ReforgeServer:
         self.plugins = PluginManager(self, config.plugin_dir_paths, self.logger)
         self.reactor = InfoReactor(self, self.logger)
 
-        self.rcon: Optional[RconManager] = None
+        self.rcon: RconManager | None = None
         if config.rcon.enabled:
             self.rcon = RconManager(
                 RconClient(
@@ -87,7 +86,7 @@ class ReforgeServer:
         self._rollback_in_progress = False
         self._abort_rollback = asyncio.Event()
         self._expect_stop = False
-        self._crash_watch: Optional[asyncio.Task] = None
+        self._crash_watch: asyncio.Task | None = None
         self.started_at = time.monotonic()
 
     # -- console output ------------------------------------------------------
@@ -244,7 +243,7 @@ class ReforgeServer:
         # Same filesystem, so this is a rename rather than a second full write.
         shutil.move(str(produced), str(target))
 
-    async def _server_save(self, stem: Optional[str]) -> Optional[Path]:
+    async def _server_save(self, stem: str | None) -> Path | None:
         """Run ``/server-save [name]`` and wait for the completion marker."""
         if not self.process.is_running:
             return None
@@ -252,7 +251,7 @@ class ReforgeServer:
         await self.process.write(f"/server-save {stem}" if stem else "/server-save")
         try:
             await asyncio.wait_for(self._save_completed.wait(), self.config.saves.save_timeout)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             self.logger.warning(
                 "No save-completion message within %.0fs", self.config.saves.save_timeout
             )
@@ -306,7 +305,7 @@ class ReforgeServer:
         self._rollback_in_progress = True
         self._abort_rollback.clear()
         was_running = self.process.is_running
-        preserved: Optional[Slot] = None
+        preserved: Slot | None = None
         try:
             await self.plugins.dispatch(ev.ROLLBACK_STARTED, info, requested_by)
 
@@ -371,11 +370,11 @@ class ReforgeServer:
                 )
             try:
                 await asyncio.wait_for(self._abort_rollback.wait(), timeout=1.0)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 continue
         return not self._abort_rollback.is_set()
 
-    async def _recover(self, preserved: Optional[Slot]) -> None:
+    async def _recover(self, preserved: Slot | None) -> None:
         if preserved is None:
             self.logger.error("Nothing was preserved, so there is nothing to put back")
             return

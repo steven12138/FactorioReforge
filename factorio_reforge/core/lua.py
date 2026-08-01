@@ -17,7 +17,7 @@ spellings no longer exist and are called out where they bite:
 from __future__ import annotations
 
 import json
-from typing import Any, Optional
+from typing import Any
 
 from factorio_reforge.core.errors import QueryError
 
@@ -171,7 +171,7 @@ def server_stats() -> str:
 
 
 def add_map_marker(
-    surface: str, position: dict, text: str, icon: Optional[dict] = None
+    surface: str, position: dict, text: str, icon: dict | None = None
 ) -> str:
     """Drop a chart tag -- a persistent marker on everyone's map.
 
@@ -196,7 +196,7 @@ def add_map_marker(
     ) % (lua_string(surface), lua_value(spec))
 
 
-def teleport(player: str, position: dict, surface: Optional[str] = None) -> str:
+def teleport(player: str, position: dict, surface: str | None = None) -> str:
     return (
         "(function() local p = game.get_player(%s) "
         "if not p then return {ok = false, reason = 'no such player'} end "

@@ -15,7 +15,8 @@ from __future__ import annotations
 import abc
 import inspect
 import shlex
-from typing import Any, Awaitable, Callable, Optional, Sequence
+from collections.abc import Callable, Sequence
+from typing import Any
 
 from factorio_reforge.command.source import CommandSource
 from factorio_reforge.permission import PermissionLevel
@@ -46,26 +47,26 @@ class CommandContext(dict):
 class ArgumentNode(abc.ABC):
     def __init__(self, name: str):
         self.name = name
-        self._children: list["ArgumentNode"] = []
-        self._callback: Optional[Callback] = None
-        self._requirement: Optional[Callable[[CommandSource], bool]] = None
+        self._children: list[ArgumentNode] = []
+        self._callback: Callback | None = None
+        self._requirement: Callable[[CommandSource], bool] | None = None
         self._requirement_message: str = "Permission denied"
 
     # -- building ------------------------------------------------------------
 
-    def then(self, node: "ArgumentNode") -> "ArgumentNode":
+    def then(self, node: ArgumentNode) -> ArgumentNode:
         self._children.append(node)
         return self
 
-    def runs(self, callback: Callback) -> "ArgumentNode":
+    def runs(self, callback: Callback) -> ArgumentNode:
         self._callback = callback
         return self
 
     def requires(
         self,
-        predicate: "Callable[[CommandSource], bool] | int | PermissionLevel",
-        message: Optional[str] = None,
-    ) -> "ArgumentNode":
+        predicate: Callable[[CommandSource], bool] | int | PermissionLevel,
+        message: str | None = None,
+    ) -> ArgumentNode:
         if isinstance(predicate, (int, PermissionLevel)):
             level = PermissionLevel.parse(predicate)
             self._requirement = lambda src: src.has_permission(level)
@@ -78,7 +79,7 @@ class ArgumentNode(abc.ABC):
     # -- parsing -------------------------------------------------------------
 
     @abc.abstractmethod
-    def _match(self, tokens: Sequence[str]) -> Optional[tuple[Any, int]]:
+    def _match(self, tokens: Sequence[str]) -> tuple[Any, int] | None:
         """Return ``(value, tokens_consumed)`` or ``None`` if this node does not apply."""
 
     async def execute(self, source: CommandSource, tokens: Sequence[str], ctx: CommandContext):

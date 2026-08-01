@@ -1,0 +1,19 @@
+line-length = 100
+target-version = "py311"
+
+[lint]
+select = ["E", "F", "W", "I", "UP", "B", "C4", "SIM"]
+ignore = [
+  "E501",    # line length is handled by review, not by a hard stop
+  "B008",    # function calls in defaults are used deliberately for factories
+  "SIM108",  # ternaries are not always clearer than an if/else
+  "SIM102",  # nested ifs often read better than one long condition
+  "SIM105",  # try/except/pass is clear enough without importing contextlib
+  "SIM117",  # nested with-statements can be clearer when the scopes differ
+  "UP031",   # %-formatting builds the Lua snippets; .format would fight the braces
+]
+
+[lint.per-file-ignores]
+# Plugins keep module-level mutable state on purpose; it is how reload works.
+"plugins/*" = ["B018"]
+"tests/*" = ["B011", "SIM117"]

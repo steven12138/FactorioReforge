@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import abc
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 from factorio_reforge.core.info import Info
 from factorio_reforge.permission import CONSOLE_LEVEL, PermissionLevel
@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 class CommandSource(abc.ABC):
     """A command's origin. ``reply`` is what makes routing transparent to plugins."""
 
-    def __init__(self, server: "ServerInterface", info: Optional[Info] = None):
+    def __init__(self, server: ServerInterface, info: Info | None = None):
         self.server = server
         self.info = info
 
@@ -24,13 +24,13 @@ class CommandSource(abc.ABC):
     def permission_level(self) -> PermissionLevel: ...
 
     @property
-    def player(self) -> Optional[str]:
+    def player(self) -> str | None:
         return None
 
     @abc.abstractmethod
     async def reply(self, text: str) -> None: ...
 
-    def has_permission(self, level: "int | PermissionLevel") -> bool:
+    def has_permission(self, level: int | PermissionLevel) -> bool:
         return self.permission_level >= level
 
     def __str__(self) -> str:
@@ -58,12 +58,12 @@ class ConsoleCommandSource(CommandSource):
 class PlayerCommandSource(CommandSource):
     """A player typing in the game chat."""
 
-    def __init__(self, server: "ServerInterface", info: Info, player: str):
+    def __init__(self, server: ServerInterface, info: Info, player: str):
         super().__init__(server, info)
         self._player = player
 
     @property
-    def player(self) -> Optional[str]:
+    def player(self) -> str | None:
         return self._player
 
     @property
@@ -86,11 +86,11 @@ class PluginCommandSource(CommandSource):
 
     def __init__(
         self,
-        server: "ServerInterface",
+        server: ServerInterface,
         level: PermissionLevel,
         name: str,
         reply_callback=None,
-        info: Optional[Info] = None,
+        info: Info | None = None,
     ):
         super().__init__(server, info)
         self._level = level

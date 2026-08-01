@@ -21,7 +21,8 @@ import dataclasses
 import html
 import logging
 import time
-from typing import Any, Awaitable, Callable, Optional
+from collections.abc import Awaitable, Callable
+from typing import Any
 
 READY_EVENT = "telegram.ready"
 """Dispatched when the bot starts polling. Sub-plugins register on this."""
@@ -133,7 +134,7 @@ class TelegramService:
 
     # -- authorisation -------------------------------------------------------
 
-    def level_of(self, chat_id: int, user_id: int) -> Optional[str]:
+    def level_of(self, chat_id: int, user_id: int) -> str | None:
         """The caller's level, or None if this chat is not allowed at all."""
         if chat_id not in self.config.get("allowed_chat_ids", []):
             return None
@@ -247,7 +248,7 @@ class TelegramService:
         await message.reply_text(question, reply_markup=keyboard)
         try:
             return await asyncio.wait_for(future, timeout)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             return False
         finally:
             self._pending_confirms.pop(token, None)

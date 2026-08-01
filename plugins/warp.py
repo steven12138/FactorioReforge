@@ -12,9 +12,8 @@ from __future__ import annotations
 
 import json
 import time
-from typing import Optional
 
-from factorio_reforge.command.builder import GreedyText, Literal, Text
+from factorio_reforge.command.builder import GreedyText, Literal
 from factorio_reforge.core import lua
 from factorio_reforge.core.errors import QueryError
 from factorio_reforge.permission import PermissionLevel
@@ -103,7 +102,7 @@ def _save_warps(server) -> None:
     temp.replace(path)
 
 
-def _find(name: str) -> Optional[tuple[str, dict]]:
+def _find(name: str) -> tuple[str, dict] | None:
     """Case-insensitive lookup, so players do not have to match capitalisation."""
     warps = _state["warps"]
     if name in warps:

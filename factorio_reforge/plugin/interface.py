@@ -15,8 +15,9 @@ from __future__ import annotations
 
 import json
 import logging
+from collections.abc import Callable
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, Optional
+from typing import TYPE_CHECKING, Any
 
 from factorio_reforge.command.builder import ArgumentNode
 from factorio_reforge.core import lua
@@ -34,7 +35,7 @@ if TYPE_CHECKING:
 class ServerInterface:
     """Core-wide API. Plugins get the :class:`PluginServerInterface` subclass."""
 
-    def __init__(self, server: "ReforgeServer"):
+    def __init__(self, server: ReforgeServer):
         self._server = server
 
     # -- logging -------------------------------------------------------------
@@ -67,7 +68,7 @@ class ServerInterface:
         """Exit FactorioReforge, leaving Factorio running."""
         await self._server.shutdown(stop_server=False)
 
-    async def wait_until_stop(self, timeout: Optional[float] = None) -> None:
+    async def wait_until_stop(self, timeout: float | None = None) -> None:
         await self._server.process.wait_until_stopped(timeout)
 
     def is_server_running(self) -> bool:
@@ -79,10 +80,10 @@ class ServerInterface:
     def is_rcon_running(self) -> bool:
         return self._server.rcon is not None and self._server.rcon.connected
 
-    def get_server_pid(self) -> Optional[int]:
+    def get_server_pid(self) -> int | None:
         return self._server.process.pid
 
-    def get_server_uptime(self) -> Optional[float]:
+    def get_server_uptime(self) -> float | None:
         return self._server.process.uptime
 
     # -- output, via stdin ---------------------------------------------------
@@ -156,7 +157,7 @@ class ServerInterface:
         """Everyone who has ever joined, with playtime and last-seen tick."""
         return await self.lua_json(lua.all_players()) or []
 
-    async def get_player_info(self, player: str) -> Optional[dict]:
+    async def get_player_info(self, player: str) -> dict | None:
         return await self.lua_json(lua.player_info(player))
 
     async def get_server_stats(self) -> dict:
@@ -169,8 +170,8 @@ class ServerInterface:
         text: str,
         *,
         surface: str = "nauvis",
-        icon: Optional[dict] = None,
-    ) -> Optional[dict]:
+        icon: dict | None = None,
+    ) -> dict | None:
         """Place a chart tag players can click on the in-game map.
 
         Returns ``None`` if Factorio rejected the position, so callers must not
@@ -179,7 +180,7 @@ class ServerInterface:
         return await self.lua_json(lua.add_map_marker(surface, position, text, icon))
 
     async def teleport_player(
-        self, player: str, position: dict, surface: Optional[str] = None
+        self, player: str, position: dict, surface: str | None = None
     ) -> dict:
         return await self.lua_json(lua.teleport(player, position, surface)) or {}
 
@@ -199,7 +200,7 @@ class ServerInterface:
     # -- saves ---------------------------------------------------------------
 
     @property
-    def saves(self) -> "SaveManager":
+    def saves(self) -> SaveManager:
         return self._server.saves
 
     async def snapshot(self, comment: str = "", *, created_by: str = "unknown"):
@@ -215,7 +216,7 @@ class ServerInterface:
 
     # -- permissions ---------------------------------------------------------
 
-    def get_permission_level(self, player: Optional[str]) -> PermissionLevel:
+    def get_permission_level(self, player: str | None) -> PermissionLevel:
         return self._server.permissions.get(player)
 
     def set_permission_level(self, player: str, level) -> PermissionLevel:
@@ -244,7 +245,7 @@ class ServerInterface:
         plugin = self._server.plugins.get(plugin_id)
         return plugin.module if plugin else None
 
-    async def dispatch_event(self, event: "Event | str", *args: Any) -> None:
+    async def dispatch_event(self, event: Event | str, *args: Any) -> None:
         await self._server.plugins.dispatch(event, *args)
 
 
@@ -256,7 +257,7 @@ class PluginServerInterface(ServerInterface):
     listeners and commands goes with it.
     """
 
-    def __init__(self, server: "ReforgeServer", plugin: "LoadedPlugin"):
+    def __init__(self, server: ReforgeServer, plugin: LoadedPlugin):
         super().__init__(server)
         self._plugin = plugin
 
@@ -269,7 +270,7 @@ class PluginServerInterface(ServerInterface):
         return logging.getLogger(f"plugin.{self._plugin.id}")
 
     def register_event_listener(
-        self, event: "Event | str", callback: Callable, priority: int = 1000
+        self, event: Event | str, callback: Callable, priority: int = 1000
     ) -> None:
         self._plugin.registry.add_listener(event, callback, priority)
         self._server.plugins._rebuild()
@@ -290,7 +291,7 @@ class PluginServerInterface(ServerInterface):
         return folder
 
     def load_config_simple(
-        self, filename: str = "config.json", default: Optional[dict] = None
+        self, filename: str = "config.json", default: dict | None = None
     ) -> dict:
         """Read the plugin's config, writing defaults out on first run.
 

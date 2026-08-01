@@ -42,8 +42,9 @@ import logging
 import shutil
 import time
 import zipfile
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable, Optional
+from typing import Any
 
 SAVE_NAME = "save.zip"
 INFO_NAME = "info.json"
@@ -89,7 +90,7 @@ class Slot:
         return dataclasses.asdict(self)
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any], slot_id: int) -> "Slot":
+    def from_dict(cls, data: dict[str, Any], slot_id: int) -> Slot:
         known = {f.name for f in dataclasses.fields(cls)}
         kwargs = {k: v for k, v in data.items() if k in known}
         kwargs["id"] = slot_id
@@ -108,8 +109,8 @@ class SaveManager:
         current_save: Path,
         snapshot_directory: Path,
         *,
-        slots: Optional[list[SlotConfig]] = None,
-        logger: Optional[logging.Logger] = None,
+        slots: list[SlotConfig] | None = None,
+        logger: logging.Logger | None = None,
     ):
         self.current_save = Path(current_save)
         self.snapshot_directory = Path(snapshot_directory)
@@ -132,14 +133,14 @@ class SaveManager:
     def slot_count(self) -> int:
         return len(self.slots)
 
-    def slot_path(self, slot: "int | str") -> Path:
+    def slot_path(self, slot: int | str) -> Path:
         name = slot if isinstance(slot, str) else f"slot{slot}"
         return self.snapshot_directory / name
 
-    def save_path(self, slot: "int | str") -> Path:
+    def save_path(self, slot: int | str) -> Path:
         return self.slot_path(slot) / SAVE_NAME
 
-    def info_path(self, slot: "int | str") -> Path:
+    def info_path(self, slot: int | str) -> Path:
         return self.slot_path(slot) / INFO_NAME
 
     def ensure_directories(self) -> None:
@@ -153,7 +154,7 @@ class SaveManager:
         """Kept for API compatibility; slots are read from disk on demand."""
         self.ensure_directories()
 
-    def get(self, slot: "int | str") -> Optional[Slot]:
+    def get(self, slot: int | str) -> Slot | None:
         """Read one slot, or None if it is empty or unreadable."""
         info_file = self.info_path(slot)
         if not info_file.is_file() or not self.save_path(slot).is_file():
@@ -170,7 +171,7 @@ class SaveManager:
         """Occupied slots, in slot order -- slot 1 is always the newest."""
         return [s for s in (self.get(i) for i in range(1, self.slot_count + 1)) if s]
 
-    def all_slots(self) -> list[tuple[int, Optional[Slot]]]:
+    def all_slots(self) -> list[tuple[int, Slot | None]]:
         """Every slot including the empty ones, for listing."""
         return [(i, self.get(i)) for i in range(1, self.slot_count + 1)]
 
@@ -206,8 +207,8 @@ class SaveManager:
         """
         self.ensure_directories()
 
-        empty_index: Optional[int] = None
-        last_available: Optional[int] = None
+        empty_index: int | None = None
+        last_available: int | None = None
         for index in range(1, self.slot_count + 1):
             info = self.get(index)
             if info is None:
@@ -240,9 +241,9 @@ class SaveManager:
         comment: str = "",
         *,
         created_by: str = "unknown",
-        players_online: Optional[list[str]] = None,
+        players_online: list[str] | None = None,
         automatic: bool = False,
-        write_save: Optional[Callable[[Path], Any]] = None,
+        write_save: Callable[[Path], Any] | None = None,
     ) -> Slot:
         """Make a backup in slot 1.
 
@@ -301,7 +302,7 @@ class SaveManager:
             self.logger.info("Created %s", info.describe())
             return info
 
-    def _write_info(self, slot: "int | str", info: Slot) -> None:
+    def _write_info(self, slot: int | str, info: Slot) -> None:
         path = self.info_path(slot)
         path.parent.mkdir(parents=True, exist_ok=True)
         temp = path.with_suffix(".json.tmp")
@@ -312,7 +313,7 @@ class SaveManager:
 
     # -- the pre-restore backup ----------------------------------------------
 
-    def back_up_current_world(self, confirmed_by: str) -> Optional[Slot]:
+    def back_up_current_world(self, confirmed_by: str) -> Slot | None:
         """Copy the live save into the fixed ``overwrite`` slot.
 
         QBM does this right before replacing the world, and it is what makes
@@ -341,12 +342,12 @@ class SaveManager:
         self.logger.info("Preserved the current world in the overwrite slot")
         return info
 
-    def get_overwrite(self) -> Optional[Slot]:
+    def get_overwrite(self) -> Slot | None:
         return self.get(OVERWRITE_SLOT)
 
     # -- restoring -----------------------------------------------------------
 
-    async def restore(self, slot: "int | str") -> None:
+    async def restore(self, slot: int | str) -> None:
         """Put a slot's save in place. The server must be stopped.
 
         Writes to a temp file next to the target and renames, so an interrupted

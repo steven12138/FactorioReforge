@@ -6,7 +6,7 @@ import dataclasses
 import logging
 import shlex
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 import yaml
 
@@ -127,7 +127,7 @@ class Config:
     # -- io ------------------------------------------------------------------
 
     @classmethod
-    def load(cls, path: Path) -> "Config":
+    def load(cls, path: Path) -> Config:
         if not path.is_file():
             raise ConfigError(
                 f"{path} not found. Run `python -m factorio_reforge init` to create it."
@@ -145,7 +145,7 @@ class Config:
         return cfg
 
     @classmethod
-    def _from_dict(cls, data: dict[str, Any]) -> "Config":
+    def _from_dict(cls, data: dict[str, Any]) -> Config:
         known = {f.name for f in dataclasses.fields(cls)} - {"rcon", "saves", "root"}
         unknown = set(data) - known - {"rcon", "saves"}
         if unknown:
@@ -209,7 +209,7 @@ RETIRED_KEYS: dict[str, dict[str, str]] = {
 }
 
 
-def _sub(klass, value: Optional[dict], name: str):
+def _sub(klass, value: dict | None, name: str):
     if value is None:
         return klass()
     if not isinstance(value, dict):

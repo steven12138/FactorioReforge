@@ -22,8 +22,6 @@ from __future__ import annotations
 
 import asyncio
 import html
-import logging
-from typing import Optional
 
 from factorio_reforge.command.source import PluginCommandSource
 from factorio_reforge.core.errors import QueryError
@@ -58,7 +56,7 @@ DEFAULT_CONFIG = {
     "game_prefix": "[TG]",
 }
 
-_service: Optional[TelegramService] = None
+_service: TelegramService | None = None
 _state: dict = {}
 
 

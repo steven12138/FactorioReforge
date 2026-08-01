@@ -10,7 +10,7 @@ from __future__ import annotations
 import bisect
 import dataclasses
 import logging
-from typing import Callable, Optional
+from collections.abc import Callable
 
 from factorio_reforge.command.builder import ArgumentNode
 from factorio_reforge.plugin.events import Event, EventListener
@@ -33,7 +33,7 @@ class PluginRegistry:
         self.commands: list[ArgumentNode] = []
         self.help_messages: list[HelpMessage] = []
 
-    def add_listener(self, event: "Event | str", callback: Callable, priority: int = 1000) -> None:
+    def add_listener(self, event: Event | str, callback: Callable, priority: int = 1000) -> None:
         event_id = event.id if isinstance(event, Event) else event
         listeners = self.event_listeners.setdefault(event_id, [])
         bisect.insort(listeners, EventListener(self.plugin_id, callback, priority))
@@ -53,7 +53,7 @@ class PluginRegistry:
 class GlobalRegistry:
     """The merged view the dispatcher reads, rebuilt whenever plugins change."""
 
-    def __init__(self, logger: Optional[logging.Logger] = None):
+    def __init__(self, logger: logging.Logger | None = None):
         self.logger = logger or logging.getLogger(__name__)
         self.event_listeners: dict[str, list[EventListener]] = {}
         self.help_messages: list[HelpMessage] = []
@@ -70,6 +70,6 @@ class GlobalRegistry:
         self.event_listeners = merged
         self.help_messages = sorted(help_messages, key=lambda h: h.prefix)
 
-    def listeners_for(self, event: "Event | str") -> list[EventListener]:
+    def listeners_for(self, event: Event | str) -> list[EventListener]:
         event_id = event.id if isinstance(event, Event) else event
         return self.event_listeners.get(event_id, [])

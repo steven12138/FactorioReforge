@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import re
 import time
-from typing import Optional, Set
 
 from factorio_reforge.core.info import Info, InfoKind, InfoSource
 
@@ -61,7 +60,7 @@ class FactorioHandler:
     """
 
     def __init__(self) -> None:
-        self._unknown_tags_seen: Set[str] = set()
+        self._unknown_tags_seen: set[str] = set()
 
     @staticmethod
     def pre_parse(text: str) -> str:
@@ -122,7 +121,7 @@ class FactorioHandler:
             # adding a tag should be visible but must not flood the log.
             self._unknown_tags_seen.add(info.tag)
 
-    def take_new_unknown_tags(self) -> Set[str]:
+    def take_new_unknown_tags(self) -> set[str]:
         """Unknown tags seen since the last call, for the caller to log."""
         tags, self._unknown_tags_seen = self._unknown_tags_seen, set()
         return tags
@@ -144,7 +143,7 @@ class FactorioHandler:
         return text
 
     @staticmethod
-    def format_tell(player: str, text: str) -> Optional[str]:
+    def format_tell(player: str, text: str) -> str | None:
         """There is no ``/tell`` in Factorio; whispering needs RCON + Lua.
 
         Returned as ``None`` so :class:`ServerInterface` knows to route through

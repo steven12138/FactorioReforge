@@ -15,7 +15,6 @@ import asyncio
 import contextlib
 import logging
 import struct
-from typing import Optional
 
 from factorio_reforge.core.errors import QueryError
 
@@ -48,7 +47,7 @@ class RconClient:
         *,
         connect_timeout: float = 5.0,
         command_timeout: float = 10.0,
-        logger: Optional[logging.Logger] = None,
+        logger: logging.Logger | None = None,
     ):
         self.host = host
         self.port = port
@@ -57,8 +56,8 @@ class RconClient:
         self.command_timeout = command_timeout
         self.logger = logger or logging.getLogger(__name__)
 
-        self._reader: Optional[asyncio.StreamReader] = None
-        self._writer: Optional[asyncio.StreamWriter] = None
+        self._reader: asyncio.StreamReader | None = None
+        self._writer: asyncio.StreamWriter | None = None
         self._request_id = 0
         self._authenticated = False
         # One reader at a time. This guards the handshake as well as commands:
@@ -84,7 +83,7 @@ class RconClient:
             self._reader, self._writer = await asyncio.wait_for(
                 asyncio.open_connection(self.host, self.port), self.connect_timeout
             )
-        except (OSError, asyncio.TimeoutError) as exc:
+        except (TimeoutError, OSError) as exc:
             raise RconError(f"cannot reach RCON at {self.host}:{self.port}: {exc}") from exc
 
         request_id = self._next_id()
@@ -96,7 +95,7 @@ class RconClient:
             if response_id == request_id and response_id != _AUTH_FAILED_ID:
                 try:
                     response_id, _, _ = await asyncio.wait_for(self._recv(), 0.5)
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     pass
         except (OSError, EOFError, ConnectionError, struct.error) as exc:
             # The server hangs up mid-handshake when it is shutting down, which
@@ -121,7 +120,7 @@ class RconClient:
             writer.close()
             try:
                 await writer.wait_closed()
-            except (OSError, asyncio.TimeoutError):
+            except (TimeoutError, OSError):
                 pass
 
     async def execute(self, command: str) -> str:
@@ -131,7 +130,7 @@ class RconClient:
                 raise RconError("RCON is not connected")
             try:
                 return await asyncio.wait_for(self._execute(command), self.command_timeout)
-            except asyncio.TimeoutError as exc:
+            except TimeoutError as exc:
                 # The socket is now mid-packet and unusable; drop it so the
                 # manager reconnects instead of reading garbage next time.
                 await self._close_locked()
@@ -165,7 +164,7 @@ class RconClient:
         while len(chunks[-1]) >= _SPLIT_THRESHOLD:
             try:
                 response_id, _, body = await asyncio.wait_for(self._recv(), _CONTINUATION_WAIT)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 break
             if response_id == command_id:
                 chunks.append(body)
@@ -206,7 +205,7 @@ class RconManager:
         client: RconClient,
         *,
         retry_interval: float = 3.0,
-        logger: Optional[logging.Logger] = None,
+        logger: logging.Logger | None = None,
         on_connect=None,
         on_lost=None,
     ):
@@ -215,7 +214,7 @@ class RconManager:
         self.logger = logger or logging.getLogger(__name__)
         self.on_connect = on_connect
         self.on_lost = on_lost
-        self._task: Optional[asyncio.Task] = None
+        self._task: asyncio.Task | None = None
         self._stop = asyncio.Event()
 
     @property

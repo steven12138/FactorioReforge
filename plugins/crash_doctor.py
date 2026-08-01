@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import collections
 import re
-from typing import Optional
 
 from factorio_reforge.command.builder import Literal
 from factorio_reforge.permission import PermissionLevel
@@ -208,7 +207,7 @@ async def on_server_crash(server, code):
             await bridge.broadcast(text)
 
 
-def diagnose(lines: list[str]) -> Optional[Diagnosis]:
+def diagnose(lines: list[str]) -> Diagnosis | None:
     """Match recent output against known failure signatures.
 
     Two rules, both learned the hard way:
@@ -232,7 +231,7 @@ def diagnose(lines: list[str]) -> Optional[Diagnosis]:
     while start > 0 and _is_continuation(lines[start]):
         start -= 1
 
-    best: Optional[tuple[int, re.Match, object]] = None
+    best: tuple[int, re.Match, object] | None = None
     for index in range(start, newest + 1):
         for priority, pattern, build in _SIGNATURES:
             match = pattern.search(lines[index])

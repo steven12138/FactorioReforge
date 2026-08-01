@@ -23,7 +23,7 @@ import asyncio
 import re
 from pathlib import Path
 
-from factorio_reforge.command.builder import GreedyText, Integer, Literal, Text
+from factorio_reforge.command.builder import GreedyText, Literal, Text
 from factorio_reforge.mods.manager import ModError, ModManager
 from factorio_reforge.mods.portal import (
     AuthRequired,
@@ -178,7 +178,7 @@ async def _detect_factorio_version(server) -> str:
             stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL,
         )
         out, _ = await asyncio.wait_for(proc.communicate(), timeout=30)
-    except (OSError, asyncio.TimeoutError):
+    except (TimeoutError, OSError):
         return ""
 
     match = re.search(r"Version:\s*(\d+\.\d+\.\d+)", out.decode("utf-8", errors="replace"))

@@ -12,13 +12,13 @@ Callbacks may be sync or ``async def``; the dispatcher awaits what needs awaitin
 from __future__ import annotations
 
 import dataclasses
-from typing import Callable, Optional
+from collections.abc import Callable
 
 
 @dataclasses.dataclass(frozen=True)
 class Event:
     id: str
-    default_listener: Optional[str] = None
+    default_listener: str | None = None
 
     def __str__(self) -> str:
         return self.id
@@ -77,11 +77,11 @@ class EventListener:
     callback: Callable
     priority: int = 1000
 
-    def __lt__(self, other: "EventListener") -> bool:
+    def __lt__(self, other: EventListener) -> bool:
         return self.priority < other.priority
 
 
-def event_listener(event: "Event | str", priority: int = 1000):
+def event_listener(event: Event | str, priority: int = 1000):
     """Mark a function as a listener; the loader picks these up on import."""
 
     def decorator(func):

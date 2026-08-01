@@ -25,7 +25,7 @@ if TYPE_CHECKING:
     from factorio_reforge.core.server import ReforgeServer
 
 
-def build(server: "ReforgeServer"):
+def build(server: ReforgeServer):
     """Build the ``!!FR`` tree bound to ``server``."""
     prefix = server.config.command_prefix + "FR"
 
@@ -165,7 +165,7 @@ def build(server: "ReforgeServer"):
     )
 
 
-def build_save_commands(server: "ReforgeServer"):
+def build_save_commands(server: ReforgeServer):
     """The ``!!save`` tree, following QuickBackupM's command set.
 
     ``back`` stages a slot rather than acting on it; ``confirm`` starts an

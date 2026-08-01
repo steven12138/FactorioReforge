@@ -19,8 +19,8 @@ import logging
 import os
 import signal
 import time
+from collections.abc import Awaitable, Callable, Sequence
 from pathlib import Path
-from typing import Awaitable, Callable, Optional, Sequence
 
 LineCallback = Callable[[str], Awaitable[None]]
 
@@ -63,7 +63,7 @@ class ServerProcess:
         working_directory: Path,
         on_line: LineCallback,
         *,
-        logger: Optional[logging.Logger] = None,
+        logger: logging.Logger | None = None,
         quit_timeout: float = 60.0,
         sigint_timeout: float = 30.0,
         sigterm_timeout: float = 15.0,
@@ -78,12 +78,12 @@ class ServerProcess:
         self.sigterm_timeout = sigterm_timeout
         self.encoding = encoding
 
-        self._proc: Optional[asyncio.subprocess.Process] = None
+        self._proc: asyncio.subprocess.Process | None = None
         self._pumps: list[asyncio.Task] = []
         self._state = ServerState.STOPPED
         self._stopped = asyncio.Event()
         self._stopped.set()
-        self._start_time: Optional[float] = None
+        self._start_time: float | None = None
         self._stdin_lock = asyncio.Lock()
 
     # -- state ---------------------------------------------------------------
@@ -101,15 +101,15 @@ class ServerProcess:
         return self._state is ServerState.STARTUP_DONE
 
     @property
-    def pid(self) -> Optional[int]:
+    def pid(self) -> int | None:
         return self._proc.pid if self._proc is not None else None
 
     @property
-    def uptime(self) -> Optional[float]:
+    def uptime(self) -> float | None:
         return None if self._start_time is None else time.monotonic() - self._start_time
 
     @property
-    def return_code(self) -> Optional[int]:
+    def return_code(self) -> int | None:
         return self._proc.returncode if self._proc is not None else None
 
     def mark_startup_done(self) -> None:
@@ -244,10 +244,10 @@ class ServerProcess:
         try:
             await asyncio.wait_for(self._stopped.wait(), timeout)
             return True
-        except asyncio.TimeoutError:
+        except TimeoutError:
             return False
 
-    async def wait_until_stopped(self, timeout: Optional[float] = None) -> None:
+    async def wait_until_stopped(self, timeout: float | None = None) -> None:
         if timeout is None:
             await self._stopped.wait()
         else:

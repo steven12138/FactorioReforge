@@ -1,0 +1,79 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: tests (py${{ matrix.python }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # The floor from pyproject, and the newest release. Anything in between
+        # is covered by the syntax the floor accepts.
+        python: ["3.11", "3.13"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[console,telegram,dev]"
+
+      - name: Test
+        # The suite spawns tests/fake_factorio.py rather than a real server, so
+        # it needs no Factorio install and no network.
+        run: pytest tests/ -q
+
+  lint:
+    name: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+      - run: pip install ruff
+      - name: Ruff
+        run: ruff check .
+
+  scripts:
+    name: shell scripts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Shellcheck
+        run: shellcheck scripts/*.sh
+      - name: Scripts are executable
+        # A setup script that arrives without its execute bit is a bad first
+        # impression, and git tracks the mode, so it is worth asserting.
+        run: |
+          for f in scripts/*.sh; do
+            test -x "$f" || { echo "$f is not executable"; exit 1; }
+          done
+
+  docs:
+    name: docs links
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Check anchors and relative links
+        run: python scripts/check_docs.py
