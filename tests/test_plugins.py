@@ -19,9 +19,12 @@ class FakeCore:
         self.plugins = None
         self.commands = _FakeCommands()
         self.config = _FakeConfig(tmp_path)
-        # The manager loads and unloads each plugin's translations, so a stand-in
-        # core needs a real translator rather than a stub.
+        # The manager loads and unloads each plugin's translations and logs
+        # through the translator, so a stand-in core needs a real one.
         self.i18n = Translator()
+
+    def tr(self, key, /, *args, **kwargs):
+        return self.i18n.translate(key, *args, **kwargs)
 
 
 class _FakeCommands:

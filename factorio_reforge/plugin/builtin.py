@@ -17,6 +17,7 @@ from factorio_reforge.command.builder import (
     Text,
 )
 from factorio_reforge.command.source import CommandSource
+from factorio_reforge.config import CONFIG_FILE
 from factorio_reforge.permission import PermissionLevel
 from factorio_reforge.plugin.manager import CORE_VERSION
 from factorio_reforge.saves.manager import NoSlotAvailable, SaveError, format_duration
@@ -131,6 +132,22 @@ def build(server: ReforgeServer):
             if missing:
                 await source.reply(tr("lang.incomplete", language=language, count=len(missing)))
 
+    async def lang_set(source: CommandSource, ctx: CommandContext):
+        language = ctx["language"]
+        available = server.i18n.languages()
+        if language not in available:
+            await source.reply(tr("lang.unknown", language=language,
+                                  languages=", ".join(available)))
+            return
+
+        server.i18n.set_language(language)
+        server.config.set_language(language, server.config.root / CONFIG_FILE)
+        # Reply in the language just selected, so the change is self-evident.
+        await source.reply(tr("lang.changed", language=language))
+        missing = server.i18n.missing_keys(language)
+        if missing:
+            await source.reply(tr("lang.incomplete", language=language, count=len(missing)))
+
     async def lang_missing(source: CommandSource, ctx: CommandContext):
         missing = server.i18n.missing_keys(ctx["language"])
         if not missing:
@@ -148,7 +165,7 @@ def build(server: ReforgeServer):
         await source.reply(f"  {prefix} reload             - reload every changed plugin")
         await source.reply(f"  {prefix} server start|stop|restart|kill")
         await source.reply(f"  {prefix} permission list|set <player> <level>")
-        await source.reply(f"  {prefix} lang               - translation status")
+        await source.reply(f"  {prefix} lang [set <code>]  - language")
         await source.reply(f"  {prefix} exit               - stop the server and quit")
         for help_entry in server.plugins.registry.help_messages:
             if source.has_permission(help_entry.permission):
@@ -195,6 +212,11 @@ def build(server: ReforgeServer):
             .requires(PermissionLevel.USER)
             .runs(lang_status)
             .then(Literal("missing").then(Text("language").runs(lang_missing)))
+            .then(
+                Literal("set")
+                .requires(admin)
+                .then(Text("language").runs(lang_set))
+            )
         )
         .then(Literal("exit").requires(owner).runs(exit_all))
     )

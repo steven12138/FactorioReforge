@@ -25,3 +25,5 @@ page:
   log: 最近输出
   updated: "{age} 秒前更新 · 只读"
   unavailable: "部分数据不可用：{error}"
+started: "web_panel 已在 http://{host}:{port} 上提供服务"
+bind_failed: "web_panel 无法绑定 {host}:{port}：{error}"

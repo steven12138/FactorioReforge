@@ -644,6 +644,53 @@ key whose placeholders drift would format wrongly in one language only.
 A missing key renders as the key itself rather than as blank text — a visible
 `save.restore.confirm` in chat says exactly what to add.
 
+## The console
+
+One format for everything, and one colour scheme:
+
+```
+13:29:42 INF reforge        Loaded 13 plugin(s)
+13:29:42 INF factorio       Hosting game at IP ADDR:({0.0.0.0:34197})
+13:29:42 INF mod_manager    mod_manager will only offer mods built for Factorio 2.0.77
+```
+
+The source column says where a line came from — `reforge`, `factorio`, or a
+plugin id. Factorio's output used to go through a bare `print`, which gave the
+console two unrelated formats side by side and, worse, kept the server's own
+words out of `logs/reforge.log` entirely.
+
+**Factorio's lines are verbatim.** Not reworded, not annotated, not
+re-levelled — what you see matches the game's own log and anything you might
+post on the forums.
+
+Colour is applied only when stdout is a terminal that wants it, so piping into
+`grep` or a log collector stays clean. `NO_COLOR`, `TERM=dumb` and
+`colour: never` in `config.yml` each turn it off; `colour: always` forces it on.
+The file handler never gets colour.
+
+### The startup report
+
+Because Factorio's lines stay untouched, anything worth saying about them is
+said separately, a couple of seconds after the server comes up:
+
+```
+Startup check: 0 problem(s), 2 notice(s), 3 routine
+  listening for players on 0.0.0.0:34197 (UDP)
+  RCON is bound to 0.0.0.0:27015 -- keep this on localhost
+  audio is off -- normal on a headless server
+  no Steam cloud player data -- normal on a headless server
+  the blueprint storage fell back to the older format -- normal for a save made before it changed
+```
+
+Several routine Factorio lines say "not found" — the blueprint-storage
+fallback, the absent cloud data — and without somewhere to say so, every
+operator investigates them once. Problems come first, and a clean start says
+nothing at all.
+
+The report waits a moment rather than firing on the "in game" marker, because
+some of the lines worth reporting — the RCON bind above all — are printed after
+it.
+
 ## Tests
 
 ```bash

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import dataclasses
-import logging
 import shlex
 from pathlib import Path
 from typing import Any
@@ -15,6 +14,10 @@ CONFIG_FILE = "config.yml"
 
 class ConfigError(Exception):
     pass
+
+
+#: Retired-key notices found while parsing, replayed by :meth:`Config.warnings`.
+_PENDING_WARNINGS: list[tuple[str, str, str]] = []
 
 
 @dataclasses.dataclass
@@ -88,12 +91,22 @@ class Config:
     log_level: str = "INFO"
     log_directory: str = "logs"
 
+    #: "auto" colours only when stdout is a terminal that wants it, so piping
+    #: into grep or a log collector stays clean. "always" / "never" override.
+    colour: str = "auto"
+
     rcon: RconConfig = dataclasses.field(default_factory=RconConfig)
     saves: SavesConfig = dataclasses.field(default_factory=SavesConfig)
 
     #: Absolute path of the directory config.yml lives in; every relative path
     #: above is resolved against it so the program can be launched from anywhere.
     root: Path = dataclasses.field(default=Path("."), compare=False)
+
+    #: ``(section, key, reason)`` for settings that no longer exist. Reported
+    #: once a translator is available rather than at parse time.
+    pending_warnings: list[tuple[str, str, str]] = dataclasses.field(
+        default_factory=list, compare=False, repr=False
+    )
 
     # -- derived paths -------------------------------------------------------
 
@@ -144,7 +157,10 @@ class Config:
         if not isinstance(data, dict):
             raise ConfigError(f"{path} must contain a mapping at the top level")
 
+        _PENDING_WARNINGS.clear()
         cfg = cls._from_dict(data)
+        cfg.pending_warnings = list(_PENDING_WARNINGS)
+        _PENDING_WARNINGS.clear()
         cfg.root = path.parent.resolve()
         cfg.validate()
         return cfg
@@ -190,11 +206,40 @@ class Config:
                     "server never reads. Make them the same file."
                 )
 
+    def set_language(self, language: str, path: Path) -> None:
+        """Persist a language change by editing only that one line.
+
+        Not :meth:`dump`: regenerating the whole file would discard any comments
+        or ordering the operator put there. Rewriting a single key keeps the
+        rest of their file exactly as they left it.
+        """
+        self.language = language
+        if not path.is_file():
+            return
+
+        lines = path.read_text(encoding="utf-8").splitlines(keepends=True)
+        for index, line in enumerate(lines):
+            if line.startswith("language:"):
+                lines[index] = f"language: {language}\n"
+                break
+        else:
+            # Absent because the file predates the setting; add it near the top
+            # rather than at the end, where it would sit under a nested block.
+            insert_at = next(
+                (i + 1 for i, line in enumerate(lines) if line.startswith("encoding:")),
+                len(lines),
+            )
+            lines.insert(insert_at, f"language: {language}\n")
+
+        temp = path.with_suffix(".yml.tmp")
+        temp.write_text("".join(lines), encoding="utf-8")
+        temp.replace(path)
+
     def dump(self, path: Path) -> None:
         data = {
             f.name: _plain(getattr(self, f.name))
             for f in dataclasses.fields(self)
-            if f.name != "root"
+            if f.name not in ("root", "pending_warnings")
         }
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(
@@ -206,10 +251,11 @@ class Config:
 #: Keys that used to be valid. Failing on these would break every config.yml
 #: written by an older version, so they are dropped with a note instead --
 #: while a genuine typo still errors, which is the point of checking at all.
+#: The reason is a translation key, resolved once a translator exists.
 RETIRED_KEYS: dict[str, dict[str, str]] = {
     "saves": {
-        "max_snapshots": "replaced by saves.slot_protection (its length is the slot count)",
-        "max_snapshot_age_days": "replaced by per-slot saves.slot_protection",
+        "max_snapshots": "retired.max_snapshots",
+        "max_snapshot_age_days": "retired.max_snapshot_age_days",
     },
 }
 
@@ -223,9 +269,9 @@ def _sub(klass, value: dict | None, name: str):
     value = dict(value)
     for key, reason in RETIRED_KEYS.get(name, {}).items():
         if value.pop(key, None) is not None:
-            logging.getLogger("reforge").warning(
-                "config.yml: %s.%s is no longer used -- %s", name, key, reason
-            )
+            # Collected rather than logged: config is parsed before the logger
+            # and the translator exist, so these are replayed once they do.
+            _PENDING_WARNINGS.append((name, key, reason))
 
     known = {f.name for f in dataclasses.fields(klass)}
     unknown = set(value) - known

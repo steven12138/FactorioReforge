@@ -44,27 +44,26 @@ class TestCrashDiagnosis:
         ]
         result = doctor.diagnose(lines)
         assert result is not None
-        assert "flib" in result.summary
-        assert "!!mod remove flib" in result.fix
+        assert result.key == "mod_load_failed"
+        assert result.values == {"mod": "flib"}
         assert "2.1" in result.detail
 
     def test_missing_dependency(self, doctor):
         result = doctor.diagnose(["Dependency flib >= 0.16 is not satisfied"])
-        assert "dependency is missing" in result.summary
-        assert "!!mod install" in result.fix
+        assert result.key == "missing_dependency"
+        assert result.values == {"dep": "flib >= 0.16"}
 
     def test_port_in_use(self, doctor):
         result = doctor.diagnose(["Error: bind: Address already in use"])
-        assert "port is already taken" in result.summary
+        assert result.key == "port_in_use"
 
     def test_corrupt_save_points_at_rollback(self, doctor):
         result = doctor.diagnose(["Error Zip.cpp:100: the archive is corrupt"])
-        assert "save file" in result.summary
-        assert "!!save back" in result.fix
+        assert result.key == "corrupt_save"
 
     def test_out_of_memory(self, doctor):
         result = doctor.diagnose(["terminate called after throwing std::bad_alloc"])
-        assert "out of memory" in result.summary
+        assert result.key == "out_of_memory"
 
     def test_unknown_output_returns_none_rather_than_guessing(self, doctor):
         assert doctor.diagnose(["   0.1 Info Everything is fine"]) is None
@@ -79,7 +78,7 @@ class TestCrashDiagnosis:
             "   0.1 Info restarted",
             'Error Util.cpp:81: Failed to load mod "krastorio2": ',
         ]
-        assert "krastorio2" in doctor.diagnose(lines).summary
+        assert doctor.diagnose(lines).values == {"mod": "krastorio2"}
 
 
 # ---------------------------------------------------------------------------
@@ -173,3 +172,16 @@ class TestDurations:
     )
     def test_ticks_render_as_human_time(self, ticks, expected):
         assert load("leaderboard")._ticks_to_text(ticks) == expected
+
+
+class TestLockFileDiagnosis:
+    """A second FactorioReforge on the same install fails on the lock, not the port."""
+
+    def test_another_instance_is_recognised(self):
+        doctor = load("crash_doctor")
+        result = doctor.diagnose([
+            "/srv/factorio/.lock: Resource temporarily unavailable.",
+            "Is another instance already running?",
+        ])
+        assert result is not None
+        assert result.key == "another_instance"

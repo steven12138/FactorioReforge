@@ -12,13 +12,9 @@ from pathlib import Path
 from factorio_reforge.config import CONFIG_FILE, Config, ConfigError
 from factorio_reforge.core.console import ConsoleReader
 from factorio_reforge.core.server import ReforgeServer, build_logger
+from factorio_reforge.core.terminal import Palette, banner, supports_colour
 from factorio_reforge.plugin import builtin
 from factorio_reforge.plugin.manager import CORE_VERSION
-
-BANNER = rf"""
-  FactorioReforge {CORE_VERSION}
-  Type {{prefix}}FR help for commands. Anything else goes to the Factorio console.
-"""
 
 
 def cmd_init(root: Path) -> int:
@@ -51,11 +47,21 @@ async def run(config: Config) -> int:
     logger = build_logger(config)
     server = ReforgeServer(config, logger)
 
+    # Config is parsed before a translator exists, so its notices wait until now.
+    for section, key, reason in config.pending_warnings:
+        logger.warning(server.tr(
+            "log.config_retired", section=section, key=key, reason=server.tr(reason)))
+
+    palette = Palette(supports_colour(sys.stdout) and config.colour != "never")
+    if config.colour == "always":
+        palette.enabled = True
+    # Before boot: the banner is the first thing anyone should see, not
+    # something buried under a screen of plugin-loading lines.
+    print(banner(CORE_VERSION, server.tr("banner", prefix=config.command_prefix), palette))
+
     server.commands.register("@core", builtin.build(server))
     server.commands.register("@core", builtin.build_save_commands(server))
-
     await server.boot()
-    print(BANNER.format(prefix=config.command_prefix))
 
     loop = asyncio.get_running_loop()
     stopping = False
@@ -68,18 +74,18 @@ async def run(config: Config) -> int:
         """
         nonlocal stopping
         if stopping:
-            logger.warning("Second interrupt -- killing the server now")
+            logger.warning(server.tr("log.second_interrupt"))
             asyncio.create_task(server.interface.kill())
             return
         stopping = True
-        logger.info("Stopping the server, then exiting")
+        logger.info(server.tr("log.interrupt"))
         asyncio.create_task(server.shutdown(stop_server=True))
 
     # The console gets this too. On an interactive terminal prompt_toolkit runs
     # in raw mode and consumes Ctrl-C itself, so the signal handler below never
     # fires and this is the only path that notices.
     console = ConsoleReader(
-        server.feed_console, on_interrupt=request_shutdown, logger=logger
+        server.feed_console, on_interrupt=request_shutdown, logger=logger, tr=server.tr
     )
     console.start()
 
@@ -95,7 +101,7 @@ async def run(config: Config) -> int:
 
     await server.wait_for_exit()
     await console.stop()
-    logger.info("Goodbye")
+    logger.info(server.tr("log.goodbye"))
     return 0
 
 

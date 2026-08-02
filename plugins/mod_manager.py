@@ -76,7 +76,7 @@ def on_load(server, prev):
         path = Path(config.get("player_data_path", "")).expanduser()
         username, token = read_player_data_credentials(path)
         if username and token:
-            server.logger.info("Using mod portal credentials for %s from %s", username, path)
+            server.logger.info(server.tr("credentials", user=username, path=path))
 
     portal = ModPortal(
         server.get_data_folder() / "cache",
@@ -91,10 +91,8 @@ def on_load(server, prev):
     _state.update(server=server, config=config, portal=portal, mods=mods, factorio_version="")
 
     if not portal.has_credentials:
-        server.logger.warning(
-            "mod_manager has no portal credentials; search and info work, installing does not. "
-            "Set username/token in %s", server.get_data_folder() / "config.json",
-        )
+        server.logger.warning(server.tr(
+            "no_credentials", path=server.get_data_folder() / "config.json"))
 
     _register_commands(server)
     _register_telegram(server)
@@ -109,13 +107,9 @@ async def _learn_version(server):
     version = await _detect_factorio_version(server)
     if version:
         _state["factorio_version"] = version
-        server.logger.info("mod_manager will only offer mods built for Factorio %s", version)
+        server.logger.info(server.tr("target_version", version=version))
     else:
-        server.logger.warning(
-            "mod_manager could not determine the Factorio version; it cannot filter "
-            "releases for compatibility, and installing the newest build of a mod may "
-            "stop the server from starting. Set factorio_version in its config."
-        )
+        server.logger.warning(server.tr("unknown_version"))
 
 
 async def on_unload(server):

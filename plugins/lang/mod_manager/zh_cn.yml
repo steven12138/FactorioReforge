@@ -45,3 +45,7 @@ refresh:
   done: "索引已刷新：{count} 个 mod。"
 restart_needed: "需要重启服务器才会生效（!!FR server restart）。玩家也必须有相同的 mod 才能重连。"
 restart_note: "（运行中的服务器停止时会重写 mod-list.json，FactorioReforge 会在那之后重新应用这次改动）"
+credentials: "使用 {user} 的 mod 门户凭据（来自 {path}）"
+no_credentials: "mod_manager 没有门户凭据；搜索和查看详情可用，安装不可用。在 {path} 里填 username/token"
+target_version: "mod_manager 只会提供为 Factorio {version} 构建的 mod"
+unknown_version: "mod_manager 无法确定 Factorio 版本，因此无法按兼容性过滤 release；安装某个 mod 的最新版可能导致服务器起不来。请在它的配置里设置 factorio_version。"

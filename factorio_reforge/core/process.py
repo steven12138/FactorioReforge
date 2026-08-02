@@ -64,6 +64,7 @@ class ServerProcess:
         on_line: LineCallback,
         *,
         logger: logging.Logger | None = None,
+        tr: Callable[..., str] | None = None,
         quit_timeout: float = 60.0,
         sigint_timeout: float = 30.0,
         sigterm_timeout: float = 15.0,
@@ -73,6 +74,9 @@ class ServerProcess:
         self.working_directory = Path(working_directory)
         self.on_line = on_line
         self.logger = logger or logging.getLogger(__name__)
+        #: Translates log lines. Falls back to the key when absent, which keeps
+        #: ServerProcess usable standalone -- the tests construct it directly.
+        self.tr = tr or (lambda key, **kwargs: key)
         self.quit_timeout = quit_timeout
         self.sigint_timeout = sigint_timeout
         self.sigterm_timeout = sigterm_timeout
@@ -125,7 +129,8 @@ class ServerProcess:
         if not self.working_directory.is_dir():
             raise FileNotFoundError(f"working directory does not exist: {self.working_directory}")
 
-        self.logger.info("Starting server: %s", redact_command(self.command))
+        self.logger.info(self.tr("log.starting_server",
+                                 command=redact_command(self.command)))
         self._state = ServerState.STARTING
         self._stopped.clear()
         try:
@@ -151,7 +156,7 @@ class ServerProcess:
             asyncio.create_task(self._pump(self._proc.stderr, "stderr")),
             asyncio.create_task(self._reap()),
         ]
-        self.logger.info("Server started, pid=%s", self._proc.pid)
+        self.logger.info(self.tr("log.server_started", pid=self._proc.pid))
 
     async def _pump(self, stream: asyncio.StreamReader, name: str) -> None:
         while True:
@@ -171,7 +176,7 @@ class ServerProcess:
     async def _reap(self) -> None:
         assert self._proc is not None
         await self._proc.wait()
-        self.logger.info("Server process exited with code %s", self._proc.returncode)
+        self.logger.info(self.tr("log.server_exited", code=self._proc.returncode))
         # Let the output pumps drain whatever is still buffered before we
         # declare the server stopped; "Goodbye" tends to arrive right at the end.
         await asyncio.sleep(0.2)
@@ -207,20 +212,20 @@ class ServerProcess:
         self._state = ServerState.STOPPING
 
         with contextlib.suppress(Exception):
-            self.logger.info("Sending /quit")
+            self.logger.info(self.tr("log.sending_quit"))
             await self.write("/quit")
             if await self._wait_exit(self.quit_timeout):
                 return True
 
-        self.logger.warning("/quit did not finish in %.0fs, sending SIGINT", self.quit_timeout)
+        self.logger.warning(self.tr("log.quit_timeout", seconds=int(self.quit_timeout)))
         if await self._signal_and_wait(signal.SIGINT, self.sigint_timeout):
             return True
 
-        self.logger.warning("SIGINT did not finish, sending SIGTERM (map will NOT be saved)")
+        self.logger.warning(self.tr("log.sigint_timeout"))
         if await self._signal_and_wait(signal.SIGTERM, self.sigterm_timeout):
             return True
 
-        self.logger.error("SIGTERM ignored, sending SIGKILL")
+        self.logger.error(self.tr("log.sigterm_timeout"))
         await self._signal_and_wait(signal.SIGKILL, 10.0)
         return proc.returncode is not None
 

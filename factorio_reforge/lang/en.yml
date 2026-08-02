@@ -103,3 +103,68 @@ lang:
   keys: "{count} key(s) loaded"
   complete: "{language} is complete"
   incomplete: "{language} is missing {count} key(s)"
+  changed: "Language is now {language}"
+  unknown: "No translations for {language!r}. Available: {languages}"
+
+log:
+  config_retired: "config.yml: {section}.{key} is no longer used -- {reason}"
+  plugin_loaded: "Loaded plugin {plugin}"
+  plugin_unloaded: "Unloaded plugin {id}"
+  plugin_load_failed: "Plugin {id} failed during load"
+  plugin_import_failed: "Failed to import plugin {name}: {error}"
+  plugins_loaded: "Loaded {count} plugin(s)"
+  plugins_loaded_with_failures: "Loaded {count} plugin(s), {failed} failed: {names}"
+  starting_server: "Starting server: {command}"
+  server_started: "Server started, pid={pid}"
+  server_exited: "Server process exited with code {code}"
+  server_crashed: "Server exited unexpectedly (code {code})"
+  server_start_failed: "Could not start the server: {error}"
+  server_already_running: Server is already running
+  sending_quit: "Sending /quit"
+  quit_timeout: "/quit did not finish in {seconds}s, sending SIGINT"
+  sigint_timeout: "SIGINT did not finish, sending SIGTERM (map will NOT be saved)"
+  sigterm_timeout: "SIGTERM ignored, sending SIGKILL"
+  startup_complete: Server startup complete
+  rcon_connected: "RCON connected to {host}:{port}"
+  rcon_giving_up: "{error} -- giving up on RCON"
+  shutting_down: Shutting down FactorioReforge
+  goodbye: Goodbye
+  interrupt: Stopping the server, then exiting
+  second_interrupt: "Second interrupt -- killing the server now"
+  ctrl_c: Ctrl-C received
+  ctrl_d: Ctrl-D received
+  console_eof: Console EOF
+  no_console: No console attached; input is closed
+  console_orphaned: "Console closed but nothing is listening for it; the server is still running. Use !!FR exit or send SIGTERM."
+  restarting_in: "Restarting in {seconds}s"
+  backup_created: "Created {slot}"
+  backup_dropped: "Dropping {slot} to make room for the new backup"
+  backup_restored: "Restored slot {slot} onto {path}"
+  world_preserved: Preserved the current world in the overwrite slot
+  restore_countdown_cancelled: Restore cancelled during the countdown
+  restore_preserving: Preserving the current world before overwriting it
+  restore_done: "Restored {slot}"
+  restore_recovering: Putting the pre-restore world back
+  unknown_tag: "Unrecognised game event tag [{tag}]; treating it as a plain message. Please report it so a parser rule can be added."
+  save_timeout: "No save-completion message within {seconds}s"
+banner: "Type {prefix}FR help for commands. Anything else goes to the Factorio console."
+
+retired:
+  max_snapshots: "replaced by saves.slot_protection, whose length is the slot count"
+  max_snapshot_age_days: "replaced by the per-slot saves.slot_protection"
+
+startup:
+  summary: "Startup check: {problems} problem(s), {notices} notice(s), {routine} routine"
+  blueprint_storage: "the blueprint storage fell back to the older format -- normal for a save made before it changed"
+  cloud_player_data: "no Steam cloud player data -- normal on a headless server"
+  audio_disabled: "audio is off -- normal on a headless server"
+  hosting: "listening for players on {address} (UDP)"
+  rcon_bind: "RCON is bound to {address} -- keep this on localhost"
+  mod_loaded: "mod loaded: {mod} {version}"
+  mod_failed: "the mod {mod!r} failed to load"
+  version_mismatch: "a mod needs Factorio {need}, this server is {have}"
+  dependency: "unsatisfied mod dependency: {dep}"
+  locked: "another Factorio already owns this installation directory"
+  port_in_use: "the port is already taken"
+  desync: "a client fell out of sync"
+  save_failed: "a save did not complete -- check disk space and permissions"

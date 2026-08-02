@@ -142,7 +142,8 @@ class PluginManager:
                 try:
                     metadata, module = self._import(path)
                 except Exception as exc:
-                    self.logger.error("Failed to import plugin %s: %s", path.name, exc)
+                    self.logger.error(self.server.tr(
+                        "log.plugin_import_failed", name=path.name, error=exc))
                     self.logger.debug("%s", traceback.format_exc())
                     failed.append(path.name)
                     continue
@@ -215,11 +216,11 @@ class PluginManager:
             self._collect_listeners(plugin)
             await self._call_load_hook(plugin)
         except Exception:
-            self.logger.exception("Plugin %s failed during load", plugin.id)
+            self.logger.exception(self.server.tr("log.plugin_load_failed", id=plugin.id))
             self.plugins.pop(plugin.id, None)
             sys.modules.pop(plugin.module_name, None)
             return False
-        self.logger.info("Loaded plugin %s", plugin.metadata)
+        self.logger.info(self.server.tr("log.plugin_loaded", plugin=plugin.metadata))
         return True
 
     def _collect_listeners(self, plugin: LoadedPlugin) -> None:
@@ -273,7 +274,7 @@ class PluginManager:
         for name in [n for n in sys.modules if n.startswith(plugin.module_name + ".")]:
             sys.modules.pop(name, None)
         self._rebuild()
-        self.logger.info("Unloaded plugin %s", plugin_id)
+        self.logger.info(self.server.tr("log.plugin_unloaded", id=plugin_id))
         return True
 
     async def reload(self, plugin_id: str) -> bool:

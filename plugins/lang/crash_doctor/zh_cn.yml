@@ -6,3 +6,27 @@ cause: "  原因：{summary}"
 detail: "  细节：{detail}"
 fix: "  建议：{fix}"
 unknown_exit: "服务器以退出码 {code} 退出，且没有匹配到已知失败特征。用 !!why 查看最后几行输出。"
+exited: "服务器以退出码 {code} 退出：{summary}"
+telegram: "🔥 <b>服务器意外退出</b>（退出码 {code}）\n{summary}"
+cause:
+  mod_load_failed: "mod {mod!r} 加载失败"
+  version_mismatch: "某个 mod 需要 Factorio {need}，但这个服务器是 {have}"
+  missing_dependency: "缺少 mod 依赖：{dep}"
+  another_instance: 另一个 Factorio 正在使用这个安装目录
+  corrupt_save: "存档读取失败 —— 可能已损坏"
+  port_in_use: "端口已被占用 —— 多半还有一个 Factorio 在跑"
+  save_too_new: 这个存档由比本服务器更新的 Factorio 创建
+  multiplayer_failed: 多人游戏初始化失败
+  command_failed: 一条控制台命令执行失败
+  out_of_memory: 服务器内存耗尽
+fix:
+  mod_load_failed: "!!mod remove {mod}   （或安装一个为当前 Factorio 构建的版本）"
+  version_mismatch: "!!mod updates，或者移除这个 mod"
+  missing_dependency: "!!mod install <缺失的 mod>"
+  another_instance: "停掉另一个 FactorioReforge，或查找残留进程：pgrep -af bin/x64/factorio"
+  corrupt_save: "!!save list，然后 !!save back <槽位> 回档"
+  port_in_use: "查找残留进程，或改 config.yml 里的 --port"
+  save_too_new: 更新 headless 安装，或回档到更早的备份
+  multiplayer_failed: 检查 server-settings.json
+  command_failed: ""
+  out_of_memory: 给机器加内存

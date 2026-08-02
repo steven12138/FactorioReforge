@@ -33,6 +33,7 @@ class ConsoleReader:
         on_interrupt: InterruptHandler | None = None,
         prompt: str = "",
         logger: logging.Logger | None = None,
+        tr: Callable[..., str] | None = None,
     ):
         self.on_line = on_line
         #: Called when the operator asks to leave from an interactive terminal
@@ -41,6 +42,7 @@ class ConsoleReader:
         self.on_interrupt = on_interrupt
         self.prompt = prompt
         self.logger = logger or logging.getLogger(__name__)
+        self.tr = tr or (lambda key, **kwargs: key)
         self._task: asyncio.Task | None = None
         self._stop = asyncio.Event()
 
@@ -81,11 +83,11 @@ class ConsoleReader:
                 # Ctrl-C in raw mode. No signal was raised, so nothing else is
                 # going to notice this; ask for shutdown here or the server
                 # keeps running with the console gone.
-                self.logger.info("Ctrl-C received")
+                self.logger.info(self.tr("log.ctrl_c"))
                 self._request_interrupt()
                 return
             except EOFError:
-                self.logger.info("Ctrl-D received")
+                self.logger.info(self.tr("log.ctrl_d"))
                 self._request_interrupt()
                 return
             except asyncio.CancelledError:
@@ -114,20 +116,17 @@ class ConsoleReader:
                 # exactly how an unattended systemd unit runs. Shutting down
                 # there would make `StandardInput=null` kill the server on boot.
                 if interactive:
-                    self.logger.info("Console EOF")
+                    self.logger.info(self.tr("log.console_eof"))
                     self._request_interrupt()
                 else:
-                    self.logger.info("No console attached; input is closed")
+                    self.logger.info(self.tr("log.no_console"))
                 return
 
             await self._deliver(line.rstrip("\r\n"))
 
     def _request_interrupt(self) -> None:
         if self.on_interrupt is None:
-            self.logger.warning(
-                "Console closed but nothing is listening for it; "
-                "the server is still running. Use !!FR exit or send SIGTERM."
-            )
+            self.logger.warning(self.tr("log.console_orphaned"))
             return
         try:
             self.on_interrupt()

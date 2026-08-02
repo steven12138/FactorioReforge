@@ -102,3 +102,68 @@ lang:
   keys: "已加载 {count} 条词条"
   complete: "{language} 翻译完整"
   incomplete: "{language} 缺少 {count} 条词条"
+  changed: "语言已切换为 {language}"
+  unknown: "没有 {language!r} 的翻译。可用：{languages}"
+
+log:
+  config_retired: "config.yml：{section}.{key} 已废弃 —— {reason}"
+  plugin_loaded: "已加载插件 {plugin}"
+  plugin_unloaded: "已卸载插件 {id}"
+  plugin_load_failed: "插件 {id} 加载过程中失败"
+  plugin_import_failed: "导入插件 {name} 失败：{error}"
+  plugins_loaded: "已加载 {count} 个插件"
+  plugins_loaded_with_failures: "已加载 {count} 个插件，{failed} 个失败：{names}"
+  starting_server: "正在启动服务器：{command}"
+  server_started: "服务器已启动，pid={pid}"
+  server_exited: "服务器进程已退出，退出码 {code}"
+  server_crashed: "服务器意外退出（退出码 {code}）"
+  server_start_failed: "无法启动服务器：{error}"
+  server_already_running: 服务器已经在运行
+  sending_quit: "正在发送 /quit"
+  quit_timeout: "/quit 在 {seconds} 秒内未完成，改发 SIGINT"
+  sigint_timeout: "SIGINT 未生效，改发 SIGTERM（地图将不会被保存）"
+  sigterm_timeout: "SIGTERM 被忽略，改发 SIGKILL"
+  startup_complete: 服务器启动完成
+  rcon_connected: "RCON 已连接到 {host}:{port}"
+  rcon_giving_up: "{error} —— 放弃 RCON 连接"
+  shutting_down: 正在关闭 FactorioReforge
+  goodbye: 再见
+  interrupt: 停止服务器并退出
+  second_interrupt: "第二次中断 —— 立即强杀服务器"
+  ctrl_c: 收到 Ctrl-C
+  ctrl_d: 收到 Ctrl-D
+  console_eof: 控制台输入结束
+  no_console: 没有连接控制台，输入已关闭
+  console_orphaned: "控制台已关闭但没有任何东西在监听；服务器仍在运行。请用 !!FR exit 或发送 SIGTERM。"
+  restarting_in: "{seconds} 秒后重启"
+  backup_created: "已创建 {slot}"
+  backup_dropped: "为给新备份腾位置，丢弃 {slot}"
+  backup_restored: "已把槽位 {slot} 还原到 {path}"
+  world_preserved: 已把当前世界保存到 overwrite 槽位
+  restore_countdown_cancelled: 回档已在倒计时中取消
+  restore_preserving: 覆盖之前，正在保存当前世界
+  restore_done: "已回档到 {slot}"
+  restore_recovering: 正在把回档前的世界放回去
+  unknown_tag: "无法识别的游戏事件标签 [{tag}]，按普通消息处理。请反馈以便加上解析规则。"
+  save_timeout: "{seconds} 秒内没有收到存档完成的消息"
+banner: "输入 {prefix}FR help 查看命令。其他内容会原样转发给 Factorio 控制台。"
+
+retired:
+  max_snapshots: "已由 saves.slot_protection 取代，该列表的长度就是槽位数量"
+  max_snapshot_age_days: "已由按槽位设置的 saves.slot_protection 取代"
+
+startup:
+  summary: "启动检查：{problems} 个问题，{notices} 条提示，{routine} 条例行信息"
+  blueprint_storage: "蓝图存储回退到了旧格式 —— 存档早于格式变更时属于正常"
+  cloud_player_data: "没有 Steam 云玩家数据 —— headless 服务器上正常"
+  audio_disabled: "音频已关闭 —— headless 服务器上正常"
+  hosting: "正在 {address} 上监听玩家连接（UDP）"
+  rcon_bind: "RCON 绑定在 {address} —— 请保持只绑 localhost"
+  mod_loaded: "已加载 mod：{mod} {version}"
+  mod_failed: "mod {mod!r} 加载失败"
+  version_mismatch: "某个 mod 需要 Factorio {need}，本服务器是 {have}"
+  dependency: "未满足的 mod 依赖：{dep}"
+  locked: "另一个 Factorio 已占用这个安装目录"
+  port_in_use: "端口已被占用"
+  desync: "有客户端失去同步"
+  save_failed: "一次存档没有完成 —— 检查磁盘空间和权限"

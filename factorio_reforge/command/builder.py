@@ -33,7 +33,16 @@ class PermissionDenied(CommandError):
 
 
 class ParseFailure(CommandError):
-    pass
+    """Input that did not match. ``depth`` is how far into the tokens it got.
+
+    The tree tries every branch, so several branches fail for every command
+    that succeeds. Ranking failures by depth is what lets the reply point at
+    the branch the user was most likely aiming for.
+    """
+
+    def __init__(self, message: str, depth: int = 0):
+        super().__init__(message)
+        self.depth = depth
 
 
 class CommandContext(dict):
@@ -96,23 +105,51 @@ class ArgumentNode(abc.ABC):
 
         rest = tokens[consumed:]
         if rest:
-            failures: list[CommandError] = []
+            # Report the failure that got *furthest* into the input, not the
+            # first child that happened to be tried. Reporting the first one
+            # produces answers like "Expected 'help', got 'lang'" for
+            # `!!FR lang zh_cn`, which points at an unrelated branch.
+            deepest: ParseFailure | None = None
             for child in self._children:
                 try:
                     return await child.execute(source, rest, ctx)
                 except ParseFailure as exc:
-                    failures.append(exc)
-            # Every child rejected the remaining tokens. If this node can run
-            # on its own, prefer that over reporting a child's parse error --
-            # a greedy trailing argument is the common case.
-            if self._callback is not None and not self._children:
-                pass
-            elif failures:
-                raise failures[0]
+                    exc.depth += consumed
+                    if deepest is None or exc.depth > deepest.depth:
+                        deepest = exc
+
+            if self._children:
+                raise self._unknown_argument(rest) if _all_literals(
+                    self._children
+                ) else deepest or ParseFailure(f"Unexpected {rest[0]!r}")
+            # No children at all: a trailing argument this node simply does not
+            # take. Running the callback anyway would silently ignore it.
+            raise ParseFailure(
+                f"{self._label()} takes no further arguments, but got {rest[0]!r}"
+            )
 
         if self._callback is None:
-            raise ParseFailure(f"Incomplete command near {self._label()!r}")
+            raise ParseFailure(
+                f"Incomplete command. {self._expected_next()}"
+                if self._children else f"Incomplete command near {self._label()!r}"
+            )
         return await _call(self._callback, source, ctx)
+
+    def _unknown_argument(self, rest: Sequence[str]) -> ParseFailure:
+        """All this node's children are keywords, so name them.
+
+        Listing the alternatives is the single most useful thing to say when
+        someone guesses a subcommand that does not exist.
+        """
+        return ParseFailure(f"Unknown option {rest[0]!r}. {self._expected_next()}")
+
+    def _expected_next(self) -> str:
+        options = [c.name for c in self._children if isinstance(c, Literal)]
+        arguments = [f"<{c.name}>" for c in self._children if not isinstance(c, Literal)]
+        parts = options + arguments
+        if not parts:
+            return ""
+        return f"Expected one of: {', '.join(parts)}"
 
     def _mismatch_message(self, tokens: Sequence[str]) -> str:
         got = tokens[0] if tokens else "<nothing>"
@@ -173,6 +210,10 @@ async def _call(callback: Callback, source: CommandSource, ctx: CommandContext):
     if inspect.isawaitable(result):
         return await result
     return result
+
+
+def _all_literals(children: Sequence[ArgumentNode]) -> bool:
+    return bool(children) and all(isinstance(c, Literal) for c in children)
 
 
 def tokenize(line: str) -> list[str]:

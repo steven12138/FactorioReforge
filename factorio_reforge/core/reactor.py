@@ -10,6 +10,7 @@ everything after the echo.
 from __future__ import annotations
 
 import logging
+import re
 from typing import TYPE_CHECKING
 
 from factorio_reforge.command.source import (
@@ -25,6 +26,20 @@ if TYPE_CHECKING:
     from factorio_reforge.core.server import ReforgeServer
 
 
+def _without_elapsed(info: Info) -> str:
+    """Drop Factorio's leading uptime, which our timestamp column supersedes.
+
+    Everything else is left alone -- the ``Foo.cpp:808:`` references are worth
+    keeping for anyone reporting a Factorio bug.
+    """
+    if info.elapsed is None:
+        return info.raw_content
+    return _ELAPSED_PREFIX.sub("", info.raw_content, count=1)
+
+
+_ELAPSED_PREFIX = re.compile(r"^\s*\d+\.\d+ ")
+
+
 class InfoReactor:
     def __init__(self, server: ReforgeServer, logger: logging.Logger | None = None):
         self.server = server
@@ -37,7 +52,7 @@ class InfoReactor:
         await self.server.plugins.dispatch(ev.GENERAL_INFO, info)
 
         if info.should(InfoActionFlag.ECHO_TO_CONSOLE) and info.is_from_server:
-            self.server.echo(info.raw_content)
+            self.server.echo(_without_elapsed(info), info)
 
         if not info.should(InfoActionFlag.PROCESS):
             return
@@ -54,9 +69,12 @@ class InfoReactor:
         if not info.is_from_server:
             return
 
+        self.server.loglens.observe(info)
+
         if self.handler.is_startup_done(info) and not self.server.process.is_startup_done:
             self.server.process.mark_startup_done()
-            self.logger.info("Server startup complete")
+            self.logger.info(self.server.tr("log.startup_complete"))
+            self.server.schedule_startup_report()
             await self.server.plugins.dispatch(ev.SERVER_STARTUP)
 
         if self.handler.is_rcon_ready(info):
@@ -66,10 +84,7 @@ class InfoReactor:
             self.server.on_save_completed()
 
         for tag in self.handler.take_new_unknown_tags():
-            self.logger.warning(
-                "Unrecognised game event tag [%s]; treating it as a plain message. "
-                "Please report it so a parser rule can be added.", tag
-            )
+            self.logger.warning(self.server.tr("log.unknown_tag", tag=tag))
 
     # -- routing -------------------------------------------------------------
 

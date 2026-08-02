@@ -126,7 +126,9 @@ class TestConsoleInterrupt:
         reader = ConsoleReader(_unused_line)
         with caplog.at_level("WARNING"):
             await reader._run_prompt_toolkit(FakeSession())
-        assert "still running" in caplog.text
+        # Constructed without a translator, so the key itself is the message --
+        # which is the documented fallback, and still names the problem.
+        assert "console_orphaned" in caplog.text
 
 
 class TestNonInteractiveEof:
@@ -151,3 +153,59 @@ class TestNonInteractiveEof:
 
 async def _unused_line(line: str) -> None:
     raise AssertionError("no line should be delivered in these tests")
+
+
+class TestTerminalColour:
+    """Colour must never reach a pipe: it corrupts logs and breaks greps."""
+
+    def test_disabled_when_not_a_tty(self):
+        from factorio_reforge.core.terminal import supports_colour
+
+        class NotATty:
+            def isatty(self):
+                return False
+
+        assert supports_colour(NotATty()) is False
+
+    def test_no_color_env_wins_over_a_tty(self, monkeypatch):
+        from factorio_reforge.core.terminal import supports_colour
+
+        class Tty:
+            def isatty(self):
+                return True
+
+        monkeypatch.setenv("NO_COLOR", "1")
+        assert supports_colour(Tty()) is False
+
+    def test_dumb_terminals_get_no_colour(self, monkeypatch):
+        from factorio_reforge.core.terminal import supports_colour
+
+        class Tty:
+            def isatty(self):
+                return True
+
+        monkeypatch.delenv("NO_COLOR", raising=False)
+        monkeypatch.delenv("FORCE_COLOR", raising=False)
+        monkeypatch.setenv("TERM", "dumb")
+        assert supports_colour(Tty()) is False
+
+    def test_a_disabled_palette_returns_the_text_unchanged(self):
+        from factorio_reforge.core.terminal import ORANGE, Palette
+
+        plain = Palette(False)
+        assert plain("hello", ORANGE) == "hello"
+        assert plain.orange("hello") == "hello"
+
+    def test_the_formatter_emits_no_escapes_when_colour_is_off(self):
+        import logging
+
+        from factorio_reforge.core.terminal import ColourFormatter, Palette
+
+        formatter = ColourFormatter(Palette(False))
+        record = logging.LogRecord("factorio", logging.ERROR, "", 0, "boom", (), None)
+        assert "\033" not in formatter.format(record)
+
+    def test_the_banner_is_plain_without_colour(self):
+        from factorio_reforge.core.terminal import Palette, banner
+
+        assert "\033" not in banner("0.1.0", "hint", Palette(False))

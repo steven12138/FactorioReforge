@@ -305,18 +305,22 @@ class TestListing:
 class TestConfigUpgrade:
     """A config.yml written by an older version must still load."""
 
-    def test_retired_keys_warn_instead_of_failing(self, tmp_path, caplog):
-        from factorio_reforge.config import SavesConfig, _sub
+    def test_retired_keys_are_collected_instead_of_failing(self, tmp_path):
+        """Collected rather than logged: the translator does not exist yet."""
+        from factorio_reforge.config import _PENDING_WARNINGS, SavesConfig, _sub
 
-        with caplog.at_level("WARNING"):
-            saves = _sub(
-                SavesConfig,
-                {"max_snapshots": 30, "max_snapshot_age_days": 30, "save_timeout": 60.0},
-                "saves",
-            )
+        _PENDING_WARNINGS.clear()
+        saves = _sub(
+            SavesConfig,
+            {"max_snapshots": 30, "max_snapshot_age_days": 30, "save_timeout": 60.0},
+            "saves",
+        )
         assert saves.save_timeout == 60.0
-        assert "max_snapshots" in caplog.text
-        assert "slot_protection" in caplog.text
+        keys = {key for _, key, _ in _PENDING_WARNINGS}
+        assert keys == {"max_snapshots", "max_snapshot_age_days"}
+        # The reason is a translation key now, resolved once a translator exists.
+        assert all(reason.startswith("retired.") for _, _, reason in _PENDING_WARNINGS)
+        _PENDING_WARNINGS.clear()
 
     def test_a_real_typo_still_errors(self):
         from factorio_reforge.config import ConfigError, SavesConfig, _sub

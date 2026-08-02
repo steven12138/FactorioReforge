@@ -25,3 +25,5 @@ page:
   log: Recent output
   updated: "updated {age}s ago · read-only"
   unavailable: "Some data is unavailable: {error}"
+started: "web_panel is serving on http://{host}:{port}"
+bind_failed: "web_panel could not bind {host}:{port}: {error}"

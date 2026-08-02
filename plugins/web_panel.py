@@ -63,7 +63,7 @@ def on_load(server, prev):
     server.register_help_message("!!web", server.tr("help"), PermissionLevel.ADMIN)
 
     if not config.get("enabled", True):
-        server.logger.info("web_panel is disabled in its config")
+        server.logger.info(server.tr("disabled"))
         return
 
     _state["task"] = asyncio.create_task(_refresher(server, config))
@@ -187,13 +187,13 @@ def _start_http(server, config):
     try:
         httpd = ThreadingHTTPServer((host, port), Handler)
     except OSError as exc:
-        server.logger.error("web_panel could not bind %s:%s: %s", host, port, exc)
+        server.logger.error(server.tr("bind_failed", host=host, port=port, error=exc))
         return
 
     thread = threading.Thread(target=httpd.serve_forever, name="web_panel", daemon=True)
     thread.start()
     _state["httpd"], _state["thread"] = httpd, thread
-    server.logger.info("web_panel is serving on http://%s:%s", host, port)
+    server.logger.info(server.tr("started", host=host, port=port))
 
 
 def _latest_map() -> bytes | None:

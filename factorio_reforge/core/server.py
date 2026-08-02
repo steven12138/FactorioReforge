@@ -6,6 +6,7 @@ import asyncio
 import contextlib
 import logging
 import shutil
+import sys
 import time
 from pathlib import Path
 
@@ -13,9 +14,11 @@ from factorio_reforge.command.manager import CommandManager
 from factorio_reforge.config import Config
 from factorio_reforge.core.handler import FactorioHandler
 from factorio_reforge.core.info import Info
+from factorio_reforge.core.loglens import LogLens, Severity
 from factorio_reforge.core.process import ServerProcess
 from factorio_reforge.core.rcon import RconClient, RconError, RconManager
 from factorio_reforge.core.reactor import InfoReactor
+from factorio_reforge.core.terminal import ColourFormatter, Palette, supports_colour
 from factorio_reforge.i18n import LANG_DIR_NAME, Translator
 from factorio_reforge.permission import PermissionManager
 from factorio_reforge.plugin import events as ev
@@ -37,6 +40,11 @@ class ReforgeServer:
     def __init__(self, config: Config, logger: logging.Logger | None = None):
         self.config = config
         self.logger = logger or logging.getLogger("reforge")
+        #: Factorio's own output. A separate logger so the source column tells
+        #: you at a glance whether a line came from the game or from us.
+        self.server_logger = logging.getLogger("factorio")
+        #: Reads Factorio's startup output and reports on it afterwards.
+        self.loglens = LogLens()
 
         self.i18n = Translator(config.language)
         self.i18n.load_directory(Path(__file__).resolve().parent.parent / LANG_DIR_NAME)
@@ -48,6 +56,7 @@ class ReforgeServer:
             config.working_dir_path,
             self._on_server_line,
             logger=self.logger,
+            tr=self.tr,
             quit_timeout=config.quit_timeout,
             sigint_timeout=config.sigint_timeout,
             sigterm_timeout=config.sigterm_timeout,
@@ -79,9 +88,11 @@ class ReforgeServer:
                 RconClient(
                     config.rcon.host, config.rcon.port, config.rcon.password,
                     connect_timeout=config.rcon.connect_timeout, logger=self.logger,
+                    tr=self.tr,
                 ),
                 retry_interval=config.rcon.retry_interval,
                 logger=self.logger,
+                tr=self.tr,
                 on_connect=lambda: self.plugins.dispatch(ev.RCON_CONNECTED),
                 on_lost=lambda: self.plugins.dispatch(ev.RCON_LOST),
             )
@@ -95,6 +106,7 @@ class ReforgeServer:
         self._abort_rollback = asyncio.Event()
         self._expect_stop = False
         self._crash_watch: asyncio.Task | None = None
+        self._startup_report: asyncio.Task | None = None
         self.started_at = time.monotonic()
 
     def tr(self, key: str, /, *args, **kwargs) -> str:
@@ -108,9 +120,25 @@ class ReforgeServer:
 
     # -- console output ------------------------------------------------------
 
-    def echo(self, line: str) -> None:
-        """Print a server line. Split out so the console can own the terminal."""
-        print(line, flush=True)
+    def echo(self, line: str, info: Info | None = None) -> None:
+        """Emit a line of Factorio output through the same logger we use.
+
+        Previously this was a bare ``print``, which gave the console two
+        unrelated formats side by side and -- worse -- kept Factorio's output
+        out of ``logs/reforge.log`` entirely, so a post-mortem had nothing to
+        read. Routing it through a ``factorio`` logger unifies the layout, puts
+        the source in the same column, and gets the server's own words into the
+        log file.
+        """
+        level = logging.INFO
+        if info is not None:
+            if info.level == "Error":
+                level = logging.ERROR
+            elif info.level == "Warning":
+                level = logging.WARNING
+        # The text is Factorio's, verbatim. Anything we noticed about it is
+        # reported separately once startup finishes -- see LogLens.
+        self.server_logger.log(level, line, extra={"server_info": info})
 
     # -- wiring --------------------------------------------------------------
 
@@ -140,21 +168,57 @@ class ReforgeServer:
         self.saves.load_index()
         loaded, failed = await self.plugins.load_all()
         self.logger.info(
-            "Loaded %d plugin(s)%s", len(loaded),
-            f", {len(failed)} failed: {', '.join(failed)}" if failed else "",
+            self.tr("log.plugins_loaded_with_failures", count=len(loaded),
+                    failed=len(failed), names=", ".join(failed))
+            if failed else self.tr("log.plugins_loaded", count=len(loaded))
         )
         await self.plugins.dispatch(ev.REFORGE_START)
 
+    def schedule_startup_report(self, delay: float = 2.0) -> None:
+        """Report shortly after startup, not exactly at it.
+
+        Several lines worth reporting -- the RCON bind above all -- are printed
+        *after* the ``to(InGame)`` marker, so reporting on the marker itself
+        misses them. A short wait costs nothing and catches the tail.
+        """
+        if self._startup_report is not None:
+            self._startup_report.cancel()
+        self._startup_report = asyncio.create_task(self._report_after(delay))
+
+    async def _report_after(self, delay: float) -> None:
+        with contextlib.suppress(asyncio.CancelledError):
+            await asyncio.sleep(delay)
+            self.report_startup()
+
+    def report_startup(self) -> None:
+        """Print what the startup output revealed, after the fact.
+
+        Separate from Factorio's own lines on purpose: those stay verbatim so
+        they still match the game's log and anything posted on the forums.
+        """
+        summary = self.loglens.summary(self.tr)
+        if summary is None:
+            return
+        self.logger.info(summary)
+        for severity, line in self.loglens.report(self.tr):
+            if severity is Severity.PROBLEM:
+                self.logger.error("  %s", line)
+            elif severity is Severity.NOTICE:
+                self.logger.info("  %s", line)
+            else:
+                self.logger.info("  %s", line)
+
     async def start_server(self) -> bool:
         if self.process.is_running:
-            self.logger.warning("Server is already running")
+            self.logger.warning(self.tr("log.server_already_running"))
             return False
         await self.plugins.dispatch(ev.SERVER_START_PRE)
+        self.loglens.reset()
         self._expect_stop = False
         try:
             await self.process.start()
         except Exception as exc:
-            self.logger.error("Could not start the server: %s", exc)
+            self.logger.error(self.tr("log.server_start_failed", error=exc))
             return False
         await self.plugins.dispatch(ev.SERVER_START)
         self._crash_watch = asyncio.create_task(self._watch_for_crash())
@@ -184,14 +248,15 @@ class ReforgeServer:
         if self._expect_stop or self._exiting.is_set() or self._rollback_in_progress:
             return
         code = self.process.return_code
-        self.logger.error("Server exited unexpectedly (code %s)", code)
+        self.logger.error(self.tr("log.server_crashed", code=code))
         await self.plugins.dispatch(ev.SERVER_CRASH, code)
         await self.process.cleanup()
         # A crash still frees the files, so listeners that clean up after the
         # server must hear about it the same way a clean stop is reported.
         await self.plugins.dispatch(ev.SERVER_STOP, code)
         if self.config.auto_restart_on_crash and not self._exiting.is_set():
-            self.logger.info("Restarting in %.0fs", self.config.crash_restart_delay)
+            self.logger.info(self.tr("log.restarting_in",
+                                     seconds=int(self.config.crash_restart_delay)))
             await asyncio.sleep(self.config.crash_restart_delay)
             if not self._exiting.is_set():
                 await self.start_server()
@@ -207,12 +272,13 @@ class ReforgeServer:
             await self._exited.wait()
             return
         self._exiting.set()
-        self.logger.info("Shutting down FactorioReforge")
+        self.logger.info(self.tr("log.shutting_down"))
         try:
-            if self._crash_watch is not None:
-                self._crash_watch.cancel()
-                with contextlib.suppress(asyncio.CancelledError):
-                    await self._crash_watch
+            for task in (self._crash_watch, self._startup_report):
+                if task is not None:
+                    task.cancel()
+                    with contextlib.suppress(asyncio.CancelledError):
+                        await task
             if stop_server:
                 await self.stop_server()
             await self.plugins.dispatch(ev.REFORGE_STOP)
@@ -269,9 +335,8 @@ class ReforgeServer:
         try:
             await asyncio.wait_for(self._save_completed.wait(), self.config.saves.save_timeout)
         except TimeoutError:
-            self.logger.warning(
-                "No save-completion message within %.0fs", self.config.saves.save_timeout
-            )
+            self.logger.warning(self.tr("log.save_timeout",
+                                        seconds=int(self.config.saves.save_timeout)))
             return None
         return self.config.save_dir_path / (f"{stem}.zip" if stem else self.current_save_name)
 
@@ -340,7 +405,7 @@ class ReforgeServer:
 
             # QBM's "backup current world to avoid idiot", with the server down
             # so the file is not moving underneath us.
-            self.logger.info("Preserving the current world before overwriting it")
+            self.logger.info(self.tr("log.restore_preserving"))
             preserved = self.saves.back_up_current_world(requested_by)
             if preserved is None and self.config.current_save_path.is_file():
                 raise RollbackError(
@@ -359,7 +424,7 @@ class ReforgeServer:
                         "the server did not come back up; the previous world was put back"
                     )
 
-            self.logger.info("Restored %s", info.describe())
+            self.logger.info(self.tr("log.restore_done", slot=info.describe()))
             await self.plugins.dispatch(ev.ROLLBACK_FINISHED, info, True)
             return info
         except Exception:
@@ -376,7 +441,7 @@ class ReforgeServer:
         """
         for remaining in range(int(seconds), 0, -1):
             if self._abort_rollback.is_set():
-                self.logger.info("Restore cancelled during the countdown")
+                self.logger.info(self.tr("log.restore_countdown_cancelled"))
                 with contextlib.suppress(RuntimeError):
                     await self.process.write(self.tr("save.countdown_cancelled"))
                 return False
@@ -395,7 +460,7 @@ class ReforgeServer:
         if preserved is None:
             self.logger.error("Nothing was preserved, so there is nothing to put back")
             return
-        self.logger.warning("Putting the pre-restore world back")
+        self.logger.warning(self.tr("log.restore_recovering"))
         try:
             await self.saves.restore(OVERWRITE_SLOT)
             await self.start_server()
@@ -407,24 +472,33 @@ class ReforgeServer:
 
 
 def build_logger(config: Config) -> logging.Logger:
-    logger = logging.getLogger("reforge")
-    logger.setLevel(getattr(logging, config.log_level.upper(), logging.INFO))
-    logger.handlers.clear()
+    """One console handler and one file handler, shared by every source.
 
-    fmt = logging.Formatter("[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s", "%H:%M:%S")
+    "reforge", "factorio" and every "plugin.<id>" go through the same pair, so
+    the console shows one format and the log file contains everything -- the
+    server's own output included, which a bare print kept out of it.
+    """
+    level = getattr(logging, config.log_level.upper(), logging.INFO)
+    palette = Palette(supports_colour(sys.stdout) and config.colour != "never")
+    if config.colour == "always":
+        palette.enabled = True
+
     stream = logging.StreamHandler()
-    stream.setFormatter(fmt)
-    logger.addHandler(stream)
+    stream.setFormatter(ColourFormatter(palette))
 
     log_dir: Path = config.log_dir_path
     log_dir.mkdir(parents=True, exist_ok=True)
     file_handler = logging.FileHandler(log_dir / "reforge.log", encoding="utf-8")
     file_handler.setFormatter(
-        logging.Formatter("[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s")
+        logging.Formatter("[%(asctime)s] [%(levelname)-7s] [%(name)s] %(message)s")
     )
-    logger.addHandler(file_handler)
 
-    logging.getLogger("plugin").setLevel(logger.level)
-    for handler in logger.handlers:
-        logging.getLogger("plugin").addHandler(handler)
-    return logger
+    for name in ("reforge", "factorio", "plugin"):
+        target = logging.getLogger(name)
+        target.setLevel(level)
+        target.handlers.clear()
+        target.propagate = False
+        target.addHandler(stream)
+        target.addHandler(file_handler)
+
+    return logging.getLogger("reforge")

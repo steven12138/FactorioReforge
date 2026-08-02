@@ -15,6 +15,7 @@ import asyncio
 import contextlib
 import logging
 import struct
+from collections.abc import Callable
 
 from factorio_reforge.core.errors import QueryError
 
@@ -56,6 +57,7 @@ class RconClient:
         connect_timeout: float = 5.0,
         command_timeout: float = 10.0,
         logger: logging.Logger | None = None,
+        tr: Callable[..., str] | None = None,
     ):
         self.host = host
         self.port = port
@@ -63,6 +65,7 @@ class RconClient:
         self.connect_timeout = connect_timeout
         self.command_timeout = command_timeout
         self.logger = logger or logging.getLogger(__name__)
+        self.tr = tr or (lambda key, **kwargs: key)
 
         self._reader: asyncio.StreamReader | None = None
         self._writer: asyncio.StreamWriter | None = None
@@ -115,7 +118,7 @@ class RconClient:
             await self._close_locked()
             raise RconAuthError("RCON authentication failed: wrong password")
         self._authenticated = True
-        self.logger.info("RCON connected to %s:%s", self.host, self.port)
+        self.logger.info(self.tr("log.rcon_connected", host=self.host, port=self.port))
 
     async def close(self) -> None:
         async with self._lock:
@@ -214,12 +217,14 @@ class RconManager:
         *,
         retry_interval: float = 3.0,
         logger: logging.Logger | None = None,
+        tr: Callable[..., str] | None = None,
         on_connect=None,
         on_lost=None,
     ):
         self.client = client
         self.retry_interval = retry_interval
         self.logger = logger or logging.getLogger(__name__)
+        self.tr = tr or (lambda key, **kwargs: key)
         self.on_connect = on_connect
         self.on_lost = on_lost
         self._task: asyncio.Task | None = None
@@ -254,7 +259,7 @@ class RconManager:
                         await self.on_connect()
                 except RconAuthError as exc:
                     # A wrong password will never fix itself; stop hammering.
-                    self.logger.error("%s -- giving up on RCON", exc)
+                    self.logger.error(self.tr("log.rcon_giving_up", error=exc))
                     return
                 except RconError as exc:
                     self.logger.debug("RCON not up yet: %s", exc)

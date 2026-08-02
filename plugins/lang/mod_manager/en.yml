@@ -45,3 +45,7 @@ refresh:
   done: "Index refreshed: {count} mods."
 restart_needed: "Restart the server for this to take effect (!!FR server restart). Players will need the same mods to reconnect."
 restart_note: "(the running server will rewrite mod-list.json when it stops; FactorioReforge reapplies this change at that point)"
+credentials: "Using mod portal credentials for {user} from {path}"
+no_credentials: "mod_manager has no portal credentials; search and info work, installing does not. Set username/token in {path}"
+target_version: "mod_manager will only offer mods built for Factorio {version}"
+unknown_version: "mod_manager could not determine the Factorio version; it cannot filter releases for compatibility, and installing the newest build of a mod may stop the server from starting. Set factorio_version in its config."

@@ -156,6 +156,10 @@ class SaveManager:
         # One backup or restore at a time; QBM calls this single_op.
         self._lock = asyncio.Lock()
 
+    def _log(self, key: str, **kwargs) -> str:
+        """Translate a log line, falling back to the key when standalone."""
+        return self.tr(key, **kwargs) if self.tr else key
+
     # -- paths ---------------------------------------------------------------
 
     @property
@@ -257,7 +261,7 @@ class SaveManager:
 
         victim = self.get(target)
         if victim is not None:
-            self.logger.info("Dropping %s to make room for the new backup", victim.describe())
+            self.logger.info(self._log("log.backup_dropped", slot=victim.describe()))
         shutil.rmtree(self.slot_path(target), ignore_errors=True)
 
         # Shift target-1 .. 1 down by one, so slot 1 ends up free.
@@ -331,7 +335,7 @@ class SaveManager:
             )
             info._tr = self.tr
             self._write_info(1, info)
-            self.logger.info("Created %s", info.describe())
+            self.logger.info(self._log("log.backup_created", slot=info.describe()))
             return info
 
     def _write_info(self, slot: int | str, info: Slot) -> None:
@@ -372,7 +376,7 @@ class SaveManager:
         )
         info._tr = self.tr
         self._write_info(OVERWRITE_SLOT, info)
-        self.logger.info("Preserved the current world in the overwrite slot")
+        self.logger.info(self._log("log.world_preserved"))
         return info
 
     def get_overwrite(self) -> Slot | None:
@@ -400,7 +404,7 @@ class SaveManager:
         except Exception:
             temp.unlink(missing_ok=True)
             raise
-        self.logger.info("Restored slot %s onto %s", slot, self.current_save)
+        self.logger.info(self._log("log.backup_restored", slot=slot, path=self.current_save))
 
     # -- editing -------------------------------------------------------------
 

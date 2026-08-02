@@ -6,3 +6,27 @@ cause: "  Cause: {summary}"
 detail: "  Detail: {detail}"
 fix: "  Try: {fix}"
 unknown_exit: "Server exited with code {code} and nothing matched a known failure. Run !!why to see the last few lines of output."
+exited: "Server exited with code {code}: {summary}"
+telegram: "🔥 <b>Server exited</b> (code {code})\n{summary}"
+cause:
+  mod_load_failed: "the mod {mod!r} could not be loaded"
+  version_mismatch: "a mod needs Factorio {need} but this server is {have}"
+  missing_dependency: "a mod dependency is missing: {dep}"
+  another_instance: another Factorio is already using this installation
+  corrupt_save: "the save file could not be read -- it may be corrupt"
+  port_in_use: "the port is already taken -- another Factorio is probably still running"
+  save_too_new: the save was made by a newer Factorio than this server runs
+  multiplayer_failed: multiplayer setup failed
+  command_failed: a console command failed
+  out_of_memory: the server ran out of memory
+fix:
+  mod_load_failed: "!!mod remove {mod}   (or install a version built for this Factorio)"
+  version_mismatch: "!!mod updates, or remove the mod"
+  missing_dependency: "!!mod install <the missing mod>"
+  another_instance: "stop the other FactorioReforge, or look for a stray process: pgrep -af bin/x64/factorio"
+  corrupt_save: "!!save list, then !!save back <slot> to restore a backup"
+  port_in_use: "check for a stray process, or change --port in config.yml"
+  save_too_new: update the headless install, or restore an older backup
+  multiplayer_failed: check server-settings.json
+  command_failed: ""
+  out_of_memory: give the machine more RAM

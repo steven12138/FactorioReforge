@@ -39,10 +39,23 @@ DEFAULT_CONFIG = {
 
 
 class Diagnosis:
-    def __init__(self, summary: str, detail: str = "", fix: str = ""):
-        self.summary = summary
+    """A cause, optional detail, and what to do -- all as translation keys.
+
+    Keeping the text in the catalogue rather than in the signature table is
+    what lets a Chinese operator read the diagnosis in Chinese; the table stays
+    a list of patterns.
+    """
+
+    def __init__(self, key: str, values: dict | None = None, detail: str = ""):
+        self.key = key
+        self.values = values or {}
         self.detail = detail
-        self.fix = fix
+
+    def summary(self, tr) -> str:
+        return tr(f"cause.{self.key}", **self.values)
+
+    def fix(self, tr) -> str:
+        return tr(f"fix.{self.key}", **self.values)
 
 
 def _is_continuation(line: str) -> bool:
@@ -72,74 +85,55 @@ _SIGNATURES: list[tuple[int, re.Pattern, object]] = [
         0,
         re.compile(r'Failed to load mod "(?P<mod>[^"]+)"'),
         lambda m, lines: Diagnosis(
-            f"the mod {m.group('mod')!r} could not be loaded",
-            _collect_mod_reasons(lines),
-            f"!!mod remove {m.group('mod')}   (or install a version built for this Factorio)",
+            "mod_load_failed", {"mod": m.group("mod")}, _collect_mod_reasons(lines)
         ),
     ),
     (
         1,
         re.compile(r"Incompatible Factorio version \(current: (?P<have>[\d.]+), required: (?P<need>[\d.]+)\)"),
         lambda m, lines: Diagnosis(
-            f"a mod needs Factorio {m.group('need')} but this server is {m.group('have')}",
-            "",
-            "!!mod updates, or remove the mod",
+            "version_mismatch", {"need": m.group("need"), "have": m.group("have")}
         ),
     ),
     (
         2,
         re.compile(r"Dependency (?P<dep>.+?) is not satisfied"),
-        lambda m, lines: Diagnosis(
-            f"a mod dependency is missing: {m.group('dep')}",
-            "",
-            "!!mod install <the missing mod>",
-        ),
+        lambda m, lines: Diagnosis("missing_dependency", {"dep": m.group("dep")}),
     ),
     (
         0,
         re.compile(r"Couldn't open (?:save )?file|Error Zip\.cpp|is corrupt|Unable to read"),
-        lambda m, lines: Diagnosis(
-            "the save file could not be read -- it may be corrupt",
-            "",
-            "!!save list, then !!save back <id> to restore a snapshot",
-        ),
+        lambda m, lines: Diagnosis("corrupt_save"),
+    ),
+    (
+        0,
+        re.compile(r"Is another instance already running\?|\.lock: Resource temporarily unavailable"),
+        lambda m, lines: Diagnosis("another_instance"),
     ),
     (
         0,
         re.compile(r"Address already in use|Failed to bind|bind: Address"),
-        lambda m, lines: Diagnosis(
-            "the port is already taken -- another Factorio is probably still running",
-            "",
-            "check for a stray process, or change --port in config.yml",
-        ),
+        lambda m, lines: Diagnosis("port_in_use"),
     ),
     (
         0,
         re.compile(r"Map version (?P<ver>[\d.\-]+) cannot be loaded|is higher than the game version"),
-        lambda m, lines: Diagnosis(
-            "the save was made by a newer Factorio than this server runs",
-            "",
-            "update the headless install, or restore an older snapshot",
-        ),
+        lambda m, lines: Diagnosis("save_too_new"),
     ),
     (
         3,
         re.compile(r"Error ServerMultiplayerManager\.cpp.*?: (?P<msg>.+)"),
-        lambda m, lines: Diagnosis(
-            "multiplayer setup failed", m.group("msg"), "check server-settings.json"
-        ),
+        lambda m, lines: Diagnosis("multiplayer_failed", detail=m.group("msg")),
     ),
     (
         4,
         re.compile(r"Cannot execute command\. Error: (?P<msg>.+)"),
-        lambda m, lines: Diagnosis("a console command failed", m.group("msg"), ""),
+        lambda m, lines: Diagnosis("command_failed", detail=m.group("msg")),
     ),
     (
         0,
         re.compile(r"(?P<msg>.*(?:std::bad_alloc|out of memory|Cannot allocate).*)"),
-        lambda m, lines: Diagnosis(
-            "the server ran out of memory", m.group("msg"), "give the machine more RAM"
-        ),
+        lambda m, lines: Diagnosis("out_of_memory", detail=m.group("msg")),
     ),
 ]
 
@@ -187,20 +181,21 @@ async def on_server_crash(server, code):
         server.logger.error(server.tr("unknown_exit", code=code))
         return
 
-    server.logger.error("Server exited with code %s: %s", code, diagnosis.summary)
+    tr = server.tr
+    server.logger.error(tr("exited", code=code, summary=diagnosis.summary(tr)))
     if diagnosis.detail:
-        server.logger.error("  %s", diagnosis.detail)
-    if diagnosis.fix:
-        server.logger.error("  Try: %s", diagnosis.fix)
+        server.logger.error(tr("detail", detail=diagnosis.detail))
+    if diagnosis.fix(tr):
+        server.logger.error(tr("fix", fix=diagnosis.fix(tr)))
 
     if (_state["config"]).get("notify_telegram", True):
         bridge = server.get_plugin_instance("telegram_bridge")
         if bridge is not None:
-            text = f"🔥 <b>Server exited</b> (code {code})\n{diagnosis.summary}"
+            text = tr("telegram", code=code, summary=diagnosis.summary(tr))
             if diagnosis.detail:
                 text += f"\n\n<code>{diagnosis.detail}</code>"
-            if diagnosis.fix:
-                text += f"\n\nTry: <code>{diagnosis.fix}</code>"
+            if diagnosis.fix(tr):
+                text += f"\n\n<code>{diagnosis.fix(tr)}</code>"
             await bridge.broadcast(text)
 
 
@@ -264,8 +259,8 @@ async def _cmd_why(source):
         for line in tail:
             await source.reply(f"    {line}")
         return
-    await source.reply(tr("cause", summary=diagnosis.summary))
+    await source.reply(tr("cause", summary=diagnosis.summary(tr)))
     if diagnosis.detail:
         await source.reply(tr("detail", detail=diagnosis.detail))
-    if diagnosis.fix:
-        await source.reply(tr("fix", fix=diagnosis.fix))
+    if diagnosis.fix(tr):
+        await source.reply(tr("fix", fix=diagnosis.fix(tr)))
