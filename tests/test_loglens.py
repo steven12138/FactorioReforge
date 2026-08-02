@@ -73,11 +73,11 @@ class TestNotices:
         assert notice.key == "hosting"
         assert notice.values == {"address": "0.0.0.0:34197"}
 
-    def test_the_rcon_bind_is_surfaced_so_it_can_be_checked(self, lens, parse):
+    def test_a_local_rcon_bind_is_surfaced_as_a_notice(self, lens, parse):
         feed(lens, parse,
              "   0.539 Info RemoteCommandProcessor.cpp:126: "
-             "Starting RCON interface at IP ADDR:({0.0.0.0:27015})")
-        assert lens.by_severity(Severity.NOTICE)[0].values == {"address": "0.0.0.0:27015"}
+             "Starting RCON interface at IP ADDR:({127.0.0.1:27015})")
+        assert lens.by_severity(Severity.NOTICE)[0].values == {"address": "127.0.0.1:27015"}
 
     def test_bundled_mods_are_not_listed_as_loaded(self, lens, parse):
         """base and space-age load every time; saying so is noise."""
@@ -131,3 +131,41 @@ class TestFactorioOutputIsUntouched:
         before = (info.raw_content, info.content, info.level, info.kind)
         lens.observe(info)
         assert (info.raw_content, info.content, info.level, info.kind) == before
+
+
+class TestRconExposure:
+    """RCON is plaintext: reaching the port is controlling the server."""
+
+    def test_a_localhost_bind_is_only_a_notice(self, lens, parse):
+        feed(lens, parse,
+             "   0.539 Info RemoteCommandProcessor.cpp:126: "
+             "Starting RCON interface at IP ADDR:({127.0.0.1:27015})")
+        assert lens.by_severity(Severity.PROBLEM) == []
+        assert lens.by_severity(Severity.NOTICE)[0].key == "rcon_local"
+
+    def test_a_wildcard_bind_is_a_problem(self, lens, parse):
+        feed(lens, parse,
+             "   0.539 Info RemoteCommandProcessor.cpp:126: "
+             "Starting RCON interface at IP ADDR:({0.0.0.0:27015})")
+        problem = lens.by_severity(Severity.PROBLEM)[0]
+        assert problem.key == "rcon_exposed"
+        assert problem.values == {"address": "0.0.0.0:27015"}
+
+    def test_a_public_address_is_a_problem(self, lens, parse):
+        feed(lens, parse,
+             "   0.539 Info RemoteCommandProcessor.cpp:126: "
+             "Starting RCON interface at IP ADDR:({203.0.113.4:27015})")
+        assert lens.by_severity(Severity.PROBLEM)[0].key == "rcon_exposed"
+
+
+class TestBlueprintAdvice:
+    def test_both_filenames_are_captured_for_the_advice(self, lens, parse):
+        """Naming the file is the difference between advice and a shrug."""
+        feed(lens, parse,
+             '   0.537 Blueprint storage "blueprint-storage-2.dat" was not found, '
+             'trying to load previous version storage "blueprint-storage.dat"')
+        observation = lens.by_severity(Severity.ROUTINE)[0]
+        assert observation.values == {
+            "current": "blueprint-storage-2.dat",
+            "previous": "blueprint-storage.dat",
+        }

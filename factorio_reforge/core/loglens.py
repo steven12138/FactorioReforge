@@ -51,8 +51,9 @@ class _Rule:
 _RULES: tuple[_Rule, ...] = (
     # -- routine: the "not found" lines that are simply how it works
     _Rule(
-        re.compile(r'Blueprint storage ".*" was not found, trying to load previous'),
-        Severity.ROUTINE, "blueprint_storage",
+        re.compile(r'Blueprint storage "(?P<current>[^"]+)" was not found, '
+                   r'trying to load previous version storage "(?P<previous>[^"]+)"'),
+        Severity.ROUTINE, "blueprint_storage", ("current", "previous"),
     ),
     _Rule(
         re.compile(r"Cloud player-data\.json unavailable"),
@@ -65,9 +66,16 @@ _RULES: tuple[_Rule, ...] = (
         re.compile(r"Hosting game at IP ADDR:\(\{(?P<address>[^}]+)\}\)"),
         Severity.NOTICE, "hosting", ("address",),
     ),
+    # Split in two so an exposed bind is a problem rather than a note. RCON is
+    # plaintext: reaching the port is controlling the server.
+    _Rule(
+        re.compile(r"Starting RCON interface at IP ADDR:\("
+                   r"\{(?P<address>(?:127\.0\.0\.1|localhost|::1)[^}]*)\}\)"),
+        Severity.NOTICE, "rcon_local", ("address",),
+    ),
     _Rule(
         re.compile(r"Starting RCON interface at IP ADDR:\(\{(?P<address>[^}]+)\}\)"),
-        Severity.NOTICE, "rcon_bind", ("address",),
+        Severity.PROBLEM, "rcon_exposed", ("address",),
     ),
     _Rule(
         re.compile(r"Loading mod (?P<mod>\S+) (?P<version>\S+) \(data\.lua\)"),

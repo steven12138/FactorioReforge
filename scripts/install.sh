@@ -228,7 +228,7 @@ config.start_command = (
     "--server-settings ./server-settings.json "
     "--server-adminlist ./server-adminlist.json "
     "--server-banlist ./server-banlist.json "
-    f"--port {game_port} --rcon-port {rcon_port} --rcon-password {rcon_password}"
+    f"--port {game_port} --rcon-bind 127.0.0.1:{rcon_port} --rcon-password {rcon_password}"
 )
 config.rcon.port = int(rcon_port)
 config.rcon.password = rcon_password

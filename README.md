@@ -123,8 +123,12 @@ cd ~/project/FactorioReforge/server/factorio
   --server-adminlist ./server-adminlist.json \
   --server-banlist  ./server-banlist.json \
   --port 34197 \
-  --rcon-port 27015 --rcon-password 'CHANGE_ME'
+  --rcon-bind 127.0.0.1:27015 --rcon-password 'CHANGE_ME'
 ```
+
+`--rcon-bind`, not `--rcon-port`: the latter listens on every interface, and
+RCON is plaintext, so a reachable port is a remote shell for the server.
+FactorioReforge **refuses to start** on a command that exposes it.
 
 | Flag | Meaning |
 |---|---|
@@ -139,8 +143,10 @@ cd ~/project/FactorioReforge/server/factorio
 ## Networking
 
 - Game traffic is **34197/UDP**, not TCP. Forward and open that.
-- RCON is **27015/TCP** and the protocol is plaintext — bind it to `127.0.0.1` and
-  never expose it.
+- RCON is **27015/TCP** and the protocol is plaintext — bind it to `127.0.0.1`
+  and never expose it. `--rcon-port` binds every interface; `--rcon-bind
+  127.0.0.1:27015` does not. FactorioReforge refuses a config that uses the
+  former, and the startup report flags an exposed bind as a problem.
 - LAN: `visibility.lan = true` and clients discover it automatically.
 - Direct connect: **Multiplayer → Connect to address** → `IP:34197`.
 
@@ -676,11 +682,19 @@ said separately, a couple of seconds after the server comes up:
 ```
 Startup check: 0 problem(s), 2 notice(s), 3 routine
   listening for players on 0.0.0.0:34197 (UDP)
-  RCON is bound to 0.0.0.0:27015 -- keep this on localhost
+  RCON is bound to 127.0.0.1:27015, which is not reachable from outside
   audio is off -- normal on a headless server
   no Steam cloud player data -- normal on a headless server
-  the blueprint storage fell back to the older format -- normal for a save made before it changed
+  no personal blueprint library (blueprint-storage-2.dat); a headless server has
+  no local player, so it never creates one. Harmless, and it appears on every
+  start. Do not create the file by hand -- an empty one is read as corrupt.
 ```
+
+The blueprint advice is specific because the question it answers is: measured
+on 2.0.77, a headless server never writes `blueprint-storage-2.dat` even after
+a clean shutdown, and creating an empty one to silence the message produces
+`Loading local blueprint storage failed: Couldn't read from input file` — worse
+than the message it was meant to remove.
 
 Several routine Factorio lines say "not found" — the blueprint-storage
 fallback, the absent cloud data — and without somewhere to say so, every

@@ -353,3 +353,50 @@ class TestSerialisation:
         slot = await manager.create("plain")
         slot._tr = None
         assert "slot 1:" in slot.describe() and "plain" in slot.describe()
+
+
+class TestRconExposureCheck:
+    """A start command that exposes RCON is refused, not warned about.
+
+    RCON is plaintext and the failure is silent, so it has to be caught before
+    the server ever listens.
+    """
+
+    def _config(self, tmp_path, rcon_args):
+        from factorio_reforge.config import Config
+
+        working = tmp_path / "server"
+        working.mkdir()
+        config = Config()
+        config.root = tmp_path
+        config.working_directory = str(working)
+        config.rcon.password = "x"
+        (working / "s.zip").write_text("")
+        config.saves.current_save = str(working / "s.zip")
+        config.start_command = f"./factorio --start-server s.zip {rcon_args}"
+        return config
+
+    def test_rcon_port_is_refused(self, tmp_path):
+        from factorio_reforge.config import ConfigError
+
+        config = self._config(tmp_path, "--rcon-port 27015")
+        with pytest.raises(ConfigError, match="every interface"):
+            config.validate()
+
+    def test_a_wildcard_bind_is_refused(self, tmp_path):
+        from factorio_reforge.config import ConfigError
+
+        config = self._config(tmp_path, "--rcon-bind 0.0.0.0:27015")
+        with pytest.raises(ConfigError, match="reachable from"):
+            config.validate()
+
+    @pytest.mark.parametrize("address", ["127.0.0.1:27015", "localhost:27015", "::1"])
+    def test_a_local_bind_is_accepted(self, tmp_path, address):
+        config = self._config(tmp_path, f"--rcon-bind {address}")
+        config.validate()
+
+    def test_the_default_start_command_binds_locally(self):
+        from factorio_reforge.config import Config
+
+        assert "--rcon-bind 127.0.0.1:" in Config().start_command
+        assert "--rcon-port" not in Config().start_command

@@ -64,7 +64,10 @@ class Config:
         "--server-settings ./server-settings.json "
         "--server-adminlist ./server-adminlist.json "
         "--server-banlist ./server-banlist.json "
-        "--port 34197 --rcon-port 27015 --rcon-password CHANGE_ME"
+        # --rcon-bind, not --rcon-port: the latter listens on 0.0.0.0, and the
+        # RCON protocol is plaintext, so anyone who reaches the port owns the
+        # server.
+        "--port 34197 --rcon-bind 127.0.0.1:27015 --rcon-password CHANGE_ME"
     )
     handler: str = "factorio"
     encoding: str = "utf-8"
@@ -187,6 +190,8 @@ class Config:
         if self.command_prefix.strip() == "":
             raise ConfigError("command_prefix must not be blank")
 
+        self._check_rcon_exposure()
+
         # Rollback replaces current_save on disk, so a launch command that does
         # not name that exact file would silently keep loading the old map.
         argv = self.command_argv
@@ -235,6 +240,34 @@ class Config:
         temp.write_text("".join(lines), encoding="utf-8")
         temp.replace(path)
 
+    def _check_rcon_exposure(self) -> None:
+        """Refuse a start command that puts RCON on a public interface.
+
+        RCON is plaintext and unauthenticated beyond one password, so a
+        reachable port is a remote shell for the server. ``--rcon-port`` binds
+        every interface; ``--rcon-bind`` takes an address. This is an error
+        rather than a warning because it is silent, easy to get wrong, and not
+        something anyone means to do.
+        """
+        argv = self.command_argv
+        if "--rcon-bind" in argv:
+            host = _host_of(argv[argv.index("--rcon-bind") + 1])
+            if host not in ("127.0.0.1", "localhost", "::1"):
+                raise ConfigError(
+                    f"start_command binds RCON to {host!r}, which is reachable from "
+                    "outside this machine. RCON is plaintext, so anyone who can "
+                    "reach the port controls the server. Use "
+                    "--rcon-bind 127.0.0.1:<port>, and reach it from elsewhere "
+                    "through SSH or the Telegram bridge."
+                )
+        elif "--rcon-port" in argv:
+            port = argv[argv.index("--rcon-port") + 1]
+            raise ConfigError(
+                "start_command uses --rcon-port, which listens on every interface. "
+                "RCON is plaintext, so that exposes control of the server to the "
+                f"network. Use --rcon-bind 127.0.0.1:{port} instead."
+            )
+
     def dump(self, path: Path) -> None:
         data = {
             f.name: _plain(getattr(self, f.name))
@@ -258,6 +291,20 @@ RETIRED_KEYS: dict[str, dict[str, str]] = {
         "max_snapshot_age_days": "retired.max_snapshot_age_days",
     },
 }
+
+
+def _host_of(address: str) -> str:
+    """The host part of ``host``, ``host:port`` or ``[v6]:port``.
+
+    A bare IPv6 literal has colons of its own, so splitting on the last one
+    would turn ``::1`` into ``:``.
+    """
+    address = address.strip()
+    if address.startswith("["):
+        return address[1:].split("]", 1)[0]
+    if address.count(":") > 1:
+        return address
+    return address.rsplit(":", 1)[0] if ":" in address else address
 
 
 def _sub(klass, value: dict | None, name: str):

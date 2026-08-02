@@ -154,11 +154,12 @@ retired:
 
 startup:
   summary: "启动检查：{problems} 个问题，{notices} 条提示，{routine} 条例行信息"
-  blueprint_storage: "蓝图存储回退到了旧格式 —— 存档早于格式变更时属于正常"
+  blueprint_storage: "没有个人蓝图库（{current}）；headless 服务器没有本地玩家，所以永远不会创建它。无害，且每次启动都会出现。不要手动创建这个文件 —— 空文件会被判定为已损坏。"
   cloud_player_data: "没有 Steam 云玩家数据 —— headless 服务器上正常"
   audio_disabled: "音频已关闭 —— headless 服务器上正常"
   hosting: "正在 {address} 上监听玩家连接（UDP）"
-  rcon_bind: "RCON 绑定在 {address} —— 请保持只绑 localhost"
+  rcon_local: "RCON 绑定在 {address}，外部无法访问"
+  rcon_exposed: "RCON 正在 {address} 上监听 —— 外部可达，而该协议是明文的。请改用 --rcon-bind 127.0.0.1:<端口>。"
   mod_loaded: "已加载 mod：{mod} {version}"
   mod_failed: "mod {mod!r} 加载失败"
   version_mismatch: "某个 mod 需要 Factorio {need}，本服务器是 {have}"

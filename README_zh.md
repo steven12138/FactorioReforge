@@ -120,8 +120,12 @@ cd ~/project/FactorioReforge/server/factorio
   --server-adminlist ./server-adminlist.json \
   --server-banlist  ./server-banlist.json \
   --port 34197 \
-  --rcon-port 27015 --rcon-password 'CHANGE_ME'
+  --rcon-bind 127.0.0.1:27015 --rcon-password 'CHANGE_ME'
 ```
+
+用 `--rcon-bind` 而不是 `--rcon-port`：后者会监听所有网卡，
+而 RCON 是明文协议 —— 端口可达就等于把服务器的控制权交出去。
+FactorioReforge 遇到会暴露 RCON 的启动命令会**直接拒绝启动**。
 
 | 参数 | 含义 |
 |---|---|
@@ -137,6 +141,8 @@ cd ~/project/FactorioReforge/server/factorio
 
 - 游戏流量是 **34197/UDP**，不是 TCP。端口转发和防火墙都要按 UDP 放行。
 - RCON 是 **27015/TCP**，协议明文 —— 只绑 `127.0.0.1`，绝不要暴露公网。
+  `--rcon-port` 会监听所有网卡，`--rcon-bind 127.0.0.1:27015` 不会。
+  FactorioReforge 遇到前者会拒绝启动，启动报告也会把暴露的绑定标成问题。
 - 局域网：`visibility.lan = true`，同网段客户端自动发现。
 - 直连：客户端 **Multiplayer → Connect to address** 填 `IP:34197`。
 
@@ -590,11 +596,19 @@ chart tag 与之互补：gps 标签说的是"现在看这里"，chart tag 说的
 ```
 启动检查：0 个问题，2 条提示，3 条例行信息
   正在 0.0.0.0:34197 上监听玩家连接（UDP）
-  RCON 绑定在 0.0.0.0:27015 —— 请保持只绑 localhost
+  RCON 绑定在 127.0.0.1:27015，外部无法访问
   音频已关闭 —— headless 服务器上正常
   没有 Steam 云玩家数据 —— headless 服务器上正常
-  蓝图存储回退到了旧格式 —— 存档早于格式变更时属于正常
+  没有个人蓝图库（blueprint-storage-2.dat）；headless 服务器没有本地玩家，
+  所以永远不会创建它。无害，且每次启动都会出现。
+  不要手动创建这个文件 —— 空文件会被判定为已损坏。
 ```
+
+蓝图那条给得这么具体，是因为它回答的正是"这个文件到底怎么回事"：
+在 2.0.77 上实测，headless 服务器即使干净退出也**从不写出**
+`blueprint-storage-2.dat`；而为了消掉这条消息去建一个空文件，
+会得到 `Loading local blueprint storage failed: Couldn't read from input file`
+—— 比原来那条消息更糟。
 
 Factorio 有好几行例行输出写着 "not found" —— 蓝图存储回退、缺失的云数据 ——
 如果没有地方解释，每个服主都要去查一次。问题排在最前面，

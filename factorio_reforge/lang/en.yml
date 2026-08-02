@@ -155,11 +155,12 @@ retired:
 
 startup:
   summary: "Startup check: {problems} problem(s), {notices} notice(s), {routine} routine"
-  blueprint_storage: "the blueprint storage fell back to the older format -- normal for a save made before it changed"
+  blueprint_storage: "no personal blueprint library ({current}); a headless server has no local player, so it never creates one. Harmless, and it appears on every start. Do not create the file by hand -- an empty one is read as corrupt."
   cloud_player_data: "no Steam cloud player data -- normal on a headless server"
   audio_disabled: "audio is off -- normal on a headless server"
   hosting: "listening for players on {address} (UDP)"
-  rcon_bind: "RCON is bound to {address} -- keep this on localhost"
+  rcon_local: "RCON is bound to {address}, which is not reachable from outside"
+  rcon_exposed: "RCON is listening on {address} -- reachable from the network, and the protocol is plaintext. Use --rcon-bind 127.0.0.1:<port>."
   mod_loaded: "mod loaded: {mod} {version}"
   mod_failed: "the mod {mod!r} failed to load"
   version_mismatch: "a mod needs Factorio {need}, this server is {have}"
