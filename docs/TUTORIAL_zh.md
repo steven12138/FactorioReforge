@@ -104,7 +104,7 @@ Setup complete.
 
 ### 如果你想手动来
 
-脚本没有任何魔法，手动等价步骤见 [README 第一部分](../README_zh.md#第一部分--把-factorio-联机服务器跑起来)。
+脚本没有任何魔法，手动等价的步骤见 [开一个 Factorio 服务器](factorio-server_zh.md)。
 
 ---
 
@@ -632,7 +632,7 @@ async def on_player_joined(server, player, info):
 
 `QueryError` 同时覆盖"RCON 断了"和"Lua 执行失败"，插件只需要 catch 一个。
 
-完整 API 见 [README](../README_zh.md#写一个插件)，`plugins/` 下自带的十三个插件
+完整 API 见 [写插件](writing-plugins_zh.md)，`plugins/` 下自带的十三个插件
 都是可读的工作示例 —— `warp.py` 是其中做了实事的最小的一个。
 
 ---
@@ -716,7 +716,11 @@ rm -rf .venv config.yml config/ logs/ snapshots/
 
 ## 接下来看什么
 
-- [README](../README_zh.md) —— 完整参考
-- [M0-findings.md](M0-findings.md) —— 实测真实服务器得到的结论，
+- [命令参考](commands_zh.md) —— 每一条命令、作用、谁能用
+- [配置](configuration_zh.md) —— `config.yml`，以及它拒绝启动的几种情况
+- [自带插件](plugins_zh.md) —— 十三个自带插件各自是什么、怎么配
+- [写插件](writing-plugins_zh.md) —— 事件、服务器 API、国际化
+- [架构](architecture_zh.md) —— 内部怎么工作的，以及为什么这么做
+- [Factorio 实测笔记](factorio-notes_zh.md) —— 实测真实服务器得到的结论，
   包括三处官方文档说错了的地方
 - `plugins/` —— 十三个可以直接读和抄的工作插件

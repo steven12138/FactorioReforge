@@ -1,7 +1,7 @@
 """Own the Factorio child process: spawn it, read its output, stop it.
 
 Two behaviours here come straight from measuring a real 2.0.77 server rather
-than from the docs (``docs/M0-findings.md``):
+than from the docs (``docs/factorio-notes.md``):
 
 * stdout is line-flushed even when it is a pipe, so no pty or ``stdbuf`` dance
   is needed -- a plain asyncio pipe delivers ``[CHAT]`` lines within one frame.

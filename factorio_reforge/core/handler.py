@@ -1,7 +1,7 @@
 """Turn raw server output lines into :class:`Info` objects.
 
 The regexes here were written against output sampled from a live 2.0.77 headless
-server; see ``docs/M0-findings.md`` for the samples and for why there are four
+server; see ``docs/factorio-notes.md`` for the samples and for why there are four
 shapes instead of the two the design originally assumed.
 """
 

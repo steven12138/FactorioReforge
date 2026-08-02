@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Check that every link in the Markdown docs actually goes somewhere.
+"""Check the docs hold together: links resolve, and both languages exist.
 
-Two failure modes this catches, both of which happened during development:
-a heading gets reworded and the table-of-contents anchor pointing at it dies
-silently, and a doc is renamed without its counterpart being updated.
+Three failure modes this catches, all of which happened during development:
+a heading gets reworded and the anchor pointing at it dies silently, a doc is
+renamed without its counterpart being updated, and an English page is added
+with no Chinese one beside it.
 
 GitHub's anchor slug rules are reproduced exactly, including the detail that
 runs of whitespace are *not* collapsed -- ``Part 1 — Running`` becomes
@@ -27,7 +28,9 @@ CODE_FENCE = re.compile(r"```.*?```", re.S)
 
 def slug(heading: str) -> str:
     text = re.sub(r"<[^>]+>", "", heading)
-    text = re.sub(r"[*_`]", "", text)
+    # Emphasis markers are stripped, but not underscores: GitHub keeps
+    # those, so a heading like `mod_manager` anchors as #mod_manager.
+    text = re.sub(r"[*`]", "", text)
     text = re.sub(r"[^\w\s-]", "", text.strip().lower())
     return text.replace(" ", "-")
 
@@ -77,6 +80,28 @@ def check(path: Path) -> list[str]:
     return problems
 
 
+def unpaired(docs: list[Path]) -> list[str]:
+    """Every page must exist in both languages, as ``x.md`` and ``x_zh.md``.
+
+    The docs are parallel by design, and the way that decays is one language
+    quietly gaining a page the other never gets.
+    """
+    names = {p.parent / p.name for p in docs}
+    problems = []
+    for path in docs:
+        if path.stem.endswith("_zh"):
+            counterpart = path.parent / f"{path.stem[:-3]}.md"
+            missing = f"{path.stem[:-3]}.md"
+        else:
+            counterpart = path.parent / f"{path.stem}_zh.md"
+            missing = f"{path.stem}_zh.md"
+        if counterpart not in names:
+            problems.append(
+                f"{path.relative_to(REPO)}: has no counterpart {missing}"
+            )
+    return problems
+
+
 def main() -> int:
     docs = sorted(
         p for p in [*REPO.glob("*.md"), *(REPO / "docs").glob("*.md")] if p.is_file()
@@ -85,7 +110,7 @@ def main() -> int:
         print("no markdown files found", file=sys.stderr)
         return 1
 
-    problems: list[str] = []
+    problems: list[str] = unpaired(docs)
     for path in docs:
         problems.extend(check(path))
 

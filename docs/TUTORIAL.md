@@ -107,7 +107,7 @@ never overwrites your `config.yml` without asking.
 ### If you prefer to do it by hand
 
 The script is not magic; the manual equivalent is in the
-[README](../README.md#part-1--running-a-factorio-multiplayer-server).
+[Running a Factorio server](factorio-server.md).
 
 ---
 
@@ -654,7 +654,7 @@ async def on_player_joined(server, player, info):
 `QueryError` covers both "RCON is down" and "the Lua failed", so plugin code
 catches one thing.
 
-The full API is in the [README](../README.md#writing-a-plugin), and the thirteen
+The full API is in [Writing plugins](writing-plugins.md), and the thirteen
 bundled plugins in `plugins/` are all readable working examples — `warp.py` is
 the smallest one that does something real.
 
@@ -742,7 +742,11 @@ throw away the world too, delete `server/` as well.
 
 ## Where to go next
 
-- [README](../README.md) — the full reference
-- [M0-findings.md](M0-findings.md) — what measuring a real server actually
+- [Commands](commands.md) — every command, what it does, who may run it
+- [Configuration](configuration.md) — `config.yml`, and what it refuses to start with
+- [Plugins](plugins.md) — the thirteen bundled plugins and their settings
+- [Writing plugins](writing-plugins.md) — events, the server API, translations
+- [Architecture](architecture.md) — how it works inside, and why it works that way
+- [Factorio notes](factorio-notes.md) — what measuring a real server actually
   revealed, including three things the documentation gets wrong
 - `plugins/` — thirteen working plugins to read and copy

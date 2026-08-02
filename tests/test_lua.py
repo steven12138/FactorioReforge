@@ -1,7 +1,7 @@
 """Lua source generation and reply parsing.
 
 Pure functions, so these run without a server. The values they produce were
-checked against a live 2.0.77 instance -- see docs/M0-findings.md.
+checked against a live 2.0.77 instance -- see docs/factorio-notes.md.
 """
 
 import json

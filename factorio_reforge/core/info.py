@@ -25,7 +25,7 @@ class InfoSource(enum.IntEnum):
 class InfoKind(enum.Enum):
     """Which of the four shapes the server emits this line matched.
 
-    See ``docs/M0-findings.md`` -- the shapes were sampled from a real 2.0.77
+    See ``docs/factorio-notes.md`` -- the shapes were sampled from a real 2.0.77
     headless server, and the fourth one (command output) has no markers at all,
     so it is what we fall back to rather than something we detect.
     """

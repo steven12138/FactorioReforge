@@ -279,7 +279,8 @@ $(printf '%s' "$green$bold")Setup complete.$(printf '%s' "$reset")
     - Telegram control:  fill config/telegram_bridge/config.json, then !!FR reload
     - Open to the world: server/factorio/server-settings.json, and forward $GAME_PORT/udp
 
-  Full walkthrough: docs/TUTORIAL.md  (中文: docs/TUTORIAL_zh.md)
+  Full walkthrough: docs/TUTORIAL.md   (中文: docs/TUTORIAL_zh.md)
+  Command reference: docs/commands.md  Configuration: docs/configuration.md
 
 $(printf '%s' "$dim")RCON is bound to localhost with a generated password; it is in config.yml.
 config.yml, config/, logs/, snapshots/ and server/ are gitignored.$(printf '%s' "$reset")

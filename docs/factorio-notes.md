@@ -1,10 +1,10 @@
-# M0 — what measuring a real server actually revealed
+# Factorio notes — what measuring a real server revealed
 
 Environment: Factorio **2.0.77** (build 84539, linux64, headless), Arch Linux,
 Python 3.14.6. Raw samples in `factorio_output_samples.txt`; the probe that
 produced them is `scripts/probe_stdout.py`.
 
-**中文: [M0-findings_zh.md](M0-findings_zh.md)**
+**中文: [factorio-notes_zh.md](factorio-notes_zh.md)**
 
 Three of the design's starting assumptions turned out to be wrong. They are
 recorded here because each one changed the implementation, and because two of

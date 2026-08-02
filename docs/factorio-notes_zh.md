@@ -1,9 +1,9 @@
-# M0 实机采样结论
+# Factorio 实测笔记 —— 实机采样得到的结论
 
 环境：Factorio **2.0.77** (build 84539, linux64, headless)、Arch Linux、Python 3.14.6。
 原始采样见 `factorio_output_samples.txt`，探测脚本 `scripts/probe_stdout.py`。
 
-**English: [M0-findings.md](M0-findings.md)**
+**English: [factorio-notes.md](factorio-notes.md)**
 
 ---
 
