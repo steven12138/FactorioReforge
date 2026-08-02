@@ -1,0 +1,35 @@
+help:
+  summary: 查看和修改服务器设置
+  detail:
+    - "!!server                  查看当前设置"
+    - "!!server name <文字>       给服务器改名"
+    - "!!server description <文字> 修改描述"
+    - "!!server password [文字]    设置进服密码，不带参数则清除"
+    - "!!server maxplayers <n>    0 表示不限"
+    - "!!server public on|off     是否出现在公开服务器列表"
+    - "!!server lan on|off        是否在局域网广播"
+    - "!!server autosave <分钟>    自动存档间隔"
+    - "!!server pause on|off      无人时是否暂停"
+read_failed: "读不到 server-settings.json：{error}"
+write_failed: "写不了 server-settings.json：{error}"
+updated: "{key} 现在是 {value}"
+restart_needed: "Factorio 只在启动时读这个文件，需要重启才会生效（!!FR server restart）。"
+bad_flag: "{value!r} 不是 on 或 off"
+public_needs_account: "公开开服需要 server-settings.json 里的 username 和 token（来自你的 factorio.com 账号）。没有它们 Factorio 不会被列出，而且不会有任何提示。"
+commands_refused: "已拒绝。allow_commands: true 会让**每个玩家**都能用 /c —— 白给物品、瞬间科研、直接改地形。如果你真的想这么做，请手动改 server-settings.json。"
+commands_usage: "用法：!!server commands false|admins-only"
+show:
+  header: "服务器设置："
+  name: "  名称：{value}"
+  description: "  描述：{value}"
+  visibility: "  可见性：公开 {public}，局域网 {lan}"
+  max_players: "  最大玩家数：{value}"
+  password: "  进服密码：{value}"
+  verify: "  校验 factorio.com 账号：{value}"
+  autosave: "  自动存档：每 {minutes} 分钟，{slots} 个槽位"
+  pause: "  无人时暂停：{value}"
+  commands: "  allow_commands：{value}"
+  commands_open: "    ^ 每个玩家都能用 /c。这是沙盒，不是游戏了。"
+  set: 已设置
+  unset: 无
+  unlimited: 不限

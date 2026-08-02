@@ -18,7 +18,9 @@ def load(name: str):
     module_name = f"_test_plugin_{name}"
     if module_name in sys.modules:
         return sys.modules[module_name]
-    spec = importlib.util.spec_from_file_location(module_name, PLUGINS / f"{name}.py")
+    spec = importlib.util.spec_from_file_location(
+        module_name, PLUGINS / name / "__init__.py"
+    )
     module = importlib.util.module_from_spec(spec)
     sys.modules[module_name] = module
     spec.loader.exec_module(module)
@@ -185,3 +187,42 @@ class TestLockFileDiagnosis:
         ])
         assert result is not None
         assert result.key == "another_instance"
+
+
+class TestNoCheatCommands:
+    """FactorioReforge must never issue /c, which permanently flags a save.
+
+    Everything it runs goes through /sc (silent-command). This is a guarantee
+    worth asserting rather than remembering: one /c anywhere in the tree marks
+    the world for good.
+    """
+
+    ROOTS = [
+        Path(__file__).resolve().parent.parent / "factorio_reforge",
+        Path(__file__).resolve().parent.parent / "plugins",
+    ]
+
+    def test_no_source_file_issues_a_cheat_command(self):
+        import re
+
+        # "/c " or "/command " as a command being sent, not as prose.
+        pattern = re.compile(r'["\']/(?:c|command)\s')
+        offenders = []
+        for root in self.ROOTS:
+            for path in root.rglob("*.py"):
+                if pattern.search(path.read_text(encoding="utf-8")):
+                    offenders.append(str(path))
+        assert not offenders, f"these issue /c: {offenders}"
+
+    def test_the_lua_layer_uses_silent_command(self):
+        from factorio_reforge.core import lua
+
+        assert lua.json_query("game.tick")
+        # The interface is what actually prefixes it; assert the contract here.
+        import inspect
+
+        from factorio_reforge.plugin.interface import ServerInterface
+
+        source = inspect.getsource(ServerInterface.lua)
+        assert "/sc " in source
+        assert "/c " not in source

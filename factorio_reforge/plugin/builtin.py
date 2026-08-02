@@ -63,7 +63,17 @@ def build(server: ReforgeServer):
         for plugin_id in ids:
             plugin = server.plugins.get(plugin_id)
             changed = tr("plugin.file_changed") if plugin and plugin.file_changed() else ""
-            await source.reply(f"  {plugin.metadata}{changed}")
+            commands = _commands_of(server, plugin_id)
+            await source.reply(tr(
+                "plugin.entry",
+                id=plugin_id,
+                version=plugin.metadata.version,
+                description=plugin.metadata.description or tr("common.none"),
+                changed=changed,
+            ))
+            if commands:
+                await source.reply(tr("plugin.entry_commands", commands=", ".join(commands)))
+        await source.reply(tr("plugin.help_hint", prefix=server.config.command_prefix))
 
     async def plugin_reload(source: CommandSource, ctx: CommandContext):
         plugin_id = ctx["plugin_id"]
@@ -158,18 +168,64 @@ def build(server: ReforgeServer):
             await source.reply(f"  {key}")
 
     async def help_message(source: CommandSource):
-        await source.reply(f"FactorioReforge {CORE_VERSION}")
-        await source.reply(f"  {prefix} status            - server and framework state")
-        await source.reply(f"  {prefix} plugin list        - loaded plugins")
-        await source.reply(f"  {prefix} plugin reload <id> - reload one plugin")
-        await source.reply(f"  {prefix} reload             - reload every changed plugin")
-        await source.reply(f"  {prefix} server start|stop|restart|kill")
-        await source.reply(f"  {prefix} permission list|set <player> <level>")
-        await source.reply(f"  {prefix} lang [set <code>]  - language")
-        await source.reply(f"  {prefix} exit               - stop the server and quit")
-        for help_entry in server.plugins.registry.help_messages:
-            if source.has_permission(help_entry.permission):
-                await source.reply(f"  {help_entry.prefix} - {help_entry.message}")
+        """The index: core commands, then one grouped block per plugin."""
+        await source.reply(tr("help.header", version=CORE_VERSION))
+        for key, suffix in (
+            ("status", " status"), ("plugin_list", " plugin list"),
+            ("plugin_reload", " plugin reload <id>"), ("reload", " reload"),
+            ("server", " server start|stop|restart|kill"),
+            ("permission", " permission list|set <player> <level>"),
+            ("lang", " lang [set <code>]"), ("exit", " exit"),
+        ):
+            await source.reply(f"  {prefix}{suffix:<28} {tr('help.' + key)}")
+
+        entries = [
+            entry for entry in server.plugins.registry.help_messages
+            if source.has_permission(entry.permission)
+        ]
+        if not entries:
+            return
+
+        by_plugin: dict[str, list] = {}
+        for entry in entries:
+            by_plugin.setdefault(entry.plugin_id, []).append(entry)
+
+        for plugin_id in sorted(by_plugin):
+            plugin = server.plugins.get(plugin_id)
+            title = plugin.metadata.name if plugin else plugin_id
+            await source.reply("")
+            await source.reply(tr("help.plugin_header", name=title, id=plugin_id))
+            for entry in by_plugin[plugin_id]:
+                await source.reply(f"  {entry.prefix:<28} {entry.message}")
+        await source.reply("")
+        await source.reply(tr("help.detail_hint", prefix=prefix))
+
+    async def help_plugin(source: CommandSource, ctx: CommandContext):
+        """Everything one plugin has to say about itself."""
+        plugin_id = ctx["plugin_id"]
+        plugin = server.plugins.get(plugin_id)
+        if plugin is None:
+            await source.reply(tr("plugin.not_found", id=plugin_id))
+            return
+
+        meta = plugin.metadata
+        await source.reply(tr("help.plugin_header", name=meta.name, id=meta.id))
+        await source.reply(tr("help.plugin_version", version=meta.version,
+                              author=meta.author or tr("common.unknown")))
+        if meta.description:
+            await source.reply(f"  {meta.description}")
+
+        entries = [
+            entry for entry in server.plugins.registry.help_messages
+            if entry.plugin_id == plugin_id and source.has_permission(entry.permission)
+        ]
+        if not entries:
+            await source.reply(tr("help.no_commands"))
+            return
+        for entry in entries:
+            await source.reply(f"  {entry.prefix:<28} {entry.message}")
+            for line in entry.detail:
+                await source.reply(f"      {line}")
 
     admin = PermissionLevel.ADMIN
     owner = PermissionLevel.OWNER
@@ -177,7 +233,10 @@ def build(server: ReforgeServer):
     return (
         Literal(prefix)
         .runs(help_message)
-        .then(Literal("help").runs(help_message))
+        .then(
+            Literal("help").runs(help_message)
+            .then(Text("plugin_id").runs(help_plugin))
+        )
         .then(Literal("status").requires(PermissionLevel.USER).runs(status))
         .then(
             Literal("plugin")
@@ -220,6 +279,15 @@ def build(server: ReforgeServer):
         )
         .then(Literal("exit").requires(owner).runs(exit_all))
     )
+
+
+def _commands_of(server: ReforgeServer, plugin_id: str) -> list[str]:
+    """The command prefixes a plugin registered, for the listing."""
+    return sorted({
+        entry.prefix.split()[0]
+        for entry in server.plugins.registry.help_messages
+        if entry.plugin_id == plugin_id and entry.prefix
+    })
 
 
 def build_save_commands(server: ReforgeServer):

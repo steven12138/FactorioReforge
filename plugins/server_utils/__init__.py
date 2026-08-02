@@ -251,7 +251,7 @@ async def _report_player(source, name):
     await source.reply(tr("info.playtime", played=_ticks_to_text(info.get("online_time", 0))))
     await source.reply(tr(
         "info.admin",
-        game=tr("common.yes" if info.get("admin") else "common.no"),
+        game=tr("common.enabled" if info.get("admin") else "common.disabled"),
         level=level.label,
     ))
     await source.reply(tr("info.force", force=info.get("force", "?")))

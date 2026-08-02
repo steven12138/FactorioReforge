@@ -175,32 +175,30 @@ class TestBundledPluginCatalogues:
     PLUGINS = Path(__file__).resolve().parent.parent / "plugins"
 
     def catalogues(self):
-        """Every plugin lang directory: solo ones plus packaged ones."""
-        found = []
-        solo = self.PLUGINS / "lang"
-        if solo.is_dir():
-            found.extend(d for d in solo.iterdir() if d.is_dir())
-        found.extend(
+        """Every plugin's own lang directory."""
+        return sorted(
             d / "lang" for d in self.PLUGINS.iterdir()
-            if d.is_dir() and d.name != "lang" and (d / "lang").is_dir()
+            if d.is_dir() and not d.name.startswith("_") and (d / "lang").is_dir()
         )
-        return sorted(found)
 
     def test_every_bundled_plugin_ships_translations(self):
         modules = {
-            p.stem for p in self.PLUGINS.glob("*.py")
-        } | {
             d.name for d in self.PLUGINS.iterdir()
-            if d.is_dir() and d.name != "lang" and (d / "__init__.py").is_file()
+            if d.is_dir() and (d / "__init__.py").is_file()
         }
-        translated = {d.name if d.name != "lang" else d.parent.name for d in self.catalogues()}
+        translated = {d.parent.name for d in self.catalogues()}
         assert modules <= translated, f"no translations for: {sorted(modules - translated)}"
+
+    def test_every_bundled_plugin_is_a_package(self):
+        """A plugin owns its translations, which a solo .py has nowhere to keep."""
+        stragglers = [p.name for p in self.PLUGINS.glob("*.py")]
+        assert not stragglers, f"still solo files: {stragglers}"
 
     @pytest.mark.parametrize("language", ["zh_cn"])
     def test_each_plugin_catalogue_matches_english(self, language):
         problems = {}
         for directory in self.catalogues():
-            name = directory.name if directory.name != "lang" else directory.parent.name
+            name = directory.parent.name
             translator = Translator()
             translator.load_directory(directory)
             missing = translator.missing_keys(language)
@@ -217,7 +215,7 @@ class TestBundledPluginCatalogues:
 
         problems = {}
         for directory in self.catalogues():
-            name = directory.name if directory.name != "lang" else directory.parent.name
+            name = directory.parent.name
             translator = Translator()
             translator.load_directory(directory)
             english = translator._catalogue.get(DEFAULT_LANGUAGE, {})
@@ -228,3 +226,43 @@ class TestBundledPluginCatalogues:
                         placeholders(template), placeholders(other[key])
                     )
         assert not problems, f"placeholder mismatch: {problems}"
+
+
+class TestYamlBooleanKeys:
+    """YAML 1.1 reads yes/no/on/off/true/false as booleans, keys included.
+
+    A catalogue with a bare ``yes:`` key silently becomes ``True``, and every
+    lookup of ``common.yes`` then renders as the key. It cost one round of
+    "why is the server showing common.no in the settings view".
+    """
+
+    CATALOGUES = [
+        Path(__file__).resolve().parent.parent / "factorio_reforge" / "lang",
+        *(
+            d / "lang"
+            for d in (Path(__file__).resolve().parent.parent / "plugins").iterdir()
+            if d.is_dir() and (d / "lang").is_dir()
+        ),
+    ]
+
+    def test_no_catalogue_has_a_key_yaml_reads_as_a_boolean(self):
+        import yaml
+
+        def walk(data, path=""):
+            bad = []
+            if isinstance(data, dict):
+                for key, value in data.items():
+                    if isinstance(key, bool):
+                        bad.append(f"{path}<{key}>")
+                    bad.extend(walk(value, f"{path}{key}."))
+            return bad
+
+        offenders = []
+        for directory in self.CATALOGUES:
+            for path in directory.glob("*.yml"):
+                data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+                for problem in walk(data):
+                    offenders.append(f"{path.parent.parent.name}/{path.name}: {problem}")
+        assert not offenders, (
+            "quote these keys, or rename them: " + ", ".join(offenders)
+        )

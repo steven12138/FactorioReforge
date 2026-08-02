@@ -279,7 +279,16 @@ lines are FactorioReforge commands, anything else is passed to Factorio's stdin.
 !!why                            why the server last exited (admin)
 !!web                            web panel address (admin)
 !!map                            render the map and send it
-!!FR lang                        translation status
+!!FR lang [set <code>]           language, and switching it
+!!FR help <plugin>               one plugin in detail
+
+!!server                         view server settings
+!!server name|description <text> rename it
+!!server password [text]         set or clear the join password
+!!server maxplayers <n>          0 for unlimited
+!!server public|lan on|off       visibility
+!!server autosave <minutes>
+!!server pause on|off            pause when nobody is online
 ```
 
 Permissions: `guest(0) user(1) helper(2) admin(3) owner(4)`, stored in
@@ -574,6 +583,21 @@ crafted and distance walked are deliberately absent: Factorio does not track
 them per player, and a made-up number on a leaderboard is worse than no
 leaderboard.
 
+**`server_admin`** — `!!server` reads and edits `server-settings.json` from
+chat: name, description, password, player limit, visibility, autosave, pause.
+Factorio reads that file once at startup, so every change says a restart is
+needed. Writes go through a temp file and a rename, because a truncated
+`server-settings.json` stops the server from starting at all.
+
+`!!server commands true` is **refused**: that setting lets every player run
+`/c`, which is a decision to stop playing the game rather than a server option,
+and not one to reach by typing a word in chat. Set it by hand if you mean it.
+The startup report warns when it is already on.
+
+FactorioReforge itself never issues `/c` — its Lua goes through `/sc`
+(silent-command), which does not flag the save as cheated. A test greps the
+whole tree to keep it that way.
+
 **`web_panel`** — a read-only status page on `127.0.0.1:8080`, with JSON at
 `/api` and the latest map at `/map.png`. Read-only on purpose: no stop button,
 no restore, no console. A page with no auth and no write path cannot be abused
@@ -630,18 +654,22 @@ To add a language, copy `factorio_reforge/lang/en.yml` to `<code>.yml` beside
 it and translate the values, then do the same under `plugins/lang/<plugin_id>/`
 for each plugin. Keys are namespaced under the plugin id, so
 `server.tr("failed")` inside a plugin finds `<plugin_id>.failed` and falls
-through to the core catalogue for shared strings like `common.yes`.
+through to the core catalogue for shared strings like `common.enabled`.
 
 Where the files live:
 
 | Plugin shape | Its translations |
 |---|---|
-| solo, `plugins/warp.py` | `plugins/lang/warp/<code>.yml` |
-| package, `plugins/telegram_bridge/` | `plugins/telegram_bridge/lang/<code>.yml` |
+| any plugin, `plugins/warp/` | `plugins/warp/lang/<code>.yml` |
 
-A solo plugin gets its own subdirectory rather than a shared `plugins/lang/`,
-because a catalogue is loaded under one namespace at a time and they would
-otherwise overwrite each other.
+A plugin owns its translations the way it owns its code, which is why every
+bundled plugin is a package. A solo `.py` has nowhere of its own — it would
+have to share a directory with every other solo plugin, and a catalogue is
+loaded under one namespace at a time, so they would overwrite each other.
+
+One trap worth knowing: **YAML reads `yes`, `no`, `on` and `off` as booleans,
+keys included.** A bare `yes:` key becomes `True`, and every lookup of
+`common.yes` then renders as the key. A test rejects any catalogue with one.
 
 Tests assert that every bundled plugin ships both languages, that neither has
 keys the other lacks, and that matching keys carry the same placeholders — a

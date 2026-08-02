@@ -5,6 +5,7 @@ what decides which world gets destroyed to make room for a new one.
 """
 
 import json
+import pathlib
 import time
 import zipfile
 
@@ -400,3 +401,61 @@ class TestRconExposureCheck:
 
         assert "--rcon-bind 127.0.0.1:" in Config().start_command
         assert "--rcon-port" not in Config().start_command
+
+
+class TestServerSettingsWrites:
+    """server_admin edits a file Factorio refuses to start without."""
+
+    def _plugin(self):
+        import importlib.util
+        import sys
+
+        name = "_test_plugin_server_admin"
+        if name in sys.modules:
+            return sys.modules[name]
+        path = (
+            pathlib.Path(__file__).resolve().parent.parent
+            / "plugins" / "server_admin" / "__init__.py"
+        )
+        spec = importlib.util.spec_from_file_location(name, path)
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[name] = module
+        spec.loader.exec_module(module)
+        return module
+
+    def test_a_write_is_atomic(self, tmp_path):
+        """A truncated server-settings.json stops the server from starting."""
+        plugin = self._plugin()
+        target = tmp_path / "server-settings.json"
+        target.write_text(json.dumps({"name": "before"}))
+
+        class FakeConfig:
+            working_dir_path = tmp_path
+            command_argv = ["./factorio", "--server-settings", str(target)]
+
+        class FakeCore:
+            config = FakeConfig()
+
+        class FakeServer:
+            _server = FakeCore()
+
+        plugin.write_settings(FakeServer(), {"name": "after"})
+        assert json.loads(target.read_text())["name"] == "after"
+        assert not list(tmp_path.glob("*.tmp")), "the temp file must be renamed away"
+
+    def test_the_settings_path_follows_the_start_command(self, tmp_path):
+        """A non-standard --server-settings must be honoured, not assumed away."""
+        plugin = self._plugin()
+        elsewhere = tmp_path / "custom.json"
+
+        class FakeConfig:
+            working_dir_path = tmp_path
+            command_argv = ["./factorio", "--server-settings", "custom.json"]
+
+        class FakeCore:
+            config = FakeConfig()
+
+        class FakeServer:
+            _server = FakeCore()
+
+        assert plugin.settings_path(FakeServer()) == elsewhere

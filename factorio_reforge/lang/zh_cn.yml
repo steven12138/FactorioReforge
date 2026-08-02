@@ -2,8 +2,8 @@
 # 对照 en.yml 检查缺了什么：!!FR lang missing zh_cn
 
 common:
-  yes: 是
-  no: 否
+  enabled: 是
+  disabled: 否
   none: 无
   empty: 空
   unknown: 未知
@@ -45,6 +45,9 @@ plugin:
   not_found: "没有这个插件：{id}"
   reloaded_changed: "已重载：{names}"
   nothing_changed: 没有插件文件发生改动
+  entry: "  {id} v{version} —— {description}{changed}"
+  entry_commands: "      命令：{commands}"
+  help_hint: "{prefix}help <插件id> 可以查看单个插件的详情"
 
 permission:
   default: "默认等级：{level}"
@@ -81,6 +84,10 @@ save:
 
 help:
   header: "FactorioReforge {version}"
+  plugin_header: "{name}（{id}）"
+  plugin_version: "  v{version}，作者 {author}"
+  no_commands: "  （没有注册命令）"
+  detail_hint: "{prefix} help <插件id> 查看单个插件详情"
   status: 服务器与框架状态
   plugin_list: 已加载的插件
   plugin_reload: 重载单个插件
@@ -153,6 +160,7 @@ retired:
   max_snapshot_age_days: "已由按槽位设置的 saves.slot_protection 取代"
 
 startup:
+  cheats_open: "server-settings.json 里 allow_commands 是 true —— 每个玩家都能用 /c。除非这是你有意为之，否则请改成 admins-only 或 false。"
   summary: "启动检查：{problems} 个问题，{notices} 条提示，{routine} 条例行信息"
   blueprint_storage: "没有个人蓝图库（{current}）；headless 服务器没有本地玩家，所以永远不会创建它。无害，且每次启动都会出现。不要手动创建这个文件 —— 空文件会被判定为已损坏。"
   cloud_player_data: "没有 Steam 云玩家数据 —— headless 服务器上正常"

@@ -46,16 +46,15 @@ class PluginError(Exception):
 
 
 def plugin_lang_dir(path: Path, plugin_id: str) -> Path:
-    """Where a plugin's ``<language>.yml`` files live.
+    """Where a plugin's ``<language>.yml`` files live: inside the plugin.
 
-    A multi-file plugin keeps them inside its own package. A solo ``.py`` has
-    nowhere of its own, so it gets ``plugins/lang/<plugin_id>/`` -- pointing
-    every solo plugin at a shared ``plugins/lang/`` would have them overwrite
-    each other's keys, since a catalogue is loaded under one namespace at a time.
+    A plugin owns its translations the way it owns its code, so a package keeps
+    them in ``lang/``. A solo ``.py`` file has nowhere of its own -- it would
+    have to share a directory with every other solo plugin, and a catalogue is
+    loaded under one namespace at a time, so they would overwrite each other.
+    Solo plugins therefore get no translations; make it a package to have them.
     """
-    if path.is_dir():
-        return path / "lang"
-    return path.parent / "lang" / plugin_id
+    return path / "lang" if path.is_dir() else path.parent / "__no_lang__"
 
 
 class _NoBytecodeCacheLoader(importlib.machinery.SourceFileLoader):

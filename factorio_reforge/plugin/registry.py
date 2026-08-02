@@ -22,6 +22,9 @@ class HelpMessage:
     prefix: str
     message: str
     permission: int = 0
+    #: Longer text for ``!!help <plugin>``: the lines a plugin wants to show
+    #: when someone asks about it specifically.
+    detail: tuple[str, ...] = ()
 
 
 class PluginRegistry:
@@ -41,8 +44,16 @@ class PluginRegistry:
     def add_command(self, node: ArgumentNode) -> None:
         self.commands.append(node)
 
-    def add_help(self, prefix: str, message: str, permission: int = 0) -> None:
-        self.help_messages.append(HelpMessage(self.plugin_id, prefix, message, permission))
+    def add_help(
+        self,
+        prefix: str,
+        message: str,
+        permission: int = 0,
+        detail: tuple[str, ...] = (),
+    ) -> None:
+        self.help_messages.append(
+            HelpMessage(self.plugin_id, prefix, message, permission, tuple(detail))
+        )
 
     def clear(self) -> None:
         self.event_listeners.clear()

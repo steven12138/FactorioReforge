@@ -300,8 +300,21 @@ class PluginServerInterface(ServerInterface):
         self._plugin.registry.add_command(node)
         self._server.commands.register(self._plugin.id, node)
 
-    def register_help_message(self, prefix: str, message: str, permission: int = 0) -> None:
-        self._plugin.registry.add_help(prefix, message, permission)
+    def register_help_message(
+        self,
+        prefix: str,
+        message: str,
+        permission: int = 0,
+        detail: tuple[str, ...] | list[str] = (),
+    ) -> None:
+        """Advertise a command.
+
+        ``message`` is the one-line summary shown by ``!!help``. ``detail`` is
+        the longer explanation shown by ``!!help <plugin_id>`` -- a plugin with
+        several subcommands wants somewhere to list them that is not the
+        top-level index.
+        """
+        self._plugin.registry.add_help(prefix, message, permission, tuple(detail))
         self._server.plugins._rebuild()
 
     # -- per-plugin storage --------------------------------------------------

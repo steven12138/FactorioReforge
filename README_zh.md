@@ -271,7 +271,16 @@ python -m factorio_reforge
 !!why                            服务器上次为什么退出（admin）
 !!web                            Web 面板地址（admin）
 !!map                            渲染世界地图并发送
-!!FR lang                        翻译状态
+!!FR lang [set <语言>]            语言，以及切换语言
+!!FR help <插件id>                查看单个插件详情
+
+!!server                         查看服务器设置
+!!server name|description <文字>  改名 / 改描述
+!!server password [文字]          设置或清除进服密码
+!!server maxplayers <n>          0 表示不限
+!!server public|lan on|off       可见性
+!!server autosave <分钟>
+!!server pause on|off            无人时是否暂停
 ```
 
 权限：`guest(0) user(1) helper(2) admin(3) owner(4)`，持久化在
@@ -517,6 +526,19 @@ Web 面板里渲染成 SVG，两边都不需要绘图库。
 `online_time`），加上全势力的击杀和产量总计。**手工制作数和行走距离刻意没做**：
 Factorio 不按玩家统计这两项，而排行榜上放一个编出来的数字比没有排行榜更糟。
 
+**`server_admin`** —— `!!server` 在聊天里读写 `server-settings.json`：
+名称、描述、密码、人数上限、可见性、自动存档、无人暂停。
+Factorio 只在启动时读这个文件，所以每次改动都会提示需要重启。
+写入走临时文件 + rename，因为一个被截断的 `server-settings.json`
+会让服务器**根本起不来**。
+
+`!!server commands true` 会被**拒绝**：那个设置让每个玩家都能用 `/c`，
+这是"决定不再玩这个游戏"而不是一个服务器选项，不该靠在聊天里打一个词就达成。
+真要开就手动改文件。启动报告也会在它已经打开时警告。
+
+FactorioReforge 自己从不发 `/c` —— 它的 Lua 走 `/sc`（silent-command），
+不会把存档标记为作弊。有测试 grep 整个代码树来保证这一点。
+
 **`web_panel`** —— `127.0.0.1:8080` 上的只读状态页，`/api` 提供 JSON。
 只读是刻意的：没有停服按钮、没有回档、没有控制台。一个没有鉴权也没有写入路径的页面，
 无法被利用去造成破坏。要从机器外面控制，走 Telegram，那边是有鉴权的。
@@ -555,11 +577,15 @@ chart tag 与之互补：gps 标签说的是"现在看这里"，chart tag 说的
 
 | 插件形态 | 翻译文件 |
 |---|---|
-| 单文件 `plugins/warp.py` | `plugins/lang/warp/<语言代码>.yml` |
-| 目录 `plugins/telegram_bridge/` | `plugins/telegram_bridge/lang/<语言代码>.yml` |
+| 任何插件，如 `plugins/warp/` | `plugins/warp/lang/<语言代码>.yml` |
 
-单文件插件各自有子目录而不是共用一个 `plugins/lang/` ——
-因为一次加载只能挂一个命名空间，共用会互相覆盖。
+插件像拥有自己的代码一样拥有自己的翻译，所以自带的插件全部是**包**形式。
+单文件 `.py` 没有自己的地方放翻译 —— 它只能和其他单文件插件共用一个目录，
+而一次加载只能挂一个命名空间，共用会互相覆盖。
+
+一个值得记住的坑：**YAML 会把 `yes`、`no`、`on`、`off` 当成布尔值，键也一样。**
+一个裸的 `yes:` 键会变成 `True`，于是所有 `common.yes` 的查找都会显示成键名。
+有测试专门拒绝这种键。
 
 测试会断言：每个插件都带齐两种语言、两边的键完全一致、
 且同一个键在两种语言里的占位符相同 —— 占位符对不上会导致只有一种语言格式化出错。

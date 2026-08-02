@@ -152,7 +152,7 @@ class PluginTranslator:
     """A view of the shared translator scoped to one plugin.
 
     ``server.tr("failed")`` in a plugin looks up ``<plugin_id>.failed``, and
-    falls through to the core catalogue for shared strings like ``common.yes``,
+    falls through to the core catalogue for shared strings like ``common.enabled``,
     so a plugin does not have to redefine them.
     """
 

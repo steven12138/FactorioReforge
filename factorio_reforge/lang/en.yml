@@ -3,8 +3,8 @@
 # `save.no_slot` in chat says exactly what to add.
 
 common:
-  yes: "yes"
-  no: "no"
+  enabled: "yes"
+  disabled: "no"
   none: "none"
   empty: "empty"
   unknown: "unknown"
@@ -46,6 +46,9 @@ plugin:
   not_found: "No such plugin: {id}"
   reloaded_changed: "Reloaded: {names}"
   nothing_changed: No plugin files have changed
+  entry: "  {id} v{version} - {description}{changed}"
+  entry_commands: "      commands: {commands}"
+  help_hint: "{prefix}help <plugin> shows what one plugin offers"
 
 permission:
   default: "Default level: {level}"
@@ -82,6 +85,10 @@ save:
 
 help:
   header: "FactorioReforge {version}"
+  plugin_header: "{name} ({id})"
+  plugin_version: "  v{version} by {author}"
+  no_commands: "  (registers no commands)"
+  detail_hint: "{prefix} help <plugin> for one plugin in detail"
   status: "server and framework state"
   plugin_list: "loaded plugins"
   plugin_reload: "reload one plugin"
@@ -154,6 +161,7 @@ retired:
   max_snapshot_age_days: "replaced by the per-slot saves.slot_protection"
 
 startup:
+  cheats_open: "server-settings.json has allow_commands: true -- every player can run /c. Set it to admins-only or false unless that is deliberate."
   summary: "Startup check: {problems} problem(s), {notices} notice(s), {routine} routine"
   blueprint_storage: "no personal blueprint library ({current}); a headless server has no local player, so it never creates one. Harmless, and it appears on every start. Do not create the file by hand -- an empty one is read as corrupt."
   cloud_player_data: "no Steam cloud player data -- normal on a headless server"

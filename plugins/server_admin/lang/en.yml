@@ -1,0 +1,35 @@
+help:
+  summary: view and change server settings
+  detail:
+    - "!!server                  show the current settings"
+    - "!!server name <text>      rename the server"
+    - "!!server description <t>  change the description"
+    - "!!server password [text]  set a join password, or clear it"
+    - "!!server maxplayers <n>   0 for unlimited"
+    - "!!server public on|off    list in the public server browser"
+    - "!!server lan on|off       announce on the local network"
+    - "!!server autosave <min>   autosave interval"
+    - "!!server pause on|off     pause when nobody is online"
+read_failed: "Could not read server-settings.json: {error}"
+write_failed: "Could not write server-settings.json: {error}"
+updated: "{key} is now {value}"
+restart_needed: "Factorio reads this file at startup, so restart for it to take effect (!!FR server restart)."
+bad_flag: "{value!r} is not on or off"
+public_needs_account: "Going public needs username and token in server-settings.json, from your factorio.com account. Without them Factorio stays unlisted and says nothing."
+commands_refused: "Refused. allow_commands: true lets every player run /c -- free items, instant research, edited terrain. Set it in server-settings.json by hand if you really mean it."
+commands_usage: "Usage: !!server commands false|admins-only"
+show:
+  header: "Server settings:"
+  name: "  name: {value}"
+  description: "  description: {value}"
+  visibility: "  visibility: public {public}, LAN {lan}"
+  max_players: "  max players: {value}"
+  password: "  join password: {value}"
+  verify: "  verify factorio.com accounts: {value}"
+  autosave: "  autosave: every {minutes} min, {slots} slots"
+  pause: "  pause when empty: {value}"
+  commands: "  allow_commands: {value}"
+  commands_open: "    ^ every player can run /c. This is a sandbox, not a game."
+  set: set
+  unset: none
+  unlimited: unlimited

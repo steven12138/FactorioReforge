@@ -190,12 +190,35 @@ class ReforgeServer:
             await asyncio.sleep(delay)
             self.report_startup()
 
+    def _check_cheats(self) -> None:
+        """Warn if server-settings.json lets every player run /c.
+
+        FactorioReforge never issues ``/c`` itself -- its Lua goes through
+        ``/sc`` -- but that guarantee is worth nothing if the settings file
+        hands the same power to anyone who joins.
+        """
+        import json
+
+        argv = self.config.command_argv
+        if "--server-settings" not in argv:
+            return
+        path = Path(argv[argv.index("--server-settings") + 1])
+        if not path.is_absolute():
+            path = self.config.working_dir_path / path
+        try:
+            settings = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return
+        if settings.get("allow_commands") in (True, "true"):
+            self.logger.warning(self.tr("startup.cheats_open"))
+
     def report_startup(self) -> None:
         """Print what the startup output revealed, after the fact.
 
         Separate from Factorio's own lines on purpose: those stay verbatim so
         they still match the game's log and anything posted on the forums.
         """
+        self._check_cheats()
         summary = self.loglens.summary(self.tr)
         if summary is None:
             return
