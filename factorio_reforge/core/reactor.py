@@ -9,6 +9,7 @@ everything after the echo.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import re
 from typing import TYPE_CHECKING
@@ -45,6 +46,8 @@ class InfoReactor:
         self.server = server
         self.handler: FactorioHandler = server.handler
         self.logger = logger or logging.getLogger(__name__)
+        #: In-flight command tasks, kept referenced so none is collected early.
+        self._running: set[asyncio.Task] = set()
 
     async def react(self, info: Info) -> None:
         await self._core_reactions(info)
@@ -86,6 +89,37 @@ class InfoReactor:
         for tag in self.handler.take_new_unknown_tags():
             self.logger.warning(self.server.tr("log.unknown_tag", tag=tag))
 
+    def _run_command(self, source: CommandSource, text: str) -> None:
+        """Run a command in its own task, never inline.
+
+        This is not a style choice. Running it inline deadlocks: the line
+        arrives on the stdout pump, the handler runs there, and a handler like
+        ``!!save make`` then waits for Factorio to print "Saving finished" --
+        which only the pump can read, and the pump is inside the handler. The
+        server looks frozen, further commands are ignored, and it clears only
+        when the save times out a hundred and twenty seconds later.
+
+        Parsing and event dispatch stay inline so line order is preserved; only
+        the command, which may take arbitrarily long, is handed to a task.
+        """
+        task = asyncio.create_task(self._dispatch(source, text))
+        # Hold a reference: a task with no strong reference can be collected
+        # mid-flight, which loses the command silently.
+        self._running.add(task)
+        task.add_done_callback(self._running.discard)
+
+    async def _dispatch(self, source: CommandSource, text: str) -> None:
+        try:
+            if await self.server.commands.dispatch(source, text):
+                return
+            # An unknown !! command is a typo, not something Factorio should see
+            # -- forwarding it would broadcast it to every player as chat.
+            await source.reply(
+                self.server.tr("error.unknown_command", command=text.split()[0])
+            )
+        except Exception:
+            self.logger.exception("Command %r failed", text)
+
     # -- routing -------------------------------------------------------------
 
     async def _handle_console(self, info: Info) -> None:
@@ -93,11 +127,7 @@ class InfoReactor:
         text = info.content
         source = ConsoleCommandSource(self.server.interface, info)
         if self.server.commands.looks_like_command(text):
-            if await self.server.commands.dispatch(source, text):
-                return
-            # An unknown !! command is a typo, not something Factorio should see
-            # -- forwarding it would broadcast it to every player as chat.
-            await source.reply(f"Unknown command: {text.split()[0]}")
+            self._run_command(source, text)
             return
 
         await self.server.plugins.dispatch(ev.USER_INFO, info)
@@ -125,4 +155,4 @@ class InfoReactor:
             source: CommandSource = PlayerCommandSource(
                 self.server.interface, info, info.player
             )
-            await self.server.commands.dispatch(source, info.content)
+            self._run_command(source, info.content)
