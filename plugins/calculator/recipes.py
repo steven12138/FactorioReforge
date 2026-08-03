@@ -27,6 +27,22 @@ API notes, all of them things that moved in 2.0 and would silently return nil:
 * productivity built into a machine (foundry, electromagnetic plant, biochamber)
   lives in ``effect_receiver.base_effect``, which does not exist on every
   prototype and is read through a pcall for that reason.
+* what a **mining drill** yields is read from ``mineable_properties`` on every
+  ``resource`` entity, and it matters more than it sounds. With Space Age data
+  loaded, iron ore is a *product* -- of asteroid crushing -- so "nothing makes
+  it" stops being the test for a raw material, and the chunks themselves are
+  produced only by reprocessing each other. Asking the game what comes out of
+  the ground is what keeps a plan for circuits from being denominated in
+  asteroids.
+* **``crafting_speed`` is a method, not an attribute.** Quality made the value
+  depend on an argument, so 2.0.77 has ``get_crafting_speed()`` and reading
+  ``.crafting_speed`` raises *"LuaEntityPrototype doesn't contain key
+  crafting_speed"*. Same for ``get_max_energy_usage()``. ``belt_speed`` is still
+  a plain attribute. Measured on the server, not read off the docs, which
+  describe a later build; both spellings are tried in that order.
+
+Everything here was checked against a live 2.0.77 server -- see
+``scripts/probe_prototypes.py``, which re-runs the check.
 """
 
 from __future__ import annotations
@@ -61,15 +77,22 @@ def static_data() -> str:
         "for _, kind in pairs({'assembling-machine', 'furnace', 'rocket-silo'}) do "
         "  for name, e in pairs(prototypes.get_entity_filtered({{filter = 'type', type = kind}})) do "
         "    local cats = {} "
-        "    for c in pairs(e.crafting_categories or {}) do cats[#cats + 1] = c end "
+        "    for c in pairs(safe(function() return e.crafting_categories end) or {}) do "
+        "      cats[#cats + 1] = c end "
         "    local prod = 0 "
         "    local recv = safe(function() return e.effect_receiver end) "
         "    if recv and recv.base_effect and recv.base_effect.productivity then "
         "      prod = recv.base_effect.productivity end "
-        "    machines[name] = {speed = e.crafting_speed, categories = cats, "
-        "      slots = safe(function() return e.module_inventory_size end) or 0, "
-        "      energy = safe(function() return e.max_energy_usage end) or 0, "
-        "      productivity = prod, kind = kind} "
+        "    local speed = safe(function() return e.get_crafting_speed() end) "
+        "      or safe(function() return e.crafting_speed end) "
+        "    local energy = safe(function() return e.get_max_energy_usage() end) "
+        "      or safe(function() return e.max_energy_usage end) "
+        "      or safe(function() return e.energy_usage end) "
+        "    if speed then "
+        "      machines[name] = {speed = speed, categories = cats, "
+        "        slots = safe(function() return e.module_inventory_size end) or 0, "
+        "        energy = energy or 0, productivity = prod, kind = kind} "
+        "    end "
         "  end "
         "end "
         "local belts = {} "
@@ -80,7 +103,14 @@ def static_data() -> str:
         "for name, it in pairs(prototypes.get_item_filtered({{filter = 'type', type = 'module'}})) do "
         "  modules[name] = safe(function() return it.module_effects end) or {} "
         "end "
-        "return {machines = machines, belts = belts, modules = modules} end)()"
+        "local mined = {} "
+        "for _, kind in pairs({'resource', 'plant'}) do "
+        "  for _, e in pairs(prototypes.get_entity_filtered({{filter = 'type', type = kind}})) do "
+        "    local m = safe(function() return e.mineable_properties end) "
+        "    for _, p in pairs((m and m.products) or {}) do mined[#mined + 1] = p.name end "
+        "  end "
+        "end "
+        "return {machines = machines, belts = belts, modules = modules, mined = mined} end)()"
     )
 
 
@@ -107,7 +137,10 @@ def player_context(player: str) -> str:
         "local out = {} "
         "local cursor = safe(function() return p.cursor_stack end) "
         "if cursor and cursor.valid_for_read then out.cursor = cursor.name end "
-        "local target = p.selected or (p.opened_gui_type == defines.gui_type.entity and p.opened) "
+        "local target = safe(function() return p.selected end) "
+        "  or safe(function() "
+        "       if p.opened_gui_type == defines.gui_type.entity then return p.opened end "
+        "     end) "
         "if target and safe(function() return target.valid end) then "
         "  out.entity = target.name "
         "  local r = safe(function() return target.get_recipe() end) "
@@ -119,6 +152,34 @@ def player_context(player: str) -> str:
         "  end "
         "end "
         "return out end)()"
+    )
+
+
+def recipes_named(names: list[str]) -> str:
+    """Look recipes up by their own name rather than by what they produce.
+
+    ``!!recipe advanced-oil-processing`` is a reasonable thing to type, and
+    there is no *item* by that name, so a product lookup finds nothing.
+    """
+    wanted = "{" + ",".join(lua.lua_string(name) for name in names) + "}"
+    return (
+        "(function() " + _SAFE +
+        f"local out = {{}} for _, name in pairs({wanted}) do "
+        "  local r = prototypes.recipe[name] "
+        "  if r then "
+        "    local ing, prod = {}, {} "
+        "    for _, i in pairs(r.ingredients) do "
+        "      ing[#ing + 1] = {name = i.name, amount = i.amount, type = i.type} end "
+        "    for _, p in pairs(r.products) do "
+        "      prod[#prod + 1] = {name = p.name, type = p.type, amount = p.amount, "
+        "        amount_min = p.amount_min, amount_max = p.amount_max, "
+        "        probability = p.probability} end "
+        "    out[name] = {energy = r.energy, ingredients = ing, products = prod, "
+        "      category = safe(function() return r.category end), "
+        "      categories = safe(function() return r.categories end), "
+        "      max_productivity = safe(function() return r.maximum_productivity end)} "
+        "  end "
+        "end return out end)()"
     )
 
 
@@ -141,27 +202,74 @@ def search_items(term: str, limit: int = 6) -> str:
     )
 
 
-def recipes_for(items: list[str]) -> str:
+def recipes_for(
+    items: list[str],
+    exclude_categories: set[str] | None = None,
+    exclude_patterns: list[str] | None = None,
+    keep: set[str] | None = None,
+    only_unlocked: bool = True,
+) -> str:
     """Every recipe producing any of ``items``, with its full ingredient list.
 
     One pass over ``prototypes.recipe`` per call regardless of how many items
     are asked about, because the pass is the expensive part and the set lookup
     is not.
+
+    The exclusions are not a nicety. 310 of the 659 recipes on a stock 2.0.77
+    server are recycling, and every one of them "produces" the circuits inside
+    whatever it shreds. Left in, the cheapest way to make an electronic circuit
+    is to recycle scrap -- true, in the sense that the solver was asked to
+    minimise raw input, and useless as something to build. ``keep`` is how a
+    recipe the caller asked for by name survives the filter anyway.
+
+    ``only_unlocked`` asks the *force*, not the prototype: ``force.recipes[name]
+    .enabled`` is what this save has actually researched. It matters more than
+    it sounds on a Space Age server, where the full recipe set includes casting
+    from molten metal and Gleba's bioflux chain -- both genuinely cheaper by raw
+    units, and both unreachable until you have been to that planet. Restricting
+    to what is researched turns "what is theoretically optimal" into "what you
+    can go and build", which is the question someone typing in chat is asking.
     """
     wanted = "{" + ",".join(f"[{lua.lua_string(name)}] = true" for name in items) + "}"
+    kept = "{" + ",".join(f"[{lua.lua_string(name)}] = true" for name in sorted(keep or ())) + "}"
+    bad_categories = "{" + ",".join(
+        f"[{lua.lua_string(name)}] = true" for name in sorted(exclude_categories or ())
+    ) + "}"
+    patterns = "{" + ",".join(
+        lua.lua_string(pattern) for pattern in (exclude_patterns or [])
+    ) + "}"
     return (
         "(function() " + _SAFE +
         f"local want = {wanted} "
+        f"local keep = {kept} "
+        f"local bad = {bad_categories} "
+        f"local patterns = {patterns} "
+        f"local unlocked_only = {'true' if only_unlocked else 'false'} "
+        "local force = game.forces.player "
+        "local function excluded(name, r) "
+        "  if keep[name] then return false end "
+        "  if unlocked_only then "
+        "    local fr = safe(function() return force.recipes[name] end) "
+        "    if not fr or not fr.enabled then return true end "
+        "  end "
+        "  if bad[safe(function() return r.category end) or ''] then return true end "
+        "  for _, p in pairs(patterns) do "
+        "    if string.find(name, p, 1, true) then return true end "
+        "  end "
+        "  return false "
+        "end "
         "local found = {} "
         "local producers = {} "
         "for name, r in pairs(prototypes.recipe) do "
         "  local hit = false "
+        "  if not excluded(name, r) then "
         "  for _, p in pairs(r.products) do "
         "    if want[p.name] then "
         "      hit = true "
         "      producers[p.name] = producers[p.name] or {} "
         "      table.insert(producers[p.name], name) "
         "    end "
+        "  end "
         "  end "
         "  if hit then "
         "    local ing, prod = {}, {} "
@@ -287,25 +395,56 @@ class Modules:
     productivity: Number = Fraction(0)
 
     def describe(self) -> str:
+        """Signed, because productivity modules *cost* speed and should say so."""
         parts = []
-        if self.speed:
-            parts.append(f"speed +{int(self.speed * 100)}%")
-        if self.productivity:
-            parts.append(f"prod +{int(self.productivity * 100)}%")
+        for label, value in (("speed", self.speed), ("prod", self.productivity)):
+            if value:
+                parts.append(f"{label} {int(value * 100):+d}%")
         return ", ".join(parts)
+
+
+#: Recipe categories no plan should be built out of by default.
+#:
+#: ``recycling`` is 310 of the 659 recipes on a stock 2.0.77 server and every
+#: one of them lists what it shreds as a product, which makes "recycle scrap"
+#: the cheapest way to make almost anything. ``parameters`` are the placeholder
+#: recipes behind parameterised blueprints and make nothing at all.
+EXCLUDED_CATEGORIES = ("recycling", "recycling-or-hand-crafting", "parameters")
+
+#: Recipe names to skip. Barrelling is a closed loop -- fill and empty cancel
+#: out -- so it only ever adds noise to a plan that was not about barrels.
+EXCLUDED_PATTERNS = ("-barrel",)
 
 
 class RecipeBook:
     """A cache of what the server said, and the closure walk over it."""
 
-    def __init__(self, server):
+    def __init__(self, server, excluded_categories=None, excluded_patterns=None,
+                 only_unlocked=True):
+        self.only_unlocked = only_unlocked
+        self.excluded_categories = set(
+            EXCLUDED_CATEGORIES if excluded_categories is None else excluded_categories
+        )
+        self.excluded_patterns = list(
+            EXCLUDED_PATTERNS if excluded_patterns is None else excluded_patterns
+        )
         self.server = server
         self.recipes: dict[str, Recipe] = {}
         self.producers: dict[str, list[str]] = {}
         self.machines: dict[str, Machine] = {}
         self.belts: dict[str, Number] = {}
         self.modules: dict[str, dict] = {}
+        self.mined: set[str] = set()
+        """What a mining drill yields -- the things that genuinely come from the map."""
+
         self._static_loaded = False
+
+    def set_unlocked_only(self, flag: bool) -> None:
+        """Switching what counts as available invalidates every cached answer."""
+        if flag != self.only_unlocked:
+            self.only_unlocked = flag
+            self.recipes.clear()
+            self.producers.clear()
 
     def clear(self) -> None:
         self.recipes.clear()
@@ -313,6 +452,7 @@ class RecipeBook:
         self.machines.clear()
         self.belts.clear()
         self.modules.clear()
+        self.mined.clear()
         self._static_loaded = False
 
     async def load_static(self) -> None:
@@ -324,14 +464,18 @@ class RecipeBook:
         for name, speed in (data.get("belts") or {}).items():
             self.belts[name] = belt_throughput(speed)
         self.modules = data.get("modules") or {}
+        self.mined = {str(name) for name in _as_list(data.get("mined"))}
         self._static_loaded = True
 
-    async def fetch(self, items: list[str]) -> None:
+    async def fetch(self, items: list[str], keep: set[str] | None = None) -> None:
         """Pull every recipe producing any of ``items`` into the cache."""
         missing = [item for item in items if item not in self.producers]
         if not missing:
             return
-        data = await self.server.lua_json(recipes_for(missing)) or {}
+        data = await self.server.lua_json(recipes_for(
+            missing, self.excluded_categories, self.excluded_patterns, keep,
+            self.only_unlocked,
+        )) or {}
         for name, raw in (data.get("recipes") or {}).items():
             if name not in self.recipes:
                 self.recipes[name] = parse_recipe(name, raw)
@@ -357,9 +501,14 @@ class RecipeBook:
         picks one, because choosing between them is exactly what the solver is
         for: which oil recipe to run is a consequence of what you asked for, not
         something to decide up front.
+
+        Excluded categories are skipped except for a recipe named after a target
+        or named in ``prefer``: asking for ``petroleum-gas-barrel`` should get
+        you barrels, and asking for a circuit should not get you a recycler.
         """
         raw = raw or set()
         prefer = prefer or {}
+        keep = set(targets) | set(prefer.values())
         chosen: dict[str, Recipe] = {}
         frontier = [item for item in targets if item not in raw]
         seen: set[str] = set(frontier)
@@ -369,7 +518,7 @@ class RecipeBook:
             depth += 1
             if depth > max_depth:
                 raise RecursionError(f"recipe graph deeper than {max_depth} levels")
-            await self.fetch(frontier)
+            await self.fetch(frontier, keep=keep)
             next_items: list[str] = []
             for item in frontier:
                 names = self.producers.get(item) or []

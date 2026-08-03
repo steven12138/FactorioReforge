@@ -261,16 +261,37 @@ running inside the game, so it mostly does not have to be typed:
                "oil-refinery", "centrifuge", "rocket-silo"],
   "belt": "transport-belt",
   "default_rate": "1/s",
-  "raw_items": [],                       // stop the walk here
-  "raw_costs": {"water": 0.01, "steam": 0.01},
+  "only_researched": true,               // plan with what this save has unlocked
+  "raw_items": ["steam"],                // stop the walk here
+  "raw_costs": {"water": 0.01},
+  "exclude_categories": ["recycling", "recycling-or-hand-crafting", "parameters"],
+  "exclude_patterns": ["-barrel"],
   "max_steps": 14
 }
 ```
 
-`raw_costs` is the one number that is a judgement rather than a fact from the
-game, and it cannot be avoided: cracking heavy oil and pumping more crude both
-produce petroleum, and which is better depends on your map. Charging water the
-same as crude oil makes the solver refuse to crack at all.
+**`only_researched` is the setting that makes the answers usable**, and it was
+added because of what a live Space Age server did without it. Asked for
+electronic circuits, the solver answered *casting from molten iron in a
+foundry*, which is genuinely cheaper per ore — and unreachable until you have
+been to Vulcanus. Asked for petroleum it built a Gleba bioflux chain to make
+sulfur. Restricting to `force.recipes[name].enabled` turns "theoretically
+optimal" into "what you can go and build". Add `all=1` to a question to plan
+with everything; a plan is reported as assuming unresearched recipes when it
+had to fall back.
+
+The other three defaults are all lessons from the same run:
+
+- **`exclude_categories`** — 310 of the 659 recipes on that server are
+  recycling, and each lists what it shreds as a product. Left in, the cheapest
+  way to make a circuit is to recycle scrap.
+- **`raw_items: ["steam"]`** — steam comes from a boiler, and a boiler is not a
+  recipe. The only recipe that makes steam is acid neutralisation, so the solver
+  cheerfully built a sulfuric acid chain to get steam as a byproduct.
+- **`raw_costs`** — the one number that is a judgement rather than a fact from
+  the game, and unavoidable: cracking heavy oil and pumping more crude both
+  produce petroleum, and which is better depends on your map. Charging water the
+  same as crude oil makes the solver refuse to crack at all.
 
 Arithmetic is evaluated by walking the parsed syntax tree against a whitelist of
 node types. `eval` is never called on player input — not sandboxed, not with

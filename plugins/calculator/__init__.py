@@ -55,14 +55,34 @@ DEFAULT_CONFIG = {
     "belt": "transport-belt",
     #: Rate assumed when the command does not say one.
     "default_rate": "1/s",
-    #: Items to treat as bought in rather than built -- the walk stops here.
-    "raw_items": [],
+    #: Items to treat as supplied rather than built -- the walk stops here.
+    #:
+    #: Steam comes from a boiler or a heat exchanger, and neither is a *recipe*,
+    #: so the only thing the recipe graph knows that makes steam is acid
+    #: neutralisation. Left to itself the solver duly builds a sulfuric acid
+    #: chain to produce steam as a byproduct -- optimal, and not a factory
+    #: anyone would build. Steam is an input to a plan, not an output of one.
+    "raw_items": ["steam"],
     #: Relative cost of a raw input, which is how the solver breaks ties between
     #: two ways of making the same thing. Water is nearly free on most maps, and
     #: charging it like crude oil makes the solver refuse to crack oil at all.
-    "raw_costs": {"water": 0.01, "steam": 0.01},
+    #:
+    #: Only water. Steam looks equally free -- no recipe produces it, so it
+    #: arrives as a raw material -- but it costs a boiler and fuel, and pricing
+    #: it at water's rate makes coal liquefaction beat oil processing on a
+    #: measured run. It stays at the default cost for that reason.
+    "raw_costs": {"water": 0.01},
     #: Chat is not a spreadsheet; long plans are truncated to this many steps.
     "max_steps": 14,
+    #: Plan only with recipes this save has actually researched. Off means the
+    #: answer can be denominated in things you cannot reach yet.
+    "only_researched": True,
+    #: Recipe categories to keep out of plans. Recycling is nearly half the
+    #: recipes on a 2.0 server and lists what it shreds as a product, which
+    #: makes "recycle scrap" the cheapest way to make almost anything.
+    "exclude_categories": list(data.EXCLUDED_CATEGORIES),
+    #: Recipe names to skip, matched as substrings. Barrelling is a closed loop.
+    "exclude_patterns": list(data.EXCLUDED_PATTERNS),
     #: Short names for things nobody wants to spell out.
     "aliases": {
         "green-circuit": "electronic-circuit",
@@ -91,11 +111,20 @@ RATE_UNITS = {
 }
 RATE = re.compile(r"^([\d.]+)\s*(?:/\s*([a-z]+))?$", re.I)
 
+#: ``prod=20``, ``in:iron-plate=foundry``, ``cost:water=0.5``. Deliberately
+#: narrow so a rich-text icon is never mistaken for one.
+OPTION = re.compile(r"^[a-z][\w:.-]*=", re.I)
+
 
 def on_load(server, prev):
     config = server.load_config_simple("config.json", DEFAULT_CONFIG)
     _state.clear()
-    _state.update(config=config, server=server, book=data.RecipeBook(server))
+    _state.update(config=config, server=server, book=data.RecipeBook(
+        server,
+        excluded_categories=config.get("exclude_categories"),
+        excluded_patterns=config.get("exclude_patterns"),
+        only_unlocked=config.get("only_researched", True),
+    ))
 
     prefix = str(config.get("expression_prefix") or "==")
 
@@ -233,7 +262,11 @@ def parse_query(text: str) -> tuple[list[str], Number | None, dict[str, str]]:
     options: dict[str, str] = {}
     words: list[str] = []
     for word in text.split():
-        if "=" in word and not word.startswith("="):
+        # `[item=iron-plate]` is an argument, not an option. It contains an `=`
+        # because that is how Factorio writes an icon, and splitting on it turns
+        # the item the player picked from the in-game selector into a key called
+        # "[item".
+        if OPTION.match(word):
             key, _, value = word.partition("=")
             options[key.strip().lower()] = value.strip()
         else:
@@ -288,43 +321,89 @@ async def _cmd_ratio(source, ctx=None):
         rate = parse_rate(str(_state["config"].get("default_rate", "1/s"))) or Fraction(1)
 
     book = _state["book"]
-    try:
-        await book.load_static()
-        raw = _raw_items(options)
-        prefer = _preferred_recipes(options)
-        recipes = await book.closure([item], raw=raw, prefer=prefer)
-    except QueryError as exc:
-        await source.reply(server.tr("error.needs_server", error=exc))
-        return
-    except RecursionError as exc:
-        await source.reply(server.tr("error.too_deep", error=exc))
-        return
+    modules = await _modules(book, options)
+    unlocked_only = _unlocked_only(options)
 
-    if not recipes:
+    # Researched recipes first, everything second. A plan you cannot build yet
+    # is worth having -- that is what research is for -- but only once the plan
+    # you *can* build has been ruled out.
+    plan = None
+    used_everything = False
+    for restrict in ([True, False] if unlocked_only else [False]):
+        try:
+            plan = await _solve(book, item, rate, options, modules, restrict)
+        except QueryError as exc:
+            await source.reply(server.tr("error.needs_server", error=exc))
+            return
+        except RecursionError as exc:
+            await source.reply(server.tr("error.too_deep", error=exc))
+            return
+        except Unbounded:
+            await source.reply(server.tr("error.unbounded"))
+            return
+        except (_NoRecipe, Infeasible):
+            continue
+        used_everything = not restrict
+        break
+
+    if plan is None:
         await source.reply(await _no_such_item(server, item))
         return
 
-    modules = await _modules(book, options)
-    preferred = _machine_preference(options)
-    machines, unbuildable = book.assign_machines(recipes, preferred, modules, _machine_overrides(options))
+    in_game = source.player is not None
+    if used_everything and unlocked_only:
+        await source.reply(server.tr("plan.not_researched"))
+    for line in _format_plan(server, plan, item, rate, modules, in_game=in_game):
+        await source.reply(line)
+
+    # An input that is neither mined nor declared raw is something a recipe
+    # makes -- it is only an input here because that recipe is not researched.
+    # Saying so beats listing copper cable next to iron ore as if both came out
+    # of the ground.
+    if unlocked_only and not used_everything:
+        supplied = _raw_items(options) | book.mined
+        blocked = sorted(name for name in plan.raw if name not in supplied)
+        if blocked:
+            await source.reply(server.tr(
+                "plan.unresearched", items=", ".join(_icon(n, in_game) for n in blocked)
+            ))
+
+
+class _NoRecipe(Exception):
+    """Nothing available produces the item, at least under this restriction."""
+
+
+async def _solve(book, item, rate, options, modules, only_unlocked):
+    """One attempt: fetch the closure, assign machines, solve."""
+    await book.load_static()
+    book.set_unlocked_only(only_unlocked)
+
+    recipes = await book.closure(
+        [item], raw=_raw_items(options), prefer=_preferred_recipes(options)
+    )
+    if not recipes:
+        raise _NoRecipe(item)
+
+    machines, unbuildable = book.assign_machines(
+        recipes, _machine_preference(options), modules, _machine_overrides(options)
+    )
     for name in unbuildable:
         recipes.pop(name, None)
     if not recipes:
-        await source.reply(server.tr("error.no_machine", item=item))
-        return
+        raise _NoRecipe(item)
 
     scaled = data.apply_productivity(recipes, machines)
-    try:
-        plan = build_plan(scaled, machines, {item: rate}, raw_costs=_raw_costs(options))
-    except Infeasible:
-        await source.reply(server.tr("error.infeasible", item=item))
-        return
-    except Unbounded:
-        await source.reply(server.tr("error.unbounded"))
-        return
+    return build_plan(
+        scaled, machines, {item: rate},
+        raw_costs=_raw_costs(options), mined=book.mined,
+    )
 
-    for line in _format_plan(server, plan, item, rate, modules, in_game=source.player is not None):
-        await source.reply(line)
+
+def _unlocked_only(options: dict[str, str]) -> bool:
+    """``all=1`` plans with every recipe, researched or not."""
+    if options.get("all", "").lower() in ("1", "true", "yes", "on"):
+        return False
+    return bool(_state["config"].get("only_researched", True))
 
 
 def _raw_items(options: dict[str, str]) -> set[str]:
@@ -456,13 +535,16 @@ def _format_plan(server, plan: Plan, item: str, rate: Number, modules, in_game: 
 
     limit = int(_state["config"].get("max_steps", 14))
     for step in plan.steps[:limit]:
-        produced = sum(step.outputs.values()) if len(step.outputs) == 1 else None
+        # For one product the useful number is items per second. For oil
+        # processing, which makes three fluids at once, no single item rate
+        # describes the step, so it is quoted in crafts and labelled as such.
+        single = len(step.outputs) == 1
         lines.append(server.tr(
-            "plan.step",
+            "plan.step" if single else "plan.step_crafts",
             machines=_num(step.machines),
             machine=step.machine,
             recipe=_icon(step.recipe, in_game),
-            rate=_num(produced if produced is not None else step.crafts_per_second),
+            rate=_num(sum(step.outputs.values()) if single else step.crafts_per_second),
         ))
     if len(plan.steps) > limit:
         lines.append(server.tr("plan.more", count=len(plan.steps) - limit))
@@ -512,7 +594,7 @@ def _watts(value: Number) -> str:
 
 async def _cmd_recipe(source, ctx=None):
     server = source.server
-    words, _, _ = parse_query((ctx or {}).get("item", ""))
+    words, _, options = parse_query((ctx or {}).get("item", ""))
     item = await _resolve_item(server, source, words)
     if not item:
         await source.reply(server.tr("ratio.what"))
@@ -521,12 +603,24 @@ async def _cmd_recipe(source, ctx=None):
     book = _state["book"]
     try:
         await book.load_static()
+        # The book caches per mode, so a previous `all=1` question would
+        # otherwise decide what this one is allowed to see.
+        book.set_unlocked_only(_unlocked_only(options))
         await book.fetch([item])
+        found = dict.fromkeys(book.producers.get(item) or [])
+        if not found:
+            # Not an item, but possibly a recipe: `!!recipe
+            # advanced-oil-processing` is a reasonable thing to type and there
+            # is no item by that name.
+            named = await server.lua_json(data.recipes_named([item])) or {}
+            for name, raw in named.items():
+                book.recipes[name] = data.parse_recipe(name, raw)
+                found[name] = None
     except QueryError as exc:
         await source.reply(server.tr("error.needs_server", error=exc))
         return
 
-    names = book.producers.get(item) or []
+    names = list(found)
     if not names:
         await source.reply(await _no_such_item(server, item))
         return

@@ -175,6 +175,11 @@ Options go anywhere on the line as `key=value`:
 | `raw=iron-plate` | Stop expanding here and treat it as bought in |
 | `use=advanced-oil-processing` | Pin a recipe where several would do |
 | `cost:water=0.5` | Change what a raw input is worth to the solver |
+| `all=1` | Plan with every recipe, not only the researched ones |
+
+By default the plan only uses recipes **this save has researched**, so the answer
+is something you can go and build. Anything it could not make that way is listed
+as an input, and named as not-yet-researched rather than shown next to the ores.
 
 ## Production, maps and diagnostics
 

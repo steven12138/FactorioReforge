@@ -285,6 +285,79 @@ class TestOil:
         assert plan.surplus.get("petroleum-gas", 0) > 0
 
 
+class TestUnreachableProducers:
+    """What a live Space Age server does to the "raw material" test.
+
+    Iron ore is a *product* there -- of asteroid crushing -- and the chunks are
+    produced only by reprocessing each other, a cycle nothing seeds. Classifying
+    raw materials structurally makes a plan for circuits come out infeasible.
+    """
+
+    @pytest.fixture
+    def asteroids(self, solver):
+        return {
+            "iron-plate": recipe(
+                solver, "iron-plate", "3.2", {"iron-ore": 1}, {"iron-plate": 1}
+            ),
+            "metallic-asteroid-crushing": recipe(
+                solver, "metallic-asteroid-crushing", 1,
+                {"metallic-asteroid-chunk": 1},
+                {"iron-ore": 20, "metallic-asteroid-chunk": Fraction(1, 5)},
+            ),
+            "carbonic-asteroid-reprocessing": recipe(
+                solver, "carbonic-asteroid-reprocessing", 1,
+                {"carbonic-asteroid-chunk": 1},
+                {"carbonic-asteroid-chunk": Fraction(2, 5),
+                 "metallic-asteroid-chunk": Fraction(1, 5)},
+            ),
+        }
+
+    def machines(self, recipes_, solver):
+        return {n: solver.Machine(name="m", speed=Fraction(1)) for n in recipes_}
+
+    #: Chunks come off a space platform, so on a planet they are not a source
+    #: you can reach. Pricing them is how that gets said to the solver.
+    UNREACHABLE = {
+        "metallic-asteroid-chunk": Fraction(1000),
+        "carbonic-asteroid-chunk": Fraction(1000),
+    }
+
+    def test_it_answers_rather_than_refusing(self, solver, asteroids):
+        """This exact graph raised Infeasible before sources were priced.
+
+        Iron ore has a producer, so the structural test called it an
+        intermediate; its only producer needs chunks, and chunks are produced
+        only by a cycle nothing feeds. Every item having a price means the
+        answer is "supply iron ore", not an exception.
+        """
+        plan = solver.build_plan(
+            asteroids, self.machines(asteroids, solver), {"iron-plate": Fraction(1)},
+            mined={"iron-ore"}, raw_costs=self.UNREACHABLE,
+        )
+        assert plan.raw == {"iron-ore": Fraction(1)}
+        assert [step.recipe for step in plan.steps] == ["iron-plate"]
+
+    def test_ore_the_map_does_not_have_costs_what_producing_it_costs(self, solver, asteroids):
+        """Without ``mined``, iron ore is an intermediate and gets crushed for."""
+        plan = solver.build_plan(
+            asteroids, self.machines(asteroids, solver), {"iron-plate": Fraction(1)},
+            mined=set(),
+        )
+        assert "iron-ore" not in plan.raw
+        assert "metallic-asteroid-crushing" in {step.recipe for step in plan.steps}
+
+    def test_an_input_nothing_can_make_is_reported_not_raised(self, solver):
+        """A missing intermediate should come back as "supply this", not a crash."""
+        plan = solver.build_plan(
+            {"circuit": recipe(
+                solver, "circuit", 1, {"copper-cable": 3}, {"circuit": 1}
+            )},
+            {"circuit": solver.Machine(name="m", speed=Fraction(1))},
+            {"circuit": Fraction(5)},
+        )
+        assert plan.raw == {"copper-cable": Fraction(15)}
+
+
 class TestCycles:
     def test_a_recipe_that_eats_its_own_product_terminates(self, solver):
         """Kovarex-shaped: it consumes the thing it produces, netting a gain.
@@ -392,6 +465,20 @@ class TestQueryParsing:
         assert words == ["electronic", "circuit"]
         assert rate == Fraction(1, 2)
         assert options == {"prod": "20", "machine": "foundry"}
+
+    def test_an_icon_is_an_argument_not_an_option(self, plugin):
+        """`[item=iron-plate]` contains an `=`, and splitting on it lost the item."""
+        words, rate, options = plugin.parse_query("[item=iron-plate] 5/s")
+        assert words == ["[item=iron-plate]"]
+        assert rate == 5
+        assert options == {}
+
+    def test_modules_are_described_with_their_sign(self, plugin, recipes):
+        """Productivity modules cost speed; "+-15%" said that badly."""
+        described = recipes.Modules(
+            speed=Fraction(-3, 20), productivity=Fraction(1, 10)
+        ).describe()
+        assert described == "speed -15%, prod +10%"
 
     def test_a_query_with_no_rate_leaves_the_default_to_the_caller(self, plugin):
         words, rate, options = plugin.parse_query("iron-plate")

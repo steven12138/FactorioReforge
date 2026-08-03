@@ -243,15 +243,35 @@ electronic-circuit 5/s —— 共 8.33 台机器，1.25 MW
                "oil-refinery", "centrifuge", "rocket-silo"],
   "belt": "transport-belt",
   "default_rate": "1/s",
-  "raw_items": [],                       // 展开到这里就停
-  "raw_costs": {"water": 0.01, "steam": 0.01},
+  "only_researched": true,               // 只用这个存档已经研究出来的配方
+  "raw_items": ["steam"],                // 展开到这里就停
+  "raw_costs": {"water": 0.01},
+  "exclude_categories": ["recycling", "recycling-or-hand-crafting", "parameters"],
+  "exclude_patterns": ["-barrel"],
   "max_steps": 14
 }
 ```
 
-`raw_costs` 是唯一一个属于判断而不是游戏事实的数字，而且绕不开：
-裂化重油和多抽原油都能产出石油气，哪个更划算取决于你的地图。
-把水和原油算成一样贵，求解器就会干脆不裂化。
+**`only_researched` 是让答案真正能用的那个开关**，而它是被一台真实的
+Space Age 服务器逼出来的。不开它的时候，问电路板，求解器回答的是
+**用铸造厂从熔融铁水铸造** —— 按每单位矿算确实更省，
+但在你上 Vulcanus 之前根本够不着；问石油气，它搭了一条 Gleba
+的 bioflux 链去制硫。限制成 `force.recipes[name].enabled`
+之后，答案从「理论最优」变成「你现在就能去建的东西」。
+想按全部配方算就在问题里加 `all=1`；
+如果是回退到全配方才算出来的，回复里会说明这一点。
+
+另外三个默认值也都来自同一次实测：
+
+- **`exclude_categories`** —— 那台服务器 659 条配方里有 310 条是回收，
+  每一条都把被拆解的东西列为产物。不排除的话，
+  造电路板最便宜的办法是回收废料。
+- **`raw_items: ["steam"]`** —— 蒸汽来自锅炉，而锅炉不是一条**配方**。
+  配方里唯一能产出蒸汽的是酸中和，于是求解器高高兴兴地搭了一条硫酸链，
+  就为了把蒸汽当副产物拿到。
+- **`raw_costs`** —— 唯一一个属于判断而不是游戏事实的数字，而且绕不开：
+  裂化重油和多抽原油都能产出石油气，哪个更划算取决于你的地图。
+  把水和原油算成一样贵，求解器就会干脆不裂化。
 
 算数是把解析出来的语法树按节点类型白名单走一遍算出来的。
 绝不对玩家输入调用 `eval` —— 不是沙箱里的 `eval`，

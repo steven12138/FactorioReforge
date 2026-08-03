@@ -286,6 +286,18 @@ RECIPE_TAX = Fraction(1, 1000)
 #: default below, and the config key that overrides it.
 DEFAULT_RAW_COST = Fraction(1)
 
+#: What it costs to conjure an item that recipes *could* have made. Every item
+#: gets a source at this price, which is what makes the answer "you need to
+#: supply 5 iron ore" instead of the exception "this is impossible".
+#:
+#: A structural test -- raw means nothing produces it -- is not enough on a
+#: server with Space Age data. Iron ore is a product there, of asteroid
+#: crushing, and the chunks are produced only by reprocessing each other, so a
+#: cycle nothing seeds ends up being the only "source" of iron and the whole
+#: plan comes out infeasible. Pricing every item and letting the mined ones be
+#: cheap turns that from a failure into an ordering.
+FALLBACK_SOURCE_COST = Fraction(1000)
+
 
 def build_plan(
     recipes: dict[str, Recipe],
@@ -293,6 +305,7 @@ def build_plan(
     targets: dict[str, Number],
     *,
     raw_costs: dict[str, Number] | None = None,
+    mined: set[str] | None = None,
 ) -> Plan:
     """Solve for the recipe rates that meet ``targets``, then size the machines.
 
@@ -301,42 +314,50 @@ def build_plan(
     resolved by the caller because that choice decides the productivity bonus
     and so changes the matrix itself.
 
-    Any item no recipe in the closure produces is raw, and gets a pseudo-recipe
-    that mints it at a cost. That is what turns "what does this need" into a
-    minimisation the simplex can answer.
+    Every item gets a pseudo-recipe that mints it at a cost, which is what turns
+    "what does this need" into a minimisation the simplex can answer. What
+    separates a raw material from an intermediate is only the *price*: things
+    that come out of the ground, and things nothing produces, are cheap, so the
+    solver reaches for them; everything else is priced high enough that crafting
+    it always wins where crafting is possible at all.
     """
     raw_costs = raw_costs or {}
+    mined = mined or set()
 
     items: set[str] = set(targets)
     for recipe in recipes.values():
         items |= recipe.items()
 
-    # An item is raw when no recipe here *nets* any of it. Testing the net and
-    # not the product list is what makes cycles work: Kovarex lists U-238 as a
-    # product but consumes more of it than it makes, so U-238 still has to come
-    # from somewhere, and a solver that called it "produced" would answer that
-    # the demand is impossible.
+    # Nothing here *nets* this item, so it has to be supplied. Testing the net
+    # rather than the product list is what makes cycles work: Kovarex lists
+    # U-238 as a product but consumes more than it makes, so U-238 still has to
+    # come from somewhere, and calling it "produced" would make the demand look
+    # impossible.
     produced = {
         item for recipe in recipes.values() for item in recipe.items()
         if recipe.net(item) > 0
     }
-    raw_items = sorted(items - produced)
+    cheap = (items - produced) | (items & mined)
+    source_items = sorted(items)
 
     order = sorted(recipes)
     item_order = sorted(items)
     index = {item: i for i, item in enumerate(item_order)}
 
-    rows = [[Fraction(0)] * (len(order) + len(raw_items)) for _ in item_order]
+    rows = [[Fraction(0)] * (len(order) + len(source_items)) for _ in item_order]
     for column, name in enumerate(order):
         recipe = recipes[name]
         for item in recipe.items():
             rows[index[item]][column] = recipe.net(item)
-    for offset, item in enumerate(raw_items):
+    for offset, item in enumerate(source_items):
         rows[index[item]][len(order) + offset] = Fraction(1)
 
     rhs = [Fraction(targets.get(item, 0)) for item in item_order]
     cost = [RECIPE_TAX] * len(order) + [
-        Fraction(raw_costs.get(item, DEFAULT_RAW_COST)) for item in raw_items
+        Fraction(raw_costs[item]) if item in raw_costs
+        else DEFAULT_RAW_COST if item in cheap
+        else FALLBACK_SOURCE_COST
+        for item in source_items
     ]
 
     solution = solve_min_cost(rows, rhs, cost)
@@ -362,7 +383,7 @@ def build_plan(
 
     raw = {
         item: solution[len(order) + offset]
-        for offset, item in enumerate(raw_items)
+        for offset, item in enumerate(source_items)
         if solution[len(order) + offset] > 0
     }
 

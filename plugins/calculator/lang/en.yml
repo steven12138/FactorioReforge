@@ -23,10 +23,13 @@ plan:
   header: "{item} at {rate}/s -- {machines} machines, {power}"
   modules: "  with {modules} in every machine"
   step: "  {machines} x {machine}  {recipe}  {rate}/s"
+  step_crafts: "  {machines} x {machine}  {recipe}  {rate} crafts/s"
   more: "  ... and {count} more steps"
   raw: "  needs: {items}"
   surplus: "  byproducts: {items}"
   belts: "  output is {count} x {belt} ({throughput}/s)"
+  not_researched: "Nothing researched can make that yet -- this plan assumes you unlock it."
+  unresearched: "  not researched yet, so counted as an input: {items} (add all=1 to plan them out)"
 
 recipe:
   line: "{recipe}: {seconds}s, {ingredients} -> {products}"

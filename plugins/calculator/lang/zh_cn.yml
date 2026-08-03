@@ -23,10 +23,13 @@ plan:
   header: "{item} {rate}/s —— 共 {machines} 台机器，{power}"
   modules: "  每台机器插了 {modules}"
   step: "  {machines} 台 {machine}  {recipe}  {rate}/s"
+  step_crafts: "  {machines} 台 {machine}  {recipe}  {rate} 次/秒"
   more: "  ……还有 {count} 步"
   raw: "  需要投入：{items}"
   surplus: "  副产物：{items}"
   belts: "  产出相当于 {count} 条 {belt}（{throughput}/s）"
+  not_researched: "现有科技还造不出来 —— 下面这个方案假设你已经解锁了。"
+  unresearched: "  以下还没研究，所以按外部投入算：{items}（加 all=1 可以把它们也展开）"
 
 recipe:
   line: "{recipe}：{seconds} 秒，{ingredients} -> {products}"
