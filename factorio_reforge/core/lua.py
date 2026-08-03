@@ -410,6 +410,92 @@ def give_blueprint(player: str, blueprint: str) -> str:
     ) % (lua_string(player), lua_string(blueprint))
 
 
+#: Everything ``export_stack`` works on, which is more than blueprints.
+BLUEPRINT_KINDS = ("blueprint", "blueprint-book", "deconstruction-planner", "upgrade-planner")
+
+
+def export_held_blueprint(player: str) -> str:
+    """Export whatever the player is holding, as a string.
+
+    Two things can be in a cursor and only one of them is a stack. A blueprint
+    taken out of your *personal library* is a ``cursor_record``, not a
+    ``cursor_stack``, and reading only the stack makes the library case look
+    like an empty hand. Both are tried.
+
+    Books and planners export through the same call as blueprints, so they are
+    all accepted; the kind is reported so the caller can say what it stored.
+    """
+    return (
+        "(function() "
+        "local function safe(f) local ok, v = pcall(f) if ok then return v end end "
+        "local p = game.get_player(%s) "
+        "if not p then return {ok = false, reason = 'no such player'} end "
+        "if not p.connected then return {ok = false, reason = 'not online'} end "
+        "local held = safe(function() return p.cursor_stack end) "
+        "if held and not held.valid_for_read then held = nil end "
+        "if not held then held = safe(function() return p.cursor_record end) end "
+        "if not held then return {ok = false, reason = 'empty hand'} end "
+        "local text = safe(function() return held.export_stack() end) "
+        "if not text or text == '' then "
+        "  return {ok = false, reason = 'not a blueprint', "
+        "          name = safe(function() return held.name end)} end "
+        "local kind = safe(function() return held.name end) "
+        "local entities = safe(function() return held.get_blueprint_entities() end) "
+        "local counts = {} "
+        "for _, e in pairs(entities or {}) do "
+        "  counts[e.name] = (counts[e.name] or 0) + 1 end "
+        "return {ok = true, blueprint = text, kind = kind, "
+        "        label = safe(function() return held.label end), "
+        "        entities = entities and #entities or 0, counts = counts} end)()"
+    ) % lua_string(player)
+
+
+def give_blueprint_to_cursor(
+    player: str, blueprint: str, kind: str | None = None
+) -> str:
+    """Put a blueprint straight into the player's hand, ready to place.
+
+    The point of a shared library is to hand someone the thing, not to make them
+    go and find it in their inventory. A cursor already holding something is
+    never overwritten -- that would destroy whatever they were building with --
+    so it falls back to the inventory and says which happened.
+
+    ``kind`` is what was recorded when the entry was saved. On 2.0.77
+    ``import_stack`` converts the stack to match the string -- importing a book
+    into a ``blueprint`` stack leaves a ``blueprint-book`` behind and returns 0 --
+    so the first attempt is enough there. The other kinds are tried after it
+    because that conversion is undocumented, and a library entry saved before
+    kinds were recorded has no preference to offer.
+    """
+    order = [kind] if kind in BLUEPRINT_KINDS else []
+    order += [name for name in BLUEPRINT_KINDS if name != kind]
+    kinds = "{" + ",".join(lua_string(name) for name in order) + "}"
+    return (
+        "(function() "
+        "local function safe(f) local ok, v = pcall(f) if ok then return v end end "
+        "local p = game.get_player(%s) "
+        "if not p then return {ok = false, reason = 'no such player'} end "
+        "if not p.connected then return {ok = false, reason = 'not online'} end "
+        "local inv = game.create_inventory(1) "
+        "local loaded = false "
+        "for _, kind in pairs(%s) do "
+        "  if safe(function() inv[1].set_stack{name = kind} return true end) "
+        "     and inv[1].import_stack(%s) == 0 then loaded = true break end "
+        "end "
+        "if not loaded then inv.destroy() "
+        "  return {ok = false, reason = 'Factorio rejected the blueprint string'} end "
+        "local cursor = safe(function() return p.cursor_stack end) "
+        "if cursor and not cursor.valid_for_read then "
+        "  local placed = safe(function() return cursor.set_stack(inv[1]) end) "
+        "  if placed then inv.destroy() return {ok = true, where = 'cursor'} end "
+        "end "
+        "local given = p.insert(inv[1]) "
+        "inv.destroy() "
+        "return {ok = given > 0, where = 'inventory', "
+        "        reason = given > 0 and '' or 'inventory is full'} end)()"
+    ) % (lua_string(player), kinds, lua_string(blueprint))
+
+
 def validate_blueprint(blueprint: str) -> str:
     """Check a string parses, and report what is in it, without giving it away."""
     return (

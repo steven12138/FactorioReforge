@@ -159,6 +159,51 @@ class TestSnippets:
         assert 'game.get_surface("vulcanus")' in source
 
 
+class TestBlueprintHandover:
+    """Taking a blueprint out of a hand and putting one back into it."""
+
+    def test_the_library_cursor_is_read_as_well_as_the_stack(self):
+        """A blueprint from the personal library is a record, not a stack.
+
+        Reading only ``cursor_stack`` makes that case look like an empty hand,
+        which is the most common way people hold a blueprint.
+        """
+        source = lua.export_held_blueprint("alice")
+        assert "cursor_stack" in source
+        assert "cursor_record" in source
+
+    def test_an_empty_hand_is_distinguishable_from_a_failure(self):
+        """The caller falls back to capturing the area only for an empty hand."""
+        assert "'empty hand'" in lua.export_held_blueprint("alice")
+        assert "'not a blueprint'" in lua.export_held_blueprint("alice")
+
+    def test_a_held_name_is_escaped_like_any_other(self):
+        source = lua.export_held_blueprint('bad") or game.print("x')
+        assert 'game.get_player("bad\\")' in source
+
+    def test_the_recorded_kind_is_tried_first(self):
+        source = lua.give_blueprint_to_cursor("alice", "0eNq", "blueprint-book")
+        kinds = source[source.index("for _, kind in pairs({"):][:120]
+        assert kinds.index('"blueprint-book"') < kinds.index('"upgrade-planner"')
+
+    def test_every_kind_is_still_tried(self):
+        """An entry saved before kinds were recorded has no preference to give."""
+        source = lua.give_blueprint_to_cursor("alice", "0eNq")
+        for kind in lua.BLUEPRINT_KINDS:
+            assert f'"{kind}"' in source
+
+    def test_a_full_cursor_is_never_overwritten(self):
+        """Replacing what someone is holding would destroy their current tool."""
+        source = lua.give_blueprint_to_cursor("alice", "0eNq")
+        assert "not cursor.valid_for_read" in source
+        assert "p.insert" in source
+
+    def test_it_reports_where_the_blueprint_landed(self):
+        source = lua.give_blueprint_to_cursor("alice", "0eNq")
+        assert "where = 'cursor'" in source
+        assert "where = 'inventory'" in source
+
+
 def test_both_failure_kinds_share_one_base_for_plugin_authors():
     """Plugins catch QueryError once instead of remembering a tuple."""
     from factorio_reforge.core.errors import QueryError

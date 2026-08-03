@@ -33,6 +33,15 @@
   - Arithmetic is evaluated by walking the parsed AST against a whitelist;
     `eval` is never called on player input, and `9**9**9` is refused before it
     runs rather than after.
+- **`blueprints`**: `!!bp save <name>` now stores **the blueprint in your hand**,
+  which is the gesture people already have from the in-game library. An empty
+  hand still blueprints the area around you. Books and deconstruction or upgrade
+  planners work too, and `!!bp get` hands it back into your cursor rather than
+  burying it in your inventory -- unless you are already holding something, which
+  is never overwritten.
+- `scripts/probe_prototypes.py` checks the prototype API the calculator reads
+  against a running server, so a build that moves one of those names shows up as
+  a failed line rather than a plan quietly missing a machine.
 - **`server_admin`**: `!!server` reads and edits `server-settings.json` from
   chat — name, description, password, player limit, visibility, autosave, pause,
   verification. Writes go through a temp file and a rename, because a truncated

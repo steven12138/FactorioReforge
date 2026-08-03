@@ -163,10 +163,18 @@ async def _cmd_info(source, ctx):
 
 
 async def _cmd_save(source, ctx):
-    """Blueprint the square around the caller and store it."""
+    """Store what the caller is holding, or failing that the area around them.
+
+    Holding a blueprint and typing ``!!bp save x`` can only mean one thing, and
+    it is the gesture people already have from the in-game library. Capturing
+    the surroundings stays as the behaviour for an empty hand, so nothing that
+    used to work stopped working.
+    """
     name = ctx["name"].strip()
     if source.player is None:
         await source.reply(source.server.tr("save.console_only"))
+        return
+    if ctx.get("radius") is None and await _save_held(source, name):
         return
 
     config = _state["config"]
@@ -218,6 +226,54 @@ async def _cmd_save(source, ctx):
     await source.reply(server.tr("save.done", name=name, entities=result.get("entities", 0)))
 
 
+async def _save_held(source, name: str) -> bool:
+    """Store the blueprint in the caller's hand. False means their hand is empty.
+
+    Anything else going wrong -- holding a wrench, a string Factorio will not
+    export -- is reported here and still returns True, because falling through
+    to "blueprint the area around you" would silently answer a different
+    question from the one that was asked.
+    """
+    server = source.server
+    config = _state["config"]
+    try:
+        held = await server.lua_json(lua.export_held_blueprint(source.player))
+    except QueryError as exc:
+        await source.reply(server.tr("save.read_failed", error=exc))
+        return True
+
+    held = held or {}
+    if not held.get("ok"):
+        if held.get("reason") == "empty hand":
+            return False
+        if held.get("reason") == "not a blueprint":
+            await source.reply(server.tr("held.not_a_blueprint",
+                                         item=held.get("name") or "?"))
+            return True
+        await source.reply(server.tr("save.failed", error=held.get("reason") or "?"))
+        return True
+
+    if len(_state["library"]) >= config.get("max_blueprints", 200) and not _find(name):
+        await source.reply(server.tr("save.full", count=len(_state["library"])))
+        return True
+
+    _state["library"][name] = {
+        "blueprint": held["blueprint"],
+        "entities": held.get("entities", 0),
+        "counts": held.get("counts") or {},
+        "kind": held.get("kind") or "blueprint",
+        "label": held.get("label") or "",
+        "saved_by": source.player,
+        "saved_at": time.time(),
+    }
+    _save_library(server)
+    await source.reply(server.tr(
+        "held.saved", name=name, kind=held.get("kind") or "blueprint",
+        entities=held.get("entities", 0),
+    ))
+    return True
+
+
 async def _cmd_get(source, ctx):
     found = _find(ctx["name"].strip())
     if found is None:
@@ -233,20 +289,24 @@ async def _cmd_get(source, ctx):
         return
 
     try:
-        result = await source.server.lua_json(
-            lua.give_blueprint(source.player, entry["blueprint"])
-        )
+        result = await source.server.lua_json(lua.give_blueprint_to_cursor(
+            source.player, entry["blueprint"], entry.get("kind")
+        ))
     except QueryError as exc:
         await source.reply(source.server.tr("get.failed", error=exc))
         return
 
-    if not result or not result.get("ok"):
+    result = result or {}
+    if not result.get("ok"):
         await source.reply(source.server.tr(
             "get.refused", name=name,
             reason=result.get("reason") or source.server.tr("common.unknown")))
         return
+    # Say where it went: "it is in your hand" and "it is in your inventory" send
+    # the player to two different places.
     await source.reply(source.server.tr(
-        "get.done", name=name, entities=entry.get("entities", 0)))
+        "get.in_cursor" if result.get("where") == "cursor" else "get.done",
+        name=name, entities=entry.get("entities", 0)))
 
 
 async def _cmd_delete(source, ctx):

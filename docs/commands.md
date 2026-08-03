@@ -125,9 +125,15 @@ Locations, not teleports: **nobody is moved**.
 |---|---|---|
 | `!!bp list` | user | The library |
 | `!!bp info <name>` | user | Size, contents, who saved it |
-| `!!bp get <name>` | user | Put it in your inventory |
-| `!!bp save <name>` | configurable | Blueprint the area around you |
+| `!!bp get <name>` | user | Put it straight into your hand |
+| `!!bp save <name>` | configurable | Store the blueprint you are holding |
+| `!!bp save <name> <radius>` | configurable | Blueprint the area around you instead |
 | `!!bp del <name>` | configurable | Remove one |
+
+Hold a blueprint and `!!bp save x` stores **that**; with an empty hand it falls
+back to blueprinting the area around you. Books and deconstruction or upgrade
+planners work too. `!!bp get` puts it in your cursor unless you are already
+holding something, in which case it goes to your inventory and says so.
 
 ## Mods — `!!mod`
 
