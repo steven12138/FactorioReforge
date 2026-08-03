@@ -94,7 +94,7 @@ discarded. Without that, the Telegram bridge relays its own relays forever.
 
 Commands run in their **own task**, never on the read loop.
 
-This is not a performance decision. A handler like `!!save make` waits for
+This is not a performance decision. A handler like `!!qb make` waits for
 Factorio to print "Saving finished" — and that line can only arrive through the
 stdout pump. Run the handler inline on the pump and it waits for a line only it
 could read: the console stops responding, the game appears frozen, and the whole
@@ -114,10 +114,17 @@ protected, the backup is **refused** rather than destroying something somebody
 asked to keep. `saves.slot_protection` is a list of seconds whose *length* is
 the number of slots.
 
-**Restoring**, via `!!save back <slot>` then `!!save confirm`:
+**Two rings.** Automatic backups shift only automatic slots, and are addressed
+as `a1`, `a2`. This is the one place the model departs from QBM, and it is not a
+preference: a timer running every half hour walks the entire history out of the
+building overnight, and what it pushes off the end is the backup someone took
+before doing something risky — the only reason the feature exists.
+`saves.auto_slot_protection` sizes that ring the same way.
+
+**Restoring**, via `!!qb back <slot>` then `!!qb confirm`:
 
 1. Verify the slot holds a valid zip
-2. Count down in chat, one second at a time, abortable with `!!save abort`
+2. Count down in chat, one second at a time, abortable with `!!qb abort`
 3. Stop the server and wait for the process to actually exit
 4. **Copy the current world into the fixed `overwrite` slot** — QBM's undo for
    restoring the wrong thing
@@ -254,7 +261,7 @@ worth reporting — the RCON bind above all — are printed after it.
 ## Tests
 
 ```bash
-python -m pytest tests/ -q        # 358 tests
+python -m pytest tests/ -q        # 379 tests
 ```
 
 Parser tests run against output sampled from a real server, in

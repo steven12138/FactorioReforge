@@ -1,6 +1,6 @@
 """The read loop must never be blocked by a command it dispatched.
 
-The bug this guards: `!!save make` typed in game arrives on the stdout pump,
+The bug this guards: `!!qb make` typed in game arrives on the stdout pump,
 its handler runs inline on that pump, and the handler waits for Factorio to
 print "Saving finished" -- a line only the pump can read. The pump is inside
 the handler, so nothing reads it. The server appears frozen, further commands
@@ -31,7 +31,7 @@ class FakeCommands:
 
     async def dispatch(self, source, text):
         self.dispatched.append(text)
-        # Exactly what !!save make does: wait for something the read loop has
+        # Exactly what !!qb make does: wait for something the read loop has
         # not delivered yet.
         await asyncio.wait_for(self.marker.wait(), timeout=5)
         self.finished.set()
@@ -96,11 +96,11 @@ class TestReadLoopIsNeverBlocked:
         # The command arrives on the read loop, as in-game chat does.
         await reactor.react(
             server.handler.parse_server_stdout(
-                "2026-08-02 14:38:14 [CHAT] steven12138: !!save make"
+                "2026-08-02 14:38:14 [CHAT] steven12138: !!qb make"
             )
         )
         await asyncio.sleep(0)  # let the dispatched task start
-        assert commands.dispatched == ["!!save make"]
+        assert commands.dispatched == ["!!qb make"]
 
         # The loop must still be free to deliver the line the handler awaits.
         await reactor.react(
@@ -117,11 +117,11 @@ class TestReadLoopIsNeverBlocked:
         server = FakeServer(commands)
         reactor = InfoReactor(server, logging.getLogger("test"))
 
-        await reactor.react(server.handler.parse_console_input("!!save make"))
+        await reactor.react(server.handler.parse_console_input("!!qb make"))
         await reactor.react(server.handler.parse_console_input("!!FR status"))
         await asyncio.sleep(0)
 
-        assert commands.dispatched == ["!!save make", "!!FR status"]
+        assert commands.dispatched == ["!!qb make", "!!FR status"]
         commands.marker.set()
         await asyncio.sleep(0)
 
@@ -130,7 +130,7 @@ class TestReadLoopIsNeverBlocked:
         server = FakeServer(commands)
         reactor = InfoReactor(server, logging.getLogger("test"))
 
-        await reactor.react(server.handler.parse_console_input("!!save make"))
+        await reactor.react(server.handler.parse_console_input("!!qb make"))
         await reactor.react(
             server.handler.parse_server_stdout("   1.0 Hosting game at IP ADDR")
         )

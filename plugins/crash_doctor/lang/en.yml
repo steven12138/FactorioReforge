@@ -24,7 +24,7 @@ fix:
   version_mismatch: "!!mod updates, or remove the mod"
   missing_dependency: "!!mod install <the missing mod>"
   another_instance: "stop the other FactorioReforge, or look for a stray process: pgrep -af bin/x64/factorio"
-  corrupt_save: "!!save list, then !!save back <slot> to restore a backup"
+  corrupt_save: "!!qb list, then !!qb back <slot> to restore a backup"
   port_in_use: "check for a stray process, or change --port in config.yml"
   save_too_new: update the headless install, or restore an older backup
   multiplayer_failed: check server-settings.json

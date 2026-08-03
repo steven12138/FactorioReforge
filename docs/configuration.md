@@ -47,6 +47,7 @@ saves:
   current_save: server/factorio/saves/reforge.zip
   snapshot_dir: snapshots
   slot_protection: [0, 0, 0, 10800, 259200]
+  auto_slot_protection: [0, 0, 0, 0, 0]
 
 permission:
   default_level: user
@@ -71,6 +72,14 @@ expressions, private messages. `password` has to match the `--rcon-password` in
 With `enabled: false`, plugins that need a result raise `RconError` rather than
 returning something invented. Chat, commands and backups still work — they go
 over stdin.
+
+### saves.auto_slot_protection
+
+The same list, for the ring automatic backups use. Automatic and manual backups
+shift **separately**, so a timer running every half hour cannot walk a backup
+someone took before a risky change off the end of the list overnight. Automatic
+slots are addressed with an `a`: `!!qb back a2`. No protection by default —
+nothing in that ring was asked for by a person.
 
 ### saves.slot_protection
 

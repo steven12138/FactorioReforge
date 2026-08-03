@@ -45,6 +45,7 @@ saves:
   current_save: server/factorio/saves/reforge.zip
   snapshot_dir: snapshots
   slot_protection: [0, 0, 0, 10800, 259200]
+  auto_slot_protection: [0, 0, 0, 0, 0]
 
 permission:
   default_level: user
@@ -67,6 +68,13 @@ RCON 是所有**要拿返回值**的东西的通道：玩家列表、Lua 表达�
 
 设成 `enabled: false` 时，需要返回值的插件会抛 `RconError`，
 而不是编一个结果给你。聊天、命令、备份仍然照常工作——它们走 stdin。
+
+### saves.auto_slot_protection
+
+同样是一个列表，但属于自动备份那一圈槽位。自动备份和手动备份**分开**顺移，
+所以一个每半小时跑一次的定时器，不会在一夜之间把某人动手前特意留的那一份
+挤出列表。自动槽位用 `a` 开头寻址：`!!qb back a2`。默认不设保护期 ——
+那一圈里的东西本来就不是人特意要求留下的。
 
 ### saves.slot_protection
 

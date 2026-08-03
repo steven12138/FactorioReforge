@@ -90,7 +90,9 @@ async def on_player_left(server, player, info=None):
 
 async def _take(server, reason: str) -> None:
     try:
-        snapshot = await server.snapshot(reason, created_by="auto_snapshot")
+        snapshot = await server.snapshot(
+            reason, created_by="auto_snapshot", automatic=True
+        )
     except Exception as exc:
         server.logger.error(server.tr("failed", error=exc))
         return

@@ -27,7 +27,7 @@ CI runs the same three on Python 3.11 through 3.13.
 ## What a change should come with
 
 **A test that fails without it.** Most of the tests here exist because something
-actually broke: a deadlock on `!!save make`, a reload that silently reused stale
+actually broke: a deadlock on `!!qb make`, a reload that silently reused stale
 bytecode, a translation key YAML parsed as a boolean. Each one is a test now so
 it stays fixed.
 

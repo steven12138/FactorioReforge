@@ -6,7 +6,7 @@
   <img alt="Python 3.11+" src="https://img.shields.io/badge/python-3.11%2B-3776ab?logo=python&logoColor=white">
   <img alt="Factorio 2.0" src="https://img.shields.io/badge/factorio-2.0%20headless-d4761a">
   <img alt="License MIT" src="https://img.shields.io/badge/license-MIT-green">
-  <img alt="358 tests" src="https://img.shields.io/badge/tests-358%20passing-brightgreen">
+  <img alt="379 tests" src="https://img.shields.io/badge/tests-379%20passing-brightgreen">
   <img alt="i18n" src="https://img.shields.io/badge/i18n-en%20%C2%B7%20zh__cn-blue">
 </p>
 
@@ -32,7 +32,7 @@ does this for Minecraft. Verified against **Factorio 2.0.77** headless on Linux.
 14:02:14 INF factorio       Hosting game at IP ADDR:({0.0.0.0:34197})
 14:02:16 INF reforge        Startup check: 0 problem(s), 2 notice(s), 3 routine
 14:02:31 INF factorio       2026-08-02 14:02:31 [JOIN] Alice joined the game
-14:02:48 INF factorio       2026-08-02 14:02:48 [CHAT] Alice: !!save make before biters
+14:02:48 INF factorio       2026-08-02 14:02:48 [CHAT] Alice: !!qb make before biters
 14:02:48 INF save           Backed up into slot 1 (24.1 MB, 0.4s)
 ```
 
@@ -107,7 +107,7 @@ included. Each plugin ships its own translations.
 
 | Plugin | What it gives you |
 |---|---|
-| [`save_guard`](docs/plugins.md#save-management) | `!!save` — slot backups, staged restore, undo |
+| [`save_guard`](docs/plugins.md#save-management) | `!!qb` — slot backups, staged restore, undo |
 | [`auto_snapshot`](docs/plugins.md#auto_snapshot) | Backups on a timer and when the last player leaves |
 | [`telegram_bridge`](docs/plugins.md#telegram_bridge) | Chat relay and full server control from your phone |
 | [`mod_manager`](docs/plugins.md#mod_manager) | Search, install and update mods from the portal |

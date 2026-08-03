@@ -46,23 +46,32 @@ FactorioReforge 终端**永远**是 `owner`，且不可配置：
 | `!!FR lang set <语言>` | admin | 切换语言，立即生效并写入配置 |
 | `!!FR exit` | owner | 停服，然后退出 FactorioReforge |
 
-## 备份 —— `!!save`
+## 备份 —— `!!qb`
+
+名字来自 [QuickBackupM](https://github.com/TISUnion/QuickBackupM)，
+命令集也照它来，这样从 Minecraft 那边过来的手感是连着的。
+`!!save` 仍然可用、也不会被删掉，只是不再是正式名字。
 
 槽位模型、以及一次回档具体做了什么，见
 [备份与回档](architecture_zh.md#备份与回档)。
 
 | 命令 | 等级 | 作用 |
 |---|---|---|
-| `!!save` / `!!save list` | guest | 所有槽位，带时间、大小和备注 |
-| `!!save make [备注]` | user | 备份到槽位 1，其余顺次下移 |
-| `!!save back [槽位]` | helper | **预备**回档（默认槽位 1），此时还什么都没做 |
-| `!!save confirm` | user | 倒计时之后执行预备好的回档 |
-| `!!save abort` | user | 取消，无论是预备中还是倒计时中 |
-| `!!save del <槽位>` | helper | 删掉一个槽位 |
-| `!!save rename <槽位> <备注>` | helper | 改备注 |
+| `!!qb` / `!!qb list` | guest | 所有槽位，带时间、大小和备注 |
+| `!!qb make [备注]` | user | 备份到槽位 1，其余顺次下移 |
+| `!!qb back [槽位]` | helper | **预备**回档（默认槽位 1），此时还什么都没做 |
+| `!!qb confirm` | user | 倒计时之后执行预备好的回档 |
+| `!!qb abort` | user | 取消，无论是预备中还是倒计时中 |
+| `!!qb del <槽位>` | helper | 删掉一个槽位 |
+| `!!qb rename <槽位> <备注>` | helper | 改备注 |
 
-`!!save back` 自己绝不会真的回档。它只是预备，然后 `!!save confirm`
-在聊天里倒计时，倒计时期间任何人都可以 `!!save abort`。
+`!!qb back` 自己绝不会真的回档。它只是预备，然后 `!!qb confirm`
+在聊天里倒计时，倒计时期间任何人都可以 `!!qb abort`。
+
+**自动备份有自己独立的槽位**，列在手动槽位下面，用 `a` 开头寻址：
+`!!qb back a2`、`!!qb del a3`。否则一个每半小时跑一次的定时器，
+一晚上就能把整段历史挤出去 —— 而被挤掉的恰好就是某人在动手改之前
+特意留的那一份。**光写数字永远指的是人手动做的那一档。**
 
 ## 服务器设置 —— `!!server`
 

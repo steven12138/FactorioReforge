@@ -67,6 +67,7 @@ save:
   protected: "  ［受保护，还剩 {duration}］"
   protection_expired: "  ［保护已过期］"
   overwrite: "  overwrite：{time} —— 上次回档之前的世界"
+  auto_header: "自动备份槽位（定时器自己的一圈）："
   restore_hint: "用 '{prefix} back <槽位>' 然后 '{prefix} confirm' 来回档。"
   about_to_restore: "即将回档到 {slot}"
   confirm_hint: >-
@@ -95,6 +96,7 @@ help:
   server: 启动、停止、重启或强杀服务器
   permission: 查看或修改权限
   exit: 停止服务器并退出
+  qb: "备份：创建、列出、回档"
 
 error:
   rcon_down: RCON 未连接

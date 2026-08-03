@@ -48,23 +48,33 @@ that is the truth.
 | `!!FR lang set <code>` | admin | Switch language, immediately and persistently |
 | `!!FR exit` | owner | Stop the server, then quit FactorioReforge |
 
-## Backups — `!!save`
+## Backups — `!!qb`
+
+Named after [QuickBackupM](https://github.com/TISUnion/QuickBackupM), whose
+command set this follows, so the muscle memory carries over from Minecraft.
+`!!save` still works and is not going away, it is just not the name any more.
 
 The slot model and what a restore actually does are in
 [Backups](architecture.md#backups-and-restoring).
 
 | Command | Level | Does |
 |---|---|---|
-| `!!save` / `!!save list` | guest | The slots, with age, size and comment |
-| `!!save make [comment]` | user | Back up into slot 1; everything else shifts down |
-| `!!save back [slot]` | helper | Stage a restore (slot 1 by default) — does nothing yet |
-| `!!save confirm` | user | Perform the staged restore, after a countdown |
-| `!!save abort` | user | Cancel, whether staged or already counting down |
-| `!!save del <slot>` | helper | Delete one slot |
-| `!!save rename <slot> <comment>` | helper | Re-comment a slot |
+| `!!qb` / `!!qb list` | guest | The slots, with age, size and comment |
+| `!!qb make [comment]` | user | Back up into slot 1; everything else shifts down |
+| `!!qb back [slot]` | helper | Stage a restore (slot 1 by default) — does nothing yet |
+| `!!qb confirm` | user | Perform the staged restore, after a countdown |
+| `!!qb abort` | user | Cancel, whether staged or already counting down |
+| `!!qb del <slot>` | helper | Delete one slot |
+| `!!qb rename <slot> <comment>` | helper | Re-comment a slot |
 
-`!!save back` never restores on its own. It stages, then `!!save confirm`
-counts down in chat, and anyone may `!!save abort` during the countdown.
+`!!qb back` never restores on its own. It stages, then `!!qb confirm`
+counts down in chat, and anyone may `!!qb abort` during the countdown.
+
+**Automatic backups have their own slots**, listed under the manual ones and
+addressed with an `a`: `!!qb back a2`, `!!qb del a3`. A schedule running every
+half hour would otherwise walk the whole history out of the building overnight,
+and the backup someone took before a risky change is exactly the one it would
+push off the end. A bare number is always a slot a person made.
 
 ## Server settings — `!!server`
 

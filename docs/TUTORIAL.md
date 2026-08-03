@@ -234,7 +234,7 @@ This is the feature most worth understanding before you need it.
 ### Take a backup
 
 ```
-!!save make before the big refactor
+!!qb make before the big refactor
 ```
 
 ```
@@ -256,7 +256,7 @@ refused rather than destroying something you asked to keep.
 ### List them
 
 ```
-!!save list
+!!qb list
 ```
 
 ### Restore
@@ -264,23 +264,23 @@ refused rather than destroying something you asked to keep.
 Rolling back is two steps on purpose:
 
 ```
-!!save back 1
+!!qb back 1
 ```
 
 ```
 About to restore slot 1: 2026-08-02 10:12:03 by console (24.8 MiB) - before the big refactor
-This stops the server and replaces the current world. '!!save confirm' within 60s to go
-ahead, '!!save abort' to cancel.
+This stops the server and replaces the current world. '!!qb confirm' within 60s to go
+ahead, '!!qb abort' to cancel.
 ```
 
 ```
-!!save confirm
+!!qb confirm
 ```
 
 What then happens, in order:
 
 1. Verify the slot holds a valid zip
-2. Count down in chat, one second at a time -- `!!save abort` still cancels
+2. Count down in chat, one second at a time -- `!!qb abort` still cancels
 3. Stop the server and wait for the process to actually exit
 4. **Copy the current world into the `overwrite` slot** — so restoring the wrong
    slot is recoverable
@@ -291,7 +291,7 @@ What then happens, in order:
 If step 4 fails, the whole restore is refused. A restore with no way back is a
 one-way door, and this deliberately will not walk through one.
 
-Restored the wrong slot? `!!save` lists the `overwrite` entry -- that is the
+Restored the wrong slot? `!!qb` lists the `overwrite` entry -- that is the
 world as it was a moment before.
 
 ### Automatic backups
@@ -714,8 +714,8 @@ If nothing matched, it prints the last lines of output instead of guessing.
 | Players cannot connect | Port forwarded as TCP | Forward **34197/UDP** |
 | Players get "mods do not match" | Their mod set differs | They need the same mods and versions |
 | A restore loaded the wrong map | `--start-server-load-latest` in `start_command` | Use `--start-server <path>`; FactorioReforge refuses to start with the former |
-| `No slot free` when backing up | Every slot is inside its protection window | `!!save del <slot>`, or lower `saves.slot_protection` |
-| Restored the wrong slot | — | `!!save` lists an `overwrite` entry: the world from just before |
+| `No slot free` when backing up | Every slot is inside its protection window | `!!qb del <slot>`, or lower `saves.slot_protection` |
+| Restored the wrong slot | — | `!!qb` lists an `overwrite` entry: the world from just before |
 | Telegram bot ignores you | Your chat id is not allowed | Check the log for the id, add it to `allowed_chat_ids` |
 
 ### Logs

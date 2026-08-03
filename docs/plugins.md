@@ -22,7 +22,7 @@ a new version does not force you to edit the file by hand.
 
 ## Save management
 
-Backups are part of the framework rather than a plugin — `!!save` is always
+Backups are part of the framework rather than a plugin — `!!qb` is always
 there. The slot model, and what a restore actually does, are in
 [Backups](architecture.md#backups-and-restoring).
 
@@ -30,15 +30,18 @@ there. The slot model, and what a restore actually does, are in
 
 Backs up on an interval, and when the last player leaves.
 
-The timer skips when nobody is online. With `auto_pause` on, an empty server's
-world has not moved, so those backups would be byte-for-byte repeats filling
-slots that hold real history.
+Its backups go into the **automatic ring** — `a1`, `a2`, listed separately by
+`!!qb` — so a schedule can never spend a slot someone made on purpose. Restore
+one with `!!qb back a2`.
+
+The timer also skips when nobody is online. With `auto_pause` on, an empty
+server's world has not moved, so those backups would be byte-for-byte repeats.
 
 ```jsonc
 {
-  "interval_minutes": 60,
-  "on_last_player_leave": true,
-  "comment": "auto"
+  "interval_minutes": 30,
+  "on_last_player_left": true,
+  "skip_when_empty": true
 }
 ```
 

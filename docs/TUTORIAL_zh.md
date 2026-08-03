@@ -228,7 +228,7 @@ echo '["你的Factorio用户名"]' > server/factorio/server-adminlist.json
 ### 做一次备份
 
 ```
-!!save make 大改造之前
+!!qb make 大改造之前
 ```
 
 ```
@@ -248,7 +248,7 @@ echo '["你的Factorio用户名"]' > server/factorio/server-adminlist.json
 ### 列出备份
 
 ```
-!!save list
+!!qb list
 ```
 
 ### 回档
@@ -256,22 +256,22 @@ echo '["你的Factorio用户名"]' > server/factorio/server-adminlist.json
 回档故意做成两步：
 
 ```
-!!save back 1
+!!qb back 1
 ```
 
 ```
 即将回档到 槽位 1：2026-08-02 10:12:03 由 console（24.8 MiB）—— 大改造之前
-这会停止服务器并替换当前世界。60 秒内输入 '!!save confirm' 继续，'!!save abort' 取消。
+这会停止服务器并替换当前世界。60 秒内输入 '!!qb confirm' 继续，'!!qb abort' 取消。
 ```
 
 ```
-!!save confirm
+!!qb confirm
 ```
 
 接下来按顺序发生：
 
 1. 校验槽位里是合法 zip
-2. 游戏内逐秒倒计时 —— 期间 `!!save abort` 仍然能取消
+2. 游戏内逐秒倒计时 —— 期间 `!!qb abort` 仍然能取消
 3. 停服，并等待进程真正退出
 4. **把当前世界复制到 `overwrite` 槽位** —— 这样回错槽位也能救回来
 5. 通过临时文件 + rename 替换存档
@@ -281,7 +281,7 @@ echo '["你的Factorio用户名"]' > server/factorio/server-adminlist.json
 如果第 4 步失败，整个回档会被拒绝执行。
 没有退路的回档是一扇单向门，这里刻意不会走进去。
 
-回错槽位了？`!!save` 里会列出 `overwrite` 那一条 —— 那就是回档前一刻的世界。
+回错槽位了？`!!qb` 里会列出 `overwrite` 那一条 —— 那就是回档前一刻的世界。
 
 ### 自动备份
 
@@ -689,8 +689,8 @@ Last unexpected exit: code 1
 | 玩家连不上 | 端口按 TCP 转发了 | 转发 **34197/UDP** |
 | 玩家提示 mod 不匹配 | 他们的 mod 集合不同 | 需要完全相同的 mod 和版本 |
 | 回档后加载的是错误的地图 | `start_command` 里用了 `--start-server-load-latest` | 改用 `--start-server <路径>`；FactorioReforge 遇到前者会直接拒绝启动 |
-| 备份时提示没有可用槽位 | 所有槽位都还在保护期内 | `!!save del <槽位>`，或调低 `saves.slot_protection` |
-| 回错槽位了 | — | `!!save` 里有 `overwrite` 一条，那是回档前一刻的世界 |
+| 备份时提示没有可用槽位 | 所有槽位都还在保护期内 | `!!qb del <槽位>`，或调低 `saves.slot_protection` |
+| 回错槽位了 | — | `!!qb` 里有 `overwrite` 一条，那是回档前一刻的世界 |
 | Telegram bot 不理你 | 你的 chat id 不在允许列表 | 从日志里找到 id，加进 `allowed_chat_ids` |
 
 ### 日志

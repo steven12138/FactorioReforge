@@ -72,6 +72,9 @@ class ReforgeServer:
             config.current_save_path,
             config.snapshot_dir_path,
             slots=[SlotConfig(seconds) for seconds in config.saves.slot_protection],
+            auto_slots=[
+                SlotConfig(seconds) for seconds in config.saves.auto_slot_protection
+            ],
             logger=self.logger,
             tr=self.tr,
         )

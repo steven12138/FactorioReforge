@@ -54,6 +54,17 @@
 
 ### Changed
 
+- **`!!save` is now `!!qb`**, matching
+  [QuickBackupM](https://github.com/TISUnion/QuickBackupM), whose command set
+  this already followed. `!!save` still works — a rename that silently breaks a
+  backup command is the worst kind of rename — and both names share one staging
+  slot, so staging under one and confirming under the other is one restore.
+- **Automatic backups have their own ring of slots**, addressed as `a1`, `a2`.
+  Sharing one ring meant a timer running every half hour walked the whole
+  history out of the building overnight, and what it pushed off the end was the
+  backup someone took before doing something risky — the only reason the feature
+  exists. `saves.auto_slot_protection` sizes the new ring.
+
 - **Every plugin is now a package that owns its `lang/` directory.** Translations
   used to share `plugins/lang/<id>/`, which only existed because a solo `.py`
   file had nowhere to put them.
@@ -62,7 +73,7 @@
 
 ### Fixed
 
-- **A deadlock that froze the server on `!!save make`.** Command handlers ran
+- **A deadlock that froze the server on `!!qb make`.** Command handlers ran
   inline on the stdout read loop, so a handler waiting for Factorio to print
   "Saving finished" was waiting for a line only it could read. Commands now
   dispatch into their own task; parsing and events stay inline to preserve

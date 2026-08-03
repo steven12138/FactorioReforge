@@ -6,7 +6,7 @@
   <img alt="Python 3.11+" src="https://img.shields.io/badge/python-3.11%2B-3776ab?logo=python&logoColor=white">
   <img alt="Factorio 2.0" src="https://img.shields.io/badge/factorio-2.0%20headless-d4761a">
   <img alt="License MIT" src="https://img.shields.io/badge/license-MIT-green">
-  <img alt="358 tests" src="https://img.shields.io/badge/tests-358%20passing-brightgreen">
+  <img alt="379 tests" src="https://img.shields.io/badge/tests-379%20passing-brightgreen">
   <img alt="i18n" src="https://img.shields.io/badge/i18n-en%20%C2%B7%20zh__cn-blue">
 </p>
 
@@ -31,7 +31,7 @@ Minecraft 那边做同样事情的项目。基于 **Factorio 2.0.77** headless �
 14:02:14 INF factorio       Hosting game at IP ADDR:({0.0.0.0:34197})
 14:02:16 INF reforge        启动检查：0 个问题，2 条提示，3 条正常现象
 14:02:31 INF factorio       2026-08-02 14:02:31 [JOIN] Alice joined the game
-14:02:48 INF factorio       2026-08-02 14:02:48 [CHAT] Alice: !!save make 打虫之前
+14:02:48 INF factorio       2026-08-02 14:02:48 [CHAT] Alice: !!qb make 打虫之前
 14:02:48 INF save           已备份到槽位 1（24.1 MB，0.4 秒）
 ```
 
@@ -100,7 +100,7 @@ Factorio 并等它真正退出，不会因为你着急而丢掉任何一个 tick
 
 | 插件 | 给你什么 |
 |---|---|
-| [`save_guard`](docs/plugins_zh.md#存档管理) | `!!save` —— 槽位备份、两步回档、撤销 |
+| [`save_guard`](docs/plugins_zh.md#存档管理) | `!!qb` —— 槽位备份、两步回档、撤销 |
 | [`auto_snapshot`](docs/plugins_zh.md#auto_snapshot) | 定时备份，以及最后一名玩家离开时备份 |
 | [`telegram_bridge`](docs/plugins_zh.md#telegram_bridge) | 聊天双向转发，手机上完整控制服务器 |
 | [`mod_manager`](docs/plugins_zh.md#mod_manager) | 从 mod 门户搜索、安装、更新 mod |

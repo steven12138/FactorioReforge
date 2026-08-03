@@ -60,7 +60,15 @@ async def run(config: Config) -> int:
     print(banner(CORE_VERSION, server.tr("banner", prefix=config.command_prefix), palette))
 
     server.commands.register("@core", builtin.build(server))
-    server.commands.register("@core", builtin.build_save_commands(server))
+    # `!!qb`, plus the old `!!save` kept working but not advertised: people have
+    # it in their fingers, and a rename that silently breaks a backup command is
+    # the worst kind of rename. One staging dict between them, so staging under
+    # one name and confirming under the other is the same restore.
+    staged: dict = {"slot": None, "at": 0.0, "by": ""}
+    for alias in ("qb", "save"):
+        server.commands.register(
+            "@core", builtin.build_save_commands(server, alias, staged)
+        )
     await server.boot()
 
     loop = asyncio.get_running_loop()

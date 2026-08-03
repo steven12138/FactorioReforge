@@ -50,6 +50,16 @@ class SavesConfig:
         default_factory=lambda: [0, 0, 0, 3 * 60 * 60, 3 * 24 * 60 * 60]
     )
 
+    #: The same, for the ring automatic backups use. Kept separate so a timer
+    #: running every half hour cannot walk a manual backup off the end of the
+    #: list overnight -- the backup someone took before a risky change is
+    #: exactly the one a schedule would otherwise push out. Its length is the
+    #: number of automatic slots; no protection, because nothing in this ring
+    #: was asked for by a person.
+    auto_slot_protection: list[int] = dataclasses.field(
+        default_factory=lambda: [0, 0, 0, 0, 0]
+    )
+
     #: Seconds to wait for the server to confirm it finished writing a save.
     save_timeout: float = 120.0
     #: Seconds of in-game countdown before a restore actually happens.

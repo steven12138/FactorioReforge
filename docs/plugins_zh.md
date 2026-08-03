@@ -20,21 +20,24 @@
 
 ## 存档管理
 
-备份属于框架而不是插件——`!!save` 永远都在。
+备份属于框架而不是插件——`!!qb` 永远都在。
 槽位模型和一次回档具体做了什么，见 [备份与回档](architecture_zh.md#备份与回档)。
 
 ## auto_snapshot
 
 定时备份，以及最后一名玩家离开时备份。
 
-无人在线时定时器会跳过。开着 `auto_pause` 的话，空服的世界根本没动过，
-那些备份会是一模一样的重复，白白占掉本该放真实历史的槽位。
+它的备份进的是**自动那一圈槽位** —— `a1`、`a2`，`!!qb` 里单独列出 ——
+所以定时器永远不会花掉一个人手动留下的槽位。回档用 `!!qb back a2`。
+
+无人在线时定时器还会跳过。开着 `auto_pause` 的话，空服的世界根本没动过，
+那些备份会是一模一样的重复。
 
 ```jsonc
 {
-  "interval_minutes": 60,
-  "on_last_player_leave": true,
-  "comment": "auto"
+  "interval_minutes": 30,
+  "on_last_player_left": true,
+  "skip_when_empty": true
 }
 ```
 

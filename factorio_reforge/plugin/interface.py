@@ -214,8 +214,14 @@ class ServerInterface:
     def saves(self) -> SaveManager:
         return self._server.saves
 
-    async def snapshot(self, comment: str = "", *, created_by: str = "unknown"):
-        return await self._server.create_snapshot(comment, created_by=created_by)
+    async def snapshot(
+        self, comment: str = "", *, created_by: str = "unknown", automatic: bool = False
+    ):
+        """Back up into slot 1. ``automatic`` uses the separate automatic ring,
+        so a scheduled backup never spends a slot someone made on purpose."""
+        return await self._server.create_snapshot(
+            comment, created_by=created_by, automatic=automatic
+        )
 
     async def rollback(
         self, slot: int, *, countdown: float = 10.0, requested_by: str = "unknown"

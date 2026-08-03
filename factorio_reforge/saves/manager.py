@@ -24,13 +24,22 @@ Two things differ, both because Factorio offers something Minecraft does not:
 * A world is one ``.zip``, not a directory tree, so a slot holds ``save.zip``
   plus ``info.json`` instead of a copied world folder.
 
+One thing is deliberately *not* QBM's: automatic backups have their own ring of
+slots. Sharing one ring means a timer running every thirty minutes walks the
+whole history out of the building overnight, and the backup someone took before
+a risky change -- the only reason to have backups at all -- is the thing it
+pushes off the end. Two rings, so a schedule can never spend a slot a person
+asked for. They are addressed as ``3`` and ``a3``.
+
 Layout::
 
     snapshots/
-        slot1/  save.zip  info.json
+        slot1/  save.zip  info.json      # !!qb make
         slot2/  ...
         ...
-        overwrite/  save.zip  info.json
+        auto1/  save.zip  info.json      # the timer, and events
+        auto2/  ...
+        overwrite/  save.zip  info.json  # the world as it was, before a restore
 """
 
 from __future__ import annotations
@@ -51,6 +60,15 @@ INFO_NAME = "info.json"
 OVERWRITE_SLOT = "overwrite"
 _SAFE = "-_.() "
 
+#: Ring names. The manual one is "" so that a slot a person made is addressed by
+#: a bare number, which is what everybody types.
+MANUAL = ""
+AUTO = "auto"
+OVERWRITE = "overwrite"
+
+#: What a user types for a slot in the automatic ring: ``a3``, or ``auto3``.
+_AUTO_PREFIXES = ("a", "auto")
+
 
 class SaveError(Exception):
     pass
@@ -58,6 +76,43 @@ class SaveError(Exception):
 
 class NoSlotAvailable(SaveError):
     """Every slot is still within its delete protection window."""
+
+
+@dataclasses.dataclass(frozen=True)
+class SlotRef:
+    """Which slot, in which ring. Directories are ``slot3`` and ``auto3``."""
+
+    number: int
+    ring: str = MANUAL
+
+    @property
+    def directory(self) -> str:
+        if self.ring == OVERWRITE:
+            return OVERWRITE_SLOT
+        return f"{'auto' if self.ring == AUTO else 'slot'}{self.number}"
+
+    def __str__(self) -> str:
+        if self.ring == OVERWRITE:
+            return OVERWRITE_SLOT
+        return f"a{self.number}" if self.ring == AUTO else str(self.number)
+
+
+def parse_slot(value: SlotRef | int | str) -> SlotRef:
+    """Read what someone typed: ``3``, ``a3``, ``auto3``, or ``overwrite``."""
+    if isinstance(value, SlotRef):
+        return value
+    if isinstance(value, int):
+        return SlotRef(value, MANUAL)
+
+    text = str(value).strip().lower()
+    if text == OVERWRITE_SLOT:
+        return SlotRef(0, OVERWRITE)
+    for prefix in sorted(_AUTO_PREFIXES, key=len, reverse=True):
+        if text.startswith(prefix) and text[len(prefix):].isdigit():
+            return SlotRef(int(text[len(prefix):]), AUTO)
+    if text.isdigit():
+        return SlotRef(int(text), MANUAL)
+    raise SaveError(f"{value!r} is not a slot; use a number, or a1 for an automatic one")
 
 
 @dataclasses.dataclass
@@ -77,6 +132,18 @@ class Slot:
     players_online: list[str] = dataclasses.field(default_factory=list)
     size_bytes: int = 0
     automatic: bool = False
+
+    ring: str = MANUAL
+    """Which ring this slot lives in. The directory it was read from wins."""
+
+    @property
+    def ref(self) -> SlotRef:
+        return SlotRef(self.id, self.ring)
+
+    @property
+    def label(self) -> str:
+        """How a player refers to this slot: ``3`` or ``a3``."""
+        return str(self.ref)
 
     @property
     def created_at_text(self) -> str:
@@ -101,10 +168,11 @@ class Slot:
         }
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any], slot_id: int) -> Slot:
+    def from_dict(cls, data: dict[str, Any], slot_id: int, ring: str = MANUAL) -> Slot:
         known = {f.name for f in dataclasses.fields(cls)}
         kwargs = {k: v for k, v in data.items() if k in known}
         kwargs["id"] = slot_id
+        kwargs["ring"] = ring
         return cls(**kwargs)
 
     #: Set by SaveManager so a slot can describe itself in the operator's
@@ -118,7 +186,7 @@ class Slot:
         if self._tr is not None:
             return self._tr(
                 "save.slot_describe",
-                slot=self.id,
+                slot=self.label,
                 time=self.created_at_text,
                 by=self.created_by,
                 size=f"{self.size_bytes / (1024 * 1024):.1f}",
@@ -127,7 +195,7 @@ class Slot:
         who = f" by {self.created_by}" if self.created_by != "unknown" else ""
         note = f" - {self.comment}" if self.comment else ""
         size = f" ({self.size_bytes / (1024 * 1024):.1f} MiB)" if self.size_bytes else ""
-        return f"slot {self.id}: {self.created_at_text}{who}{size}{note}"
+        return f"slot {self.label}: {self.created_at_text}{who}{size}{note}"
 
 
 class SaveManager:
@@ -137,6 +205,7 @@ class SaveManager:
         snapshot_directory: Path,
         *,
         slots: list[SlotConfig] | None = None,
+        auto_slots: list[SlotConfig] | None = None,
         logger: logging.Logger | None = None,
         tr: Callable[..., str] | None = None,
     ):
@@ -152,6 +221,10 @@ class SaveManager:
             SlotConfig(3 * 60 * 60),
             SlotConfig(3 * 24 * 60 * 60),
         ]
+        #: The automatic ring. No protection by default: a schedule replacing
+        #: its own older output is the point, and nothing here was asked for by
+        #: a person, so nothing here needs defending from the schedule.
+        self.auto_slots = auto_slots if auto_slots is not None else [SlotConfig(0)] * 5
         self.logger = logger or logging.getLogger(__name__)
         # One backup or restore at a time; QBM calls this single_op.
         self._lock = asyncio.Lock()
@@ -166,20 +239,30 @@ class SaveManager:
     def slot_count(self) -> int:
         return len(self.slots)
 
-    def slot_path(self, slot: int | str) -> Path:
-        name = slot if isinstance(slot, str) else f"slot{slot}"
-        return self.snapshot_directory / name
+    @property
+    def auto_slot_count(self) -> int:
+        return len(self.auto_slots)
 
-    def save_path(self, slot: int | str) -> Path:
+    def ring_slots(self, ring: str) -> list[SlotConfig]:
+        return self.auto_slots if ring == AUTO else self.slots
+
+    def count_in(self, ring: str) -> int:
+        return len(self.ring_slots(ring))
+
+    def slot_path(self, slot: SlotRef | int | str) -> Path:
+        return self.snapshot_directory / parse_slot(slot).directory
+
+    def save_path(self, slot: SlotRef | int | str) -> Path:
         return self.slot_path(slot) / SAVE_NAME
 
-    def info_path(self, slot: int | str) -> Path:
+    def info_path(self, slot: SlotRef | int | str) -> Path:
         return self.slot_path(slot) / INFO_NAME
 
     def ensure_directories(self) -> None:
         self.snapshot_directory.mkdir(parents=True, exist_ok=True)
-        for index in range(1, self.slot_count + 1):
-            self.slot_path(index).mkdir(exist_ok=True)
+        for ring in (MANUAL, AUTO):
+            for index in range(1, self.count_in(ring) + 1):
+                self.slot_path(SlotRef(index, ring)).mkdir(exist_ok=True)
 
     # -- reading -------------------------------------------------------------
 
@@ -187,87 +270,101 @@ class SaveManager:
         """Kept for API compatibility; slots are read from disk on demand."""
         self.ensure_directories()
 
-    def get(self, slot: int | str) -> Slot | None:
+    def get(self, slot: SlotRef | int | str) -> Slot | None:
         """Read one slot, or None if it is empty or unreadable."""
-        info_file = self.info_path(slot)
-        if not info_file.is_file() or not self.save_path(slot).is_file():
+        ref = parse_slot(slot)
+        info_file = self.info_path(ref)
+        if not info_file.is_file() or not self.save_path(ref).is_file():
             return None
         try:
             data = json.loads(info_file.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
             self.logger.warning("%s is unreadable; treating the slot as empty", info_file)
             return None
-        slot_id = slot if isinstance(slot, int) else 0
-        info = Slot.from_dict(data, slot_id)
+        info = Slot.from_dict(data, ref.number, ref.ring)
         info._tr = self.tr
         return info
 
-    def list(self) -> list[Slot]:
+    def list(self, ring: str = MANUAL) -> list[Slot]:
         """Occupied slots, in slot order -- slot 1 is always the newest."""
-        return [s for s in (self.get(i) for i in range(1, self.slot_count + 1)) if s]
+        return [s for _, s in self.all_slots(ring) if s]
 
-    def all_slots(self) -> list[tuple[int, Slot | None]]:
-        """Every slot including the empty ones, for listing."""
-        return [(i, self.get(i)) for i in range(1, self.slot_count + 1)]
+    def all_slots(self, ring: str = MANUAL) -> list[tuple[int, Slot | None]]:
+        """Every slot in one ring including the empty ones, for listing."""
+        return [
+            (i, self.get(SlotRef(i, ring))) for i in range(1, self.count_in(ring) + 1)
+        ]
 
-    def protection_of(self, slot: int) -> int:
-        if 1 <= slot <= self.slot_count:
-            return self.slots[slot - 1].delete_protection
+    def protection_of(self, slot: SlotRef | int | str) -> int:
+        ref = parse_slot(slot)
+        configs = self.ring_slots(ref.ring)
+        if 1 <= ref.number <= len(configs):
+            return configs[ref.number - 1].delete_protection
         return 0
 
-    def is_protected(self, slot: int) -> bool:
+    def is_protected(self, slot: SlotRef | int | str) -> bool:
         info = self.get(slot)
         if info is None:
             return False
         return info.age_seconds <= self.protection_of(slot)
 
-    def validate(self, slot: int) -> Slot:
-        """Resolve a user-supplied slot number, with a message they can act on."""
-        if not 1 <= slot <= self.slot_count:
-            raise SaveError(f"slot must be between 1 and {self.slot_count}")
-        info = self.get(slot)
+    def validate(self, slot: SlotRef | int | str) -> Slot:
+        """Resolve a user-supplied slot, with a message they can act on."""
+        ref = parse_slot(slot)
+        count = self.count_in(ref.ring)
+        if not 1 <= ref.number <= count:
+            where = "automatic slot" if ref.ring == AUTO else "slot"
+            raise SaveError(f"{where} must be between 1 and {count}")
+        info = self.get(ref)
         if info is None:
-            raise SaveError(f"slot {slot} is empty")
+            raise SaveError(f"slot {ref} is empty")
         return info
 
     # -- the QBM slot shuffle ------------------------------------------------
 
-    def _clean_up_slot_1(self) -> None:
-        """Free slot 1, shifting the others down. QBM's ``clean_up_slot_1``.
+    def _clean_up_slot_1(self, ring: str = MANUAL) -> None:
+        """Free slot 1 of a ring, shifting the others down. QBM's ``clean_up_slot_1``.
 
         The slot that gets dropped is the first empty one, or the
         highest-numbered slot whose protection has expired. Nothing protected is
         ever destroyed -- if there is no candidate the backup is refused, which
         is the whole point of setting a protection window.
+
+        The ring matters: a scheduled backup shifts only automatic slots, so a
+        timer can never spend a slot someone made on purpose.
         """
         self.ensure_directories()
+        count = self.count_in(ring)
 
         empty_index: int | None = None
         last_available: int | None = None
-        for index in range(1, self.slot_count + 1):
-            info = self.get(index)
+        for index in range(1, count + 1):
+            ref = SlotRef(index, ring)
+            info = self.get(ref)
             if info is None:
                 if empty_index is None:
                     empty_index = index
-            elif info.age_seconds > self.protection_of(index):
+            elif info.age_seconds > self.protection_of(ref):
                 last_available = index
 
         target = empty_index if empty_index is not None else last_available
         if target is None:
             raise NoSlotAvailable(
-                f"all {self.slot_count} slots are within their delete protection window; "
-                "delete one with !!save del <slot>, or lower the protection in config.yml"
+                f"all {count} slots are within their delete protection window; "
+                "delete one with !!qb del <slot>, or lower the protection in config.yml"
             )
 
-        victim = self.get(target)
+        victim = self.get(SlotRef(target, ring))
         if victim is not None:
             self.logger.info(self._log("log.backup_dropped", slot=victim.describe()))
-        shutil.rmtree(self.slot_path(target), ignore_errors=True)
+        shutil.rmtree(self.slot_path(SlotRef(target, ring)), ignore_errors=True)
 
         # Shift target-1 .. 1 down by one, so slot 1 ends up free.
         for index in reversed(range(1, target)):
-            self.slot_path(index).rename(self.slot_path(index + 1))
-        self.slot_path(1).mkdir(parents=True, exist_ok=True)
+            self.slot_path(SlotRef(index, ring)).rename(
+                self.slot_path(SlotRef(index + 1, ring))
+            )
+        self.slot_path(SlotRef(1, ring)).mkdir(parents=True, exist_ok=True)
 
     # -- creating ------------------------------------------------------------
 
@@ -287,11 +384,13 @@ class SaveManager:
         server is stopped -- the current save file is copied instead, which is
         the best answer available with nothing to ask.
         """
+        ring = AUTO if automatic else MANUAL
+        ref = SlotRef(1, ring)
         async with self._lock:
-            self._clean_up_slot_1()
-            slot_dir = self.slot_path(1)
+            self._clean_up_slot_1(ring)
+            slot_dir = self.slot_path(ref)
             slot_dir.mkdir(parents=True, exist_ok=True)
-            target = self.save_path(1)
+            target = self.save_path(ref)
 
             wrote = False
             if write_save is not None:
@@ -326,6 +425,7 @@ class SaveManager:
 
             info = Slot(
                 id=1,
+                ring=ring,
                 comment=comment,
                 created_at=time.time(),
                 created_by=created_by,
@@ -334,11 +434,11 @@ class SaveManager:
                 automatic=automatic,
             )
             info._tr = self.tr
-            self._write_info(1, info)
+            self._write_info(ref, info)
             self.logger.info(self._log("log.backup_created", slot=info.describe()))
             return info
 
-    def _write_info(self, slot: int | str, info: Slot) -> None:
+    def _write_info(self, slot: SlotRef | int | str, info: Slot) -> None:
         path = self.info_path(slot)
         path.parent.mkdir(parents=True, exist_ok=True)
         temp = path.with_suffix(".json.tmp")
@@ -368,6 +468,7 @@ class SaveManager:
 
         info = Slot(
             id=0,
+            ring=OVERWRITE,
             comment=f"the world as it was, before {confirmed_by} confirmed a restore",
             created_at=time.time(),
             created_by=confirmed_by,
@@ -384,7 +485,7 @@ class SaveManager:
 
     # -- restoring -----------------------------------------------------------
 
-    async def restore(self, slot: int | str) -> None:
+    async def restore(self, slot: SlotRef | int | str) -> None:
         """Put a slot's save in place. The server must be stopped.
 
         Writes to a temp file next to the target and renames, so an interrupted
@@ -408,13 +509,13 @@ class SaveManager:
 
     # -- editing -------------------------------------------------------------
 
-    def rename(self, slot: int, comment: str) -> Slot:
+    def rename(self, slot: SlotRef | int | str, comment: str) -> Slot:
         info = self.validate(slot)
         info.comment = comment
         self._write_info(slot, info)
         return info
 
-    def delete(self, slot: int) -> Slot:
+    def delete(self, slot: SlotRef | int | str) -> Slot:
         info = self.validate(slot)
         shutil.rmtree(self.slot_path(slot), ignore_errors=True)
         self.slot_path(slot).mkdir(parents=True, exist_ok=True)

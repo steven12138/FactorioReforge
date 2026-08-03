@@ -12,11 +12,13 @@ import zipfile
 import pytest
 
 from factorio_reforge.saves.manager import (
+    AUTO,
     OVERWRITE_SLOT,
     NoSlotAvailable,
     SaveError,
     SaveManager,
     SlotConfig,
+    parse_slot,
 )
 
 pytestmark = pytest.mark.asyncio
@@ -124,6 +126,85 @@ class TestCreate:
         manager.current_save.unlink()
         with pytest.raises(SaveError, match="does not exist"):
             await manager.create()
+
+
+class TestAutomaticRing:
+    """A schedule must never spend a slot a person asked for.
+
+    Sharing one ring means a timer running every half hour walks the whole
+    history out of the building overnight, and the backup someone took before a
+    risky change is exactly the one it pushes off the end.
+    """
+
+    @pytest.fixture
+    def manager(self, tmp_path):
+        save = write_save(tmp_path / "saves" / "reforge.zip")
+        mgr = SaveManager(
+            save, tmp_path / "snapshots",
+            slots=[SlotConfig(0), SlotConfig(0)],
+            auto_slots=[SlotConfig(0), SlotConfig(0)],
+        )
+        mgr.load_index()
+        return mgr
+
+    async def test_the_rings_are_separate_directories(self, manager):
+        await manager.create("by hand")
+        await manager.create("by timer", automatic=True)
+        assert manager.save_path(1).is_file()
+        assert manager.save_path("a1").is_file()
+        assert manager.slot_path("a1").name == "auto1"
+
+    async def test_a_full_schedule_leaves_manual_backups_alone(self, manager):
+        """The regression this exists for: two manual slots, many auto backups."""
+        await manager.create("keep me")
+        await manager.create("keep me too")
+        for i in range(6):
+            await manager.create(f"timer {i}", automatic=True)
+
+        comments = [s.comment for s in manager.list()]
+        assert comments == ["keep me too", "keep me"]
+        assert len(manager.list(AUTO)) == 2
+
+    async def test_each_ring_shuffles_only_itself(self, manager):
+        await manager.create("manual 1")
+        await manager.create("auto 1", automatic=True)
+        await manager.create("auto 2", automatic=True)
+
+        assert [s.comment for s in manager.list(AUTO)] == ["auto 2", "auto 1"]
+        assert [s.comment for s in manager.list()] == ["manual 1"]
+
+    async def test_an_automatic_slot_is_addressed_with_an_a(self, manager):
+        slot = await manager.create("timer", automatic=True)
+        assert slot.label == "a1"
+        assert manager.validate("a1").comment == "timer"
+        assert manager.validate("auto1").comment == "timer"
+
+    async def test_a_bare_number_never_means_an_automatic_slot(self, manager):
+        await manager.create("timer", automatic=True)
+        with pytest.raises(SaveError, match="empty"):
+            manager.validate(1)
+
+    async def test_restoring_takes_a_ring_reference(self, manager, tmp_path):
+        write_save(tmp_path / "saves" / "reforge.zip", "current")
+        await manager.create("timer", automatic=True)
+        write_save(tmp_path / "saves" / "reforge.zip", "broken")
+        await manager.restore("a1")
+        assert read_save(tmp_path / "saves" / "reforge.zip") == "current"
+
+    async def test_deleting_and_renaming_address_the_right_ring(self, manager):
+        await manager.create("manual")
+        await manager.create("timer", automatic=True)
+        manager.rename("a1", "renamed")
+        assert manager.get("a1").comment == "renamed"
+        assert manager.get(1).comment == "manual"
+        manager.delete("a1")
+        assert manager.get("a1") is None
+        assert manager.get(1) is not None
+
+    @pytest.mark.parametrize("text", ["x", "a", "3a", "", "auto"])
+    async def test_nonsense_is_refused_with_advice(self, manager, text):
+        with pytest.raises(SaveError, match="a1"):
+            parse_slot(text)
 
 
 class TestDeleteProtection:

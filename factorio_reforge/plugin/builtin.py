@@ -12,7 +12,6 @@ from typing import TYPE_CHECKING, Any
 from factorio_reforge.command.builder import (
     CommandContext,
     GreedyText,
-    Integer,
     Literal,
     Text,
 )
@@ -20,7 +19,14 @@ from factorio_reforge.command.source import CommandSource
 from factorio_reforge.config import CONFIG_FILE
 from factorio_reforge.permission import PermissionLevel
 from factorio_reforge.plugin.manager import CORE_VERSION
-from factorio_reforge.saves.manager import NoSlotAvailable, SaveError, format_duration
+from factorio_reforge.saves.manager import (
+    AUTO,
+    MANUAL,
+    NoSlotAvailable,
+    SaveError,
+    format_duration,
+    parse_slot,
+)
 
 if TYPE_CHECKING:
     from factorio_reforge.core.server import ReforgeServer
@@ -178,6 +184,12 @@ def build(server: ReforgeServer):
             ("lang", " lang [set <code>]"), ("exit", " exit"),
         ):
             await source.reply(f"  {prefix}{suffix:<28} {tr('help.' + key)}")
+        # Backups are core but live under their own prefix, so the loop above
+        # cannot reach them and they were missing from this index entirely.
+        backups = server.config.command_prefix + "qb"
+        await source.reply(
+            f"  {backups}{' make|back|confirm|list':<28} {tr('help.qb')}"
+        )
 
         entries = [
             entry for entry in server.plugins.registry.help_messages
@@ -290,19 +302,27 @@ def _commands_of(server: ReforgeServer, plugin_id: str) -> list[str]:
     })
 
 
-def build_save_commands(server: ReforgeServer):
-    """The ``!!save`` tree, following QuickBackupM's command set.
+def build_save_commands(
+    server: ReforgeServer, name: str = "qb", staged: dict[str, Any] | None = None
+):
+    """The ``!!qb`` tree, following QuickBackupM's command set and its name.
 
     ``back`` stages a slot rather than acting on it; ``confirm`` starts an
     abortable countdown and only then touches the world. Two deliberate
     steps, because a mistyped slot number would otherwise replace a world in
     one keystroke.
+
+    Slots are addressed the way they are listed: ``3`` for one someone made,
+    ``a3`` for one the schedule made. Built twice, under ``!!qb`` and the older
+    ``!!save``, so nobody's habit breaks on the rename.
     """
-    prefix = server.config.command_prefix + "save"
+    prefix = server.config.command_prefix + name
     saves = server.saves
     tr = server.tr
     #: The staged slot, shared by everyone -- as in QBM, one restore at a time.
-    staged: dict[str, Any] = {"slot": None, "at": 0.0, "by": ""}
+    #: Passed in when the tree is built more than once, so staging under one
+    #: name and confirming under the other is the same restore.
+    staged = {"slot": None, "at": 0.0, "by": ""} if staged is None else staged
     CONFIRM_WINDOW = 60.0
 
     async def make(source: CommandSource, ctx: CommandContext):
@@ -320,15 +340,13 @@ def build_save_commands(server: ReforgeServer):
             return
         await source.reply(tr("save.created", slot=slot.describe()))
 
-    async def listing(source: CommandSource):
-        rows = saves.all_slots()
-        total = saves.total_size() / (1024 * 1024)
-        await source.reply(tr("save.header", size=f"{total:.1f}"))
-        for index, info in rows:
+    async def show_ring(source: CommandSource, ring: str):
+        for index, info in saves.all_slots(ring):
+            ref = parse_slot(f"a{index}" if ring == AUTO else index)
             if info is None:
-                await source.reply(tr("save.slot_empty", slot=index))
+                await source.reply(tr("save.slot_empty", slot=str(ref)))
                 continue
-            protection = saves.protection_of(index)
+            protection = saves.protection_of(ref)
             guard = ""
             if protection:
                 remaining = protection - info.age_seconds
@@ -338,14 +356,22 @@ def build_save_commands(server: ReforgeServer):
                 )
             await source.reply(f"  {info.describe()}{guard}")
 
+    async def listing(source: CommandSource):
+        total = saves.total_size() / (1024 * 1024)
+        await source.reply(tr("save.header", size=f"{total:.1f}"))
+        await show_ring(source, MANUAL)
+        if saves.auto_slot_count:
+            await source.reply(tr("save.auto_header"))
+            await show_ring(source, AUTO)
+
         overwrite = saves.get_overwrite()
         if overwrite is not None:
             await source.reply(tr("save.overwrite", time=overwrite.created_at_text))
         await source.reply(tr("save.restore_hint", prefix=prefix))
 
     async def back(source: CommandSource, ctx: CommandContext):
-        slot = ctx.get("slot", 1)
         try:
+            slot = parse_slot(ctx.get("slot", 1))
             info = saves.validate(slot)
         except SaveError as exc:
             await source.reply(str(exc))
@@ -392,7 +418,7 @@ def build_save_commands(server: ReforgeServer):
 
     async def delete(source: CommandSource, ctx: CommandContext):
         try:
-            info = saves.delete(ctx["slot"])
+            info = saves.delete(parse_slot(ctx["slot"]))
         except SaveError as exc:
             await source.reply(str(exc))
             return
@@ -400,7 +426,7 @@ def build_save_commands(server: ReforgeServer):
 
     async def rename(source: CommandSource, ctx: CommandContext):
         try:
-            info = saves.rename(ctx["slot"], ctx["comment"])
+            info = saves.rename(parse_slot(ctx["slot"]), ctx["comment"])
         except SaveError as exc:
             await source.reply(str(exc))
             return
@@ -420,14 +446,14 @@ def build_save_commands(server: ReforgeServer):
         )
         .then(
             Literal("back").requires(helper).runs(back)
-            .then(Integer("slot").runs(back))
+            .then(Text("slot").runs(back))
         )
         .then(Literal("confirm").requires(user).runs(confirm))
         .then(Literal("abort").requires(user).runs(abort))
-        .then(Literal("del").requires(helper).then(Integer("slot").runs(delete)))
+        .then(Literal("del").requires(helper).then(Text("slot").runs(delete)))
         .then(
             Literal("rename").requires(helper)
-            .then(Integer("slot").then(GreedyText("comment").runs(rename)))
+            .then(Text("slot").then(GreedyText("comment").runs(rename)))
         )
     )
 

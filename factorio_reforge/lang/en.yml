@@ -68,6 +68,7 @@ save:
   protected: "  [protected for another {duration}]"
   protection_expired: "  [protection expired]"
   overwrite: "  overwrite: {time} - the world from before the last restore"
+  auto_header: "Automatic slots (the schedule's own ring):"
   restore_hint: "Restore with '{prefix} back <slot>', then '{prefix} confirm'."
   about_to_restore: "About to restore {slot}"
   confirm_hint: >-
@@ -96,6 +97,7 @@ help:
   server: "start, stop, restart or kill the server"
   permission: "view or change permissions"
   exit: "stop the server and quit"
+  qb: "backups: make, list, restore"
 
 error:
   rcon_down: "RCON is not connected"

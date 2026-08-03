@@ -1,6 +1,6 @@
 """A small command tree, in the shape MCDReforged plugin authors expect.
 
-    Literal('!!save')
+    Literal('!!qb')
         .then(Literal('make').then(GreedyText('comment').runs(make)).runs(make))
         .then(Literal('back').then(Integer('id').runs(back)))
 

@@ -94,7 +94,7 @@ class InfoReactor:
 
         This is not a style choice. Running it inline deadlocks: the line
         arrives on the stdout pump, the handler runs there, and a handler like
-        ``!!save make`` then waits for Factorio to print "Saving finished" --
+        ``!!qb make`` then waits for Factorio to print "Saving finished" --
         which only the pump can read, and the pump is inside the handler. The
         server looks frozen, further commands are ignored, and it clears only
         when the save times out a hundred and twenty seconds later.

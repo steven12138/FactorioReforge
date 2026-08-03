@@ -24,7 +24,7 @@ fix:
   version_mismatch: "!!mod updates，或者移除这个 mod"
   missing_dependency: "!!mod install <缺失的 mod>"
   another_instance: "停掉另一个 FactorioReforge，或查找残留进程：pgrep -af bin/x64/factorio"
-  corrupt_save: "!!save list，然后 !!save back <槽位> 回档"
+  corrupt_save: "!!qb list，然后 !!qb back <槽位> 回档"
   port_in_use: "查找残留进程，或改 config.yml 里的 --port"
   save_too_new: 更新 headless 安装，或回档到更早的备份
   multiplayer_failed: 检查 server-settings.json
