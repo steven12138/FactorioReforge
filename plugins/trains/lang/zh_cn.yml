@@ -1,0 +1,12 @@
+help: 无路径的列车，以及不再动的列车
+
+alert:
+  no_path: "列车 {train} 找不到路径 —— {gps}"
+  stuck: "列车 {train} 已经 {minutes} 分钟没动了 —— {gps}"
+
+report:
+  none: "当前没有列车。"
+  header: "共 {count} 列车："
+  state: "  {state}：{count}"
+  all_moving: "所有列车都在正常运行。"
+  failed: "读不到列车信息：{error}"

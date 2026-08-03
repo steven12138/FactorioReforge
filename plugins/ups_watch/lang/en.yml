@@ -1,0 +1,20 @@
+help: update rate, and what is eating it
+detail:
+  why: "!!ups why lists what the world is full of -- the usual answer to a slow factory"
+
+alert:
+  slow: "The factory is running at {ups} -- below target. !!ups why for what is in it."
+  critical: "The factory is down to {ups}. Something changed recently; !!ups why"
+  recovered: "Update rate is back to normal: {ups}"
+
+report:
+  no_data: "No update-rate samples yet. Nothing is measured while the server is paused."
+  current: "Update rate: {ups}, averaged over {samples} sample(s)"
+  range: "  recent samples ranged {low} - {high} UPS"
+  hint: "Still below target. !!ups why lists what the world is full of."
+  failed: "Could not read the world: {error}"
+
+why:
+  header: "What the world is made of:"
+  entry: "  {name}: {count}"
+  world: "  enemies: {enemies}, pollution: {pollution}"

@@ -1,0 +1,12 @@
+help: trains with no path, and trains that stopped moving
+
+alert:
+  no_path: "Train {train} has no path -- {gps}"
+  stuck: "Train {train} has not moved for {minutes} minutes -- {gps}"
+
+report:
+  none: "There are no trains."
+  header: "{count} train(s):"
+  state: "  {state}: {count}"
+  all_moving: "Every train is on the move."
+  failed: "Could not read the trains: {error}"

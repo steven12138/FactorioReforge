@@ -1,0 +1,15 @@
+help: attacks and in-game alerts
+
+relay:
+  alert: "[{type}] {what} at {gps}"
+  something: something
+
+loss:
+  detected: "{total} structures destroyed since the last check: {detail}"
+
+report:
+  no_data: "Nothing counted yet -- the first poll has not run."
+  standing: "{count} watched structures standing."
+  last_loss: "Last losses: {minutes} minute(s) ago."
+  quiet: "No losses since the server started."
+  failed: "Could not check: {error}"

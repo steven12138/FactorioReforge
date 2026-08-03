@@ -1,0 +1,34 @@
+help: put a question to the players
+detail:
+  start: "!!vote start restart the server? then everyone answers !!vote yes or !!vote no"
+  rules: "Only players online when it started may vote, and staying silent counts as no."
+
+start:
+  announced: "{who} asks: {question} -- !!vote yes / !!vote no, {seconds}s, {needed} of {voters} needed"
+
+vote:
+  counted: "Counted your {vote}."
+  approve: "yes"
+  reject: "no"
+  tally: "  {tally}"
+
+status:
+  none: "No vote is running. Start one with !!vote start <question>"
+  running: "Voting on: {question} ({seconds}s left)"
+
+result:
+  passed: "Passed: {question} ({tally}, {how})"
+  failed: "Did not pass: {question} ({tally}, {how})"
+  early: decided early
+  on_time: time up
+
+cancel:
+  done: "{who} cancelled the vote."
+
+error:
+  already_running: "A vote is already running. !!vote to see it."
+  nothing_running: "No vote is running."
+  console_cannot_vote: "The console is not a player, so it does not get a vote."
+  not_eligible: "You were not online when this vote started, so you cannot vote in it."
+  too_few: "Only {online} player(s) online; a vote needs {needed}."
+  no_players: "Could not read who is online: {error}"

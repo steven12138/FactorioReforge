@@ -1,0 +1,32 @@
+help: what the labs are working on, and what is next
+detail:
+  add: "!!research add logistics-3 queues one; names are forgiving about spaces and case"
+  search: "!!research search logistic finds the exact name"
+
+show:
+  idle: "Nothing is being researched."
+  current: "Researching {name} {bar} {percent}%"
+  remaining: " -- {units} science left"
+  queue: "Queued after it ({count}):"
+  queue_empty: "Nothing queued after it."
+
+add:
+  done: "Queued {name}, asked for by {who}"
+  console: the console
+
+cancel:
+  done: "Cancelled {name}."
+  nothing: "Nothing was being researched."
+
+search:
+  header: "{count} technolog(ies):"
+  nothing: "No technology matches {term}."
+  researched: "(done)"
+  available: "(available)"
+  locked: "(locked)"
+
+error:
+  failed: "Could not reach the game: {error}"
+  no_such: "There is no technology called {name}."
+  already: "{name} is already researched."
+  refused: "The game refused {name}: {reason}"

@@ -18,6 +18,24 @@ English: [CHANGELOG.md](CHANGELOG.md)
 
 ### 新增
 
+- **七个用于「人不在跟前」时盯服务器的插件。**
+  - `ups_watch` —— `!!ups`。Factorio 不是靠崩溃失败的，是靠变慢失败的。
+    用 `game.tick` 对墙钟采样。实测暂停的服务器读数是 0.5 ticks/s，
+    所以无人在线时的样本会被丢弃；窗口取中位数，一次自动存档的凹陷不算崩溃。
+  - `alerts` —— 遭袭，空服时也能发现。有人在线时转发玩家警报；
+    其余情况靠建筑计数兜住 —— 那才是值得把人叫醒的情况，而且不需要配套 mod。
+  - `trains` —— `!!trains stuck`。无路径立刻报，等待状态只有持续了才报，
+    列车一动计时就清零。
+  - `power` —— `!!power`。蓄电池电量在 Lua 那边求和，
+    阈值只在下穿和回升时各报一次。
+  - `research` —— `!!research add`，在矿场里或手机上都能排科技。
+    转达游戏自己的拒绝，而不是自己预测。
+  - `vote` —— `!!vote`。只有发起时在场的人能投，结果一旦定局立刻结束，
+    不表态算反对。只发出 `vote.finished`，自己不执行任何动作。
+  - `mail` —— `!!mail`。进服几秒后送达；对方已经在线则立刻送到。
+- `factorio_reforge/core/progress.py`：给慢操作用的限流进度输出，
+  `!!mod refresh` 已接入。跑得快的操作什么都不会输出。
+
 - **`calculator`**：`==1400/7.5` 在聊天框里算数，`!!ratio` 回答造一个东西
   需要什么——多少机器、多少投入、多少条传送带、多少电。
   - 配方是从运行中的游戏里读的（RCON 读 `prototypes.recipe`），
@@ -67,6 +85,12 @@ English: [CHANGELOG.md](CHANGELOG.md)
   这是「决定不再玩这个游戏」而不是一个服务器设置。
 
 ### 修复
+
+- **`!!mod refresh` 的进度行打了两遍，其中一遍还是英文。**
+  核心又用英文说了一遍插件刚刚用操作者语言说过的话。
+- **门户的错误是以英文进聊天的**，所以中文服务器上 `!!mod info nosuchmod`
+  回的是英文。`PortalError` 现在带上翻译 key。
+- `!!mod update` 和 `!!mod updates` 现在都认。
 
 - **`!!qb make` 之后服务器卡死的死锁。** 命令处理函数原本内联在
   stdout 读取循环上执行，于是一个在等 Factorio 打印 "Saving finished"

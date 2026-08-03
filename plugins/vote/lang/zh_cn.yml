@@ -1,0 +1,34 @@
+help: 把一个问题交给玩家们表决
+detail:
+  start: "!!vote start 要不要重启服务器？ 然后大家用 !!vote yes 或 !!vote no 回答"
+  rules: "只有发起时在线的玩家能投票，不表态算反对。"
+
+start:
+  announced: "{who} 提议：{question} —— !!vote yes / !!vote no，{seconds} 秒，{voters} 人中需要 {needed} 票"
+
+vote:
+  counted: "已记录你的 {vote}。"
+  approve: "赞成"
+  reject: "反对"
+  tally: "  {tally}"
+
+status:
+  none: "当前没有进行中的投票。用 !!vote start <问题> 发起一个。"
+  running: "正在表决：{question}（还剩 {seconds} 秒）"
+
+result:
+  passed: "通过：{question}（{tally}，{how}）"
+  failed: "未通过：{question}（{tally}，{how}）"
+  early: 提前定局
+  on_time: 时间到
+
+cancel:
+  done: "{who} 取消了这次投票。"
+
+error:
+  already_running: "已经有一个投票在进行了。用 !!vote 查看。"
+  nothing_running: "当前没有进行中的投票。"
+  console_cannot_vote: "控制台不是玩家，没有投票权。"
+  not_eligible: "这次投票发起时你不在线，所以不能参与。"
+  too_few: "当前只有 {online} 人在线，发起投票至少需要 {needed} 人。"
+  no_players: "读不到在线玩家：{error}"

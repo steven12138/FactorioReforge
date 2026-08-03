@@ -191,6 +191,28 @@ FactorioReforge 终端**永远**是 `owner`，且不可配置：
 这样造不出来的东西会作为投入列出来，并且会点名说它是还没研究的，
 而不是和矿石混在一起显示。
 
+## 监控与协作
+
+| 命令 | 等级 | 作用 |
+|---|---|---|
+| `!!ups` | user | 更新率，取最近窗口的中位数 |
+| `!!ups why` | helper | 这个世界里堆了什么 —— 通常就是原因 |
+| `!!alerts` | user | 现存建筑数，以及上次损失是什么时候 |
+| `!!alerts check` | helper | 立刻查一次，不等定时器 |
+| `!!trains` | user | 所有列车，按状态分组 |
+| `!!trains stuck` | user | 找不到路的，和不再动的 |
+| `!!power` | user | 蓄电池电量、发电量和余量 |
+| `!!research` | user | 实验室在研究什么，后面排了什么 |
+| `!!research add <科技>` | 可配置 | 排一项科技 |
+| `!!research cancel` | 可配置 | 停掉当前研究 |
+| `!!research search <关键词>` | user | 找到科技的准确名字 |
+| `!!vote start <问题>` | 可配置 | 向玩家提问 |
+| `!!vote yes` / `!!vote no` | user | 投票（发起时你得在线） |
+| `!!vote cancel` | admin | 取消投票 |
+| `!!mail <玩家> <留言>` | user | 给不在线的人留言 |
+| `!!mail` / `!!mail clear` | user | 读自己的，或者全部丢掉 |
+| `!!mail all <留言>` | admin | 给所有人留一条 |
+
 ## 产量、地图与诊断
 
 | 命令 | 等级 | 作用 |

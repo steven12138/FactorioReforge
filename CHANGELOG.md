@@ -18,6 +18,29 @@
 
 ### Added
 
+- **Seven plugins for watching a server you are not sitting in front of.**
+  - `ups_watch` — `!!ups`. Factorio fails by getting slower, not by crashing.
+    Samples `game.tick` against the wall clock. A paused server reads 0.5
+    ticks/s (measured), so samples taken with nobody online are discarded, and
+    the window is judged by its median so one autosave dip is not a collapse.
+  - `alerts` — attacks, including with the server empty. Player alerts are
+    relayed when someone is connected; structure counts catch the rest, which
+    is the case worth waking up for and needs no companion mod.
+  - `trains` — `!!trains stuck`. No-path immediately, waiting states only after
+    they persist, and the clock resets when a train moves.
+  - `power` — `!!power`. Accumulator charge summed in Lua, with thresholds that
+    report once on the way down and once on the way back.
+  - `research` — `!!research add`, from a mine or a phone. The game's refusal is
+    relayed rather than predicted.
+  - `vote` — `!!vote`. Only players present when it started, ends as soon as the
+    outcome is settled, silence counts as no. Emits `vote.finished` and acts on
+    nothing by itself.
+  - `mail` — `!!mail`. Delivered a few seconds after joining, immediately if
+    they are already online.
+- `factorio_reforge/core/progress.py`: rate-limited progress reporting for slow
+  operations, used by `!!mod refresh`. Nothing is emitted for an operation that
+  finishes quickly.
+
 - **`calculator`**: `==1400/7.5` answers arithmetic in chat, and `!!ratio` answers
   what it takes to build something — machines, inputs, belts and power.
   - Recipes are read from the running game (`prototypes.recipe` over RCON), so
@@ -72,6 +95,12 @@
   decision to stop playing the game rather than a server setting.
 
 ### Fixed
+
+- **`!!mod refresh` logged its progress line twice, once untranslated.** Core
+  logged an English line the plugin had already said in the operator's language.
+- **Portal errors reached chat in English**, so `!!mod info nosuchmod` answered
+  in English on a Chinese server. `PortalError` now carries a translation key.
+- `!!mod update` is accepted as well as `!!mod updates`.
 
 - **A deadlock that froze the server on `!!qb make`.** Command handlers ran
   inline on the stdout read loop, so a handler waiting for Factorio to print

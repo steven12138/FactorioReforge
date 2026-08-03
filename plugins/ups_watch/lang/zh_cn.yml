@@ -1,0 +1,20 @@
+help: 更新率，以及是什么在吃掉它
+detail:
+  why: "!!ups why 列出这个世界里都堆了些什么 —— 工厂变慢通常就是这个答案"
+
+alert:
+  slow: "工厂当前 {ups}，低于目标。用 !!ups why 看看里面都有什么。"
+  critical: "工厂已经掉到 {ups}。最近肯定改了什么；试试 !!ups why"
+  recovered: "更新率恢复正常：{ups}"
+
+report:
+  no_data: "还没有采到更新率样本。服务器暂停期间不采样。"
+  current: "更新率：{ups}，由 {samples} 个样本平均得到"
+  range: "  最近的样本区间：{low} - {high} UPS"
+  hint: "仍然低于目标。用 !!ups why 看看这个世界里堆了什么。"
+  failed: "读不到世界数据：{error}"
+
+why:
+  header: "这个世界是由什么组成的："
+  entry: "  {name}：{count}"
+  world: "  敌人：{enemies}，污染：{pollution}"

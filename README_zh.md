@@ -6,7 +6,7 @@
   <img alt="Python 3.11+" src="https://img.shields.io/badge/python-3.11%2B-3776ab?logo=python&logoColor=white">
   <img alt="Factorio 2.0" src="https://img.shields.io/badge/factorio-2.0%20headless-d4761a">
   <img alt="License MIT" src="https://img.shields.io/badge/license-MIT-green">
-  <img alt="379 tests" src="https://img.shields.io/badge/tests-379%20passing-brightgreen">
+  <img alt="429 tests" src="https://img.shields.io/badge/tests-429%20passing-brightgreen">
   <img alt="i18n" src="https://img.shields.io/badge/i18n-en%20%C2%B7%20zh__cn-blue">
 </p>
 
@@ -19,7 +19,7 @@
 **FactorioReforge 托管你的 Factorio headless 服务器，让你在游戏聊天框、终端
 或 Telegram 里管理它。**
 
-它接管服务器进程，把输出解析成结构化事件，再分发给插件。自带十四个插件：
+它接管服务器进程，把输出解析成结构化事件，再分发给插件。自带二十一个插件：
 带撤销的槽位备份、Telegram 远程控制、从 mod 门户装 mod、渲染世界地图、
 崩溃诊断、蓝图库、产量曲线等等。
 
@@ -62,7 +62,7 @@ cd FactorioReforge
 | [**新手教程**](docs/TUTORIAL_zh.md) | 从零到一台跑起来并被托管的服务器 |
 | [**命令参考**](docs/commands_zh.md) | 每一条命令、作用、谁能用 |
 | [**配置**](docs/configuration_zh.md) | `config.yml`，以及它拒绝启动的几种情况 |
-| [**自带插件**](docs/plugins_zh.md) | 十四个插件各自是什么、怎么配 |
+| [**自带插件**](docs/plugins_zh.md) | 每个插件是什么、怎么配 |
 | [**写插件**](docs/writing-plugins_zh.md) | 事件、服务器 API、存储、国际化 |
 | [**开一个 Factorio 服务器**](docs/factorio-server_zh.md) | 纯 headless 服务器本身，不涉及本项目 |
 | [**架构**](docs/architecture_zh.md) | 内部怎么工作的，以及为什么这么做 |
@@ -111,6 +111,13 @@ Factorio 并等它真正退出，不会因为你着急而丢掉任何一个 tick
 | [`warp`](docs/plugins_zh.md#warp) | 命名地点，可点击、可标记在地图上 |
 | [`blueprints`](docs/plugins_zh.md#blueprints) | 服务端共享蓝图库 |
 | [`calculator`](docs/plugins_zh.md#calculator) | `==1+1`，以及 `!!ratio` —— 造任何东西要多少机器、带和电 |
+| [`ups_watch`](docs/plugins_zh.md#ups_watch) | `!!ups` —— 更新率，以及是什么在吃掉它 |
+| [`alerts`](docs/plugins_zh.md#alerts) | 遭袭与游戏内警报，空服时也能发现 |
+| [`trains`](docs/plugins_zh.md#trains) | `!!trains` —— 无路径和卡住的列车 |
+| [`power`](docs/plugins_zh.md#power) | `!!power` —— 在断电之前看蓄电池电量 |
+| [`research`](docs/plugins_zh.md#research) | `!!research` —— 查看和修改科技队列 |
+| [`vote`](docs/plugins_zh.md#vote) | `!!vote` —— 把一个问题交给玩家表决 |
+| [`mail`](docs/plugins_zh.md#mail) | `!!mail` —— 给不在线的玩家留言 |
 | [`production`](docs/plugins_zh.md#production) | 跨会话保留的产量历史 |
 | [`world_watch`](docs/plugins_zh.md#world_watch) | 进化度、污染、科技和火箭提醒 |
 | [`leaderboard`](docs/plugins_zh.md#leaderboard) | `!!top` —— 在线时长、击杀、产量 |

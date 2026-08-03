@@ -1,0 +1,32 @@
+help: 实验室正在研究什么，接下来研究什么
+detail:
+  add: "!!research add logistics-3 排一项；名字对空格和大小写都宽容"
+  search: "!!research search logistic 找到准确的名字"
+
+show:
+  idle: "当前没有在研究任何科技。"
+  current: "正在研究 {name} {bar} {percent}%"
+  remaining: " —— 还差 {units} 个科技包"
+  queue: "排在后面的（{count} 项）："
+  queue_empty: "后面没有排队的科技。"
+
+add:
+  done: "已排入 {name}，由 {who} 提出"
+  console: 控制台
+
+cancel:
+  done: "已取消 {name}。"
+  nothing: "当时并没有在研究任何东西。"
+
+search:
+  header: "共 {count} 项科技："
+  nothing: "没有匹配 {term} 的科技。"
+  researched: "（已完成）"
+  available: "（可研究）"
+  locked: "（未解锁）"
+
+error:
+  failed: "连不上游戏：{error}"
+  no_such: "没有叫 {name} 的科技。"
+  already: "{name} 已经研究过了。"
+  refused: "游戏拒绝了 {name}：{reason}"

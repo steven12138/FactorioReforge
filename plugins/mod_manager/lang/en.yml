@@ -19,6 +19,7 @@ info:
   latest: "  Latest: v{version} for Factorio {factorio}"
   requires: "  Requires: {deps}"
   installed: "  Installed: {mod}"
+  failed: "Could not look that up: {error}"
 list:
   header: "{count} mod(s) installed beyond the base game:"
   none: "  (none)"
@@ -41,6 +42,7 @@ updates:
   hint: "Install them with !!mod install <name>"
 refresh:
   starting: "Refetching the portal index (~14s, 22k mods)..."
+  unit: KiB
   failed: "Refresh failed: {error}"
   done: "Index refreshed: {count} mods."
 restart_needed: "Restart the server for this to take effect (!!FR server restart). Players will need the same mods to reconnect."
@@ -49,3 +51,6 @@ credentials: "Using mod portal credentials for {user} from {path}"
 no_credentials: "mod_manager has no portal credentials; search and info work, installing does not. Set username/token in {path}"
 target_version: "mod_manager will only offer mods built for Factorio {version}"
 unknown_version: "mod_manager could not determine the Factorio version; it cannot filter releases for compatibility, and installing the newest build of a mod may stop the server from starting. Set factorio_version in its config."
+
+error:
+  no_such_mod: "The portal has no mod called {name}."

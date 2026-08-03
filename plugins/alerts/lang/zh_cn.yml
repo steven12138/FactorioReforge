@@ -1,0 +1,15 @@
+help: 遭袭与游戏内警报
+
+relay:
+  alert: "[{type}] {what} 在 {gps}"
+  something: 某个东西
+
+loss:
+  detected: "自上次检查以来有 {total} 个建筑被摧毁：{detail}"
+
+report:
+  no_data: "还没有计数 —— 第一次轮询尚未执行。"
+  standing: "当前有 {count} 个受监视的建筑。"
+  last_loss: "最近一次损失：{minutes} 分钟前。"
+  quiet: "服务器启动以来没有损失。"
+  failed: "检查失败：{error}"

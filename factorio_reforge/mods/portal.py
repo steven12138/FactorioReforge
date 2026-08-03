@@ -20,6 +20,7 @@ import logging
 import time
 import urllib.parse
 import urllib.request
+from collections.abc import Callable
 from pathlib import Path
 
 BASE_URL = "https://mods.factorio.com"
@@ -34,7 +35,18 @@ _ORDER_ONLY_PREFIXES = ("~", "+")
 
 
 class PortalError(Exception):
-    pass
+    """Something went wrong talking to the portal.
+
+    Carries an optional translation ``key`` so the message a player sees is in
+    their language. Core has no translator -- one is not injected here because
+    the plugin that raised the question is the thing holding a catalogue -- so
+    the English text stays as the fallback for logs and for standalone use.
+    """
+
+    def __init__(self, message: str, key: str | None = None, **values):
+        super().__init__(message)
+        self.key = key
+        self.values = values
 
 
 class AuthRequired(PortalError):
@@ -187,7 +199,9 @@ class ModPortal:
             return await self._get_json(f"{API_URL}/mods/{urllib.parse.quote(name)}{suffix}")
         except PortalError as exc:
             if "404" in str(exc):
-                raise PortalError(f"no mod named {name!r} on the portal") from exc
+                raise PortalError(
+                    f"no mod named {name!r} on the portal", "error.no_such_mod", name=name
+                ) from exc
             raise
 
     async def get_releases(self, name: str) -> list[Release]:
@@ -254,8 +268,14 @@ class ModPortal:
         scored.sort(key=lambda pair: pair[0])
         return [mod for _, mod in scored[:limit]]
 
-    async def get_index(self, *, force: bool = False) -> list[ModSummary]:
-        """The full mod list, cached on disk and refreshed on a TTL."""
+    async def get_index(
+        self, *, force: bool = False, on_progress: Callable[[int, int], None] | None = None
+    ) -> list[ModSummary]:
+        """The full mod list, cached on disk and refreshed on a TTL.
+
+        ``on_progress(received, total)`` is called while the body downloads;
+        ``total`` is 0 when the portal does not send a content length.
+        """
         async with self._index_lock:
             if not force and self._index is not None and self._index_fresh():
                 return self._index
@@ -263,8 +283,13 @@ class ModPortal:
             if not force and self._load_index_from_disk():
                 return self._index or []
 
-            self.logger.info("Refreshing the mod portal index (this takes a few seconds)")
-            data = await self._get_json(f"{API_URL}/mods?page_size=max")
+            # No user-facing line here: the caller already said what it was
+            # doing, in the operator's language, and saying it again in English
+            # is how the same event ended up in the log twice.
+            self.logger.debug("Refreshing the mod portal index")
+            data = await self._get_json(
+                f"{API_URL}/mods?page_size=max", on_progress=on_progress
+            )
             results = data.get("results", [])
             self._index = [ModSummary.from_dict(entry) for entry in results]
             self._index_fetched_at = time.time()
@@ -354,14 +379,28 @@ class ModPortal:
 
     # -- transport -----------------------------------------------------------
 
-    async def _get_json(self, url: str) -> dict:
-        return await asyncio.to_thread(self._get_json_sync, url)
+    async def _get_json(
+        self, url: str, on_progress: Callable[[int, int], None] | None = None
+    ) -> dict:
+        return await asyncio.to_thread(self._get_json_sync, url, on_progress)
 
-    def _get_json_sync(self, url: str) -> dict:
+    def _get_json_sync(self, url: str, on_progress=None) -> dict:
         request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
         try:
             with urllib.request.urlopen(request, timeout=self.timeout) as response:
-                return json.loads(response.read().decode("utf-8"))
+                if on_progress is None:
+                    return json.loads(response.read().decode("utf-8"))
+                # Read in chunks so the caller can report progress. The mod
+                # index is 13 MB over about fourteen seconds, which is long
+                # enough that silence reads as a hang.
+                total = int(response.headers.get("Content-Length") or 0)
+                chunks: list[bytes] = []
+                received = 0
+                while chunk := response.read(1 << 16):
+                    chunks.append(chunk)
+                    received += len(chunk)
+                    on_progress(received, total)
+                return json.loads(b"".join(chunks).decode("utf-8"))
         except urllib.error.HTTPError as exc:
             raise PortalError(f"portal request failed: HTTP {exc.code}") from exc
         except urllib.error.URLError as exc:

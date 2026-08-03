@@ -197,6 +197,28 @@ By default the plan only uses recipes **this save has researched**, so the answe
 is something you can go and build. Anything it could not make that way is listed
 as an input, and named as not-yet-researched rather than shown next to the ores.
 
+## Monitoring and coordination
+
+| Command | Level | Does |
+|---|---|---|
+| `!!ups` | user | Update rate, averaged over the recent window |
+| `!!ups why` | helper | What the world is full of — the usual cause |
+| `!!alerts` | user | Structures standing, and when things were last destroyed |
+| `!!alerts check` | helper | Poll now rather than waiting for the timer |
+| `!!trains` | user | Every train, grouped by state |
+| `!!trains stuck` | user | The ones with no path, and the ones not moving |
+| `!!power` | user | Accumulator charge, generation and the margin |
+| `!!research` | user | What the labs are on, and what is queued |
+| `!!research add <tech>` | configurable | Queue a technology |
+| `!!research cancel` | configurable | Stop the current research |
+| `!!research search <term>` | user | Find a technology's exact name |
+| `!!vote start <question>` | configurable | Ask the players |
+| `!!vote yes` / `!!vote no` | user | Vote, if you were online when it started |
+| `!!vote cancel` | admin | Call it off |
+| `!!mail <player> <message>` | user | Leave a message for someone offline |
+| `!!mail` / `!!mail clear` | user | Read yours, or throw them away |
+| `!!mail all <message>` | admin | Leave one for everybody |
+
 ## Production, maps and diagnostics
 
 | Command | Level | Does |

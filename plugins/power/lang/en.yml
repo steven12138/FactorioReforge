@@ -1,0 +1,12 @@
+help: accumulator charge and the supply gap
+
+alert:
+  falling: "Accumulators down to {percent}% (below {threshold}%). Night is when this hurts."
+  recovered: "Accumulators back above {threshold}%, now {percent}%."
+
+report:
+  no_accumulators: "No accumulators built, so there is nothing to charge."
+  charge: "Charge {bar} {percent}% across {count} accumulator(s)"
+  flow: "Generated {generated}, used {used}, margin {margin} (last minute)"
+  daytime: "  daytime {daytime} (0 is noon, 0.5 is midnight)"
+  failed: "Could not read the power network: {error}"

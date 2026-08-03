@@ -1,0 +1,20 @@
+help: leave a message for someone who is offline
+detail:
+  read: "!!mail reads yours; they are also delivered a few seconds after you join"
+
+send:
+  stored: "Saved for {player}; they will get it when they next join."
+  broadcast: "Left for {count} player(s)."
+
+read:
+  empty: "No mail."
+  header: "You have {count} message(s):"
+  entry: "  {sender} ({ago} ago): {text}"
+
+clear:
+  done: "Deleted {count} message(s)."
+
+error:
+  empty: "Write something to send."
+  console_has_no_mail: "The console has no mailbox."
+  no_players: "Could not read the player list: {error}"

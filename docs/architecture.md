@@ -261,7 +261,7 @@ worth reporting — the RCON bind above all — are printed after it.
 ## Tests
 
 ```bash
-python -m pytest tests/ -q        # 379 tests
+python -m pytest tests/ -q        # 429 tests
 ```
 
 Parser tests run against output sampled from a real server, in

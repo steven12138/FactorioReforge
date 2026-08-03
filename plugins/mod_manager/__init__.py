@@ -24,6 +24,7 @@ import re
 from pathlib import Path
 
 from factorio_reforge.command.builder import GreedyText, Literal, Text
+from factorio_reforge.core.progress import Progress
 from factorio_reforge.mods.manager import ModError, ModManager
 from factorio_reforge.mods.portal import (
     AuthRequired,
@@ -236,6 +237,8 @@ def _register_commands(server):
         .then(Literal("enable").requires(admin).then(Text("name").runs(_cmd_enable)))
         .then(Literal("disable").requires(admin).then(Text("name").runs(_cmd_disable)))
         .then(Literal("updates").requires(admin).runs(_cmd_updates))
+        # Singular is what fingers type; refusing it teaches nothing.
+        .then(Literal("update").requires(admin).runs(_cmd_updates))
         .then(Literal("refresh").requires(admin).runs(_cmd_refresh))
     )
     server.register_help_message("!!mod", server.tr("help"), PermissionLevel.USER)
@@ -245,6 +248,21 @@ async def _cmd_help(source):
     tr = source.server.tr
     for index in range(8):
         await source.reply(tr(f"usage.{index}"))
+
+
+def _portal_error(server, exc, fallback_key: str) -> str:
+    """The portal's own message, in the player's language when we have one.
+
+    Core raises these, and core has no catalogue, so the key travels on the
+    exception and is resolved here -- which is why `!!mod info nosuchmod` no
+    longer answers in English on a Chinese server.
+    """
+    key = getattr(exc, "key", None)
+    if key:
+        translated = server.tr(key, **getattr(exc, "values", {}))
+        if translated != key:
+            return translated
+    return server.tr(fallback_key, error=exc)
 
 
 async def _cmd_search(source, ctx):
@@ -258,7 +276,7 @@ async def _cmd_search(source, ctx):
             factorio_version=_target_version(),
         )
     except PortalError as exc:
-        await source.reply(source.server.tr("search.failed", error=exc))
+        await source.reply(_portal_error(source.server, exc, "search.failed"))
         return
     if not results:
         await source.reply(source.server.tr("search.nothing"))
@@ -274,7 +292,7 @@ async def _cmd_info(source, ctx):
         data = await _state["portal"].get_mod(name, full=True)
         releases = await _state["portal"].get_releases(name)
     except PortalError as exc:
-        await source.reply(str(exc))
+        await source.reply(_portal_error(source.server, exc, "info.failed"))
         return
 
     tr = source.server.tr
@@ -368,7 +386,7 @@ async def _cmd_updates(source):
     try:
         updates = await _state["mods"].check_updates(_target_version())
     except PortalError as exc:
-        await source.reply(source.server.tr("updates.failed", error=exc))
+        await source.reply(_portal_error(source.server, exc, "updates.failed"))
         return
     if not updates:
         await source.reply(source.server.tr("updates.none"))
@@ -381,13 +399,32 @@ async def _cmd_updates(source):
 
 
 async def _cmd_refresh(source):
-    await source.reply(source.server.tr("refresh.starting"))
+    """Refetch the portal index -- 13 MB and about fourteen seconds.
+
+    Long enough that silence reads as a hang, so it reports as it goes. The
+    lines are queued rather than awaited: the download runs on a worker thread,
+    and a chat write from there would be on the wrong loop.
+    """
+    server = source.server
+    await source.reply(server.tr("refresh.starting"))
+
+    loop = asyncio.get_running_loop()
+    bar = Progress(
+        lambda line: loop.call_soon_threadsafe(
+            lambda: asyncio.ensure_future(source.reply(line))
+        ),
+        unit=server.tr("refresh.unit"),
+    )
+
+    def on_progress(received: int, total: int) -> None:
+        bar.update(received // 1024, (total // 1024) if total else None)
+
     try:
-        index = await _state["portal"].get_index(force=True)
+        index = await _state["portal"].get_index(force=True, on_progress=on_progress)
     except PortalError as exc:
-        await source.reply(source.server.tr("refresh.failed", error=exc))
+        await source.reply(_portal_error(server, exc, "refresh.failed"))
         return
-    await source.reply(source.server.tr("refresh.done", count=len(index)))
+    await source.reply(server.tr("refresh.done", count=len(index)))
 
 
 async def _warn_restart(source):

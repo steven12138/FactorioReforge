@@ -1,0 +1,12 @@
+help: 蓄电池电量与供电缺口
+
+alert:
+  falling: "蓄电池已降到 {percent}%（低于 {threshold}%）。真正难受的是入夜之后。"
+  recovered: "蓄电池回到 {threshold}% 以上，当前 {percent}%。"
+
+report:
+  no_accumulators: "还没有建蓄电池，也就无从谈充电。"
+  charge: "电量 {bar} {percent}%，共 {count} 个蓄电池"
+  flow: "发电 {generated}，耗电 {used}，余量 {margin}（最近一分钟）"
+  daytime: "  当前时刻 {daytime}（0 是正午，0.5 是午夜）"
+  failed: "读不到电网数据：{error}"

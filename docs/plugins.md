@@ -1,6 +1,6 @@
 # Bundled plugins
 
-Fourteen plugins ship in `plugins/`, each a package that owns its code, its
+Twenty-one plugins ship in `plugins/`, each a package that owns its code, its
 configuration and its translations. All of them can be reloaded, unloaded or
 deleted without touching the framework — none is special.
 
@@ -306,6 +306,157 @@ Beacons are deliberately not modelled. 2.0 gives beacons a diminishing `profile`
 by count, and a beacon number that is quietly wrong is worse than one the
 calculator never claimed to know; `speed=` takes a figure you worked out
 yourself.
+
+## ups_watch
+
+`!!ups` — the update rate, and `!!ups why` for what is eating it.
+
+Factorio does not fail by crashing, it fails by getting slower: 60 UPS becomes
+55, then 40, and by the time someone says "the game feels laggy" it has been
+declining for a week. There is no UPS API, so this samples `game.tick` against
+the wall clock — the difference over a known interval *is* the update rate.
+
+Two rules make it something people read rather than mute:
+
+- **A paused server is not a slow one.** Measured on 2.0.77, an idle server with
+  `auto_pause` reads **0.5 ticks/s**. A sample taken with nobody connected is
+  discarded rather than announced as a collapse at four in the morning.
+- **The window is judged by its median, not its mean.** An autosave or a
+  chunk-generation burst dips exactly one sample; 60, 60, 30, 60, 60 averages to
+  54 and would be reported as a slow factory, while its median is 60.
+
+```jsonc
+{
+  "sample_interval_seconds": 60,
+  "warn_below_ups": 55.0,
+  "critical_below_ups": 45.0,
+  "window": 5,
+  "history_length": 240
+}
+```
+
+## alerts
+
+`!!alerts` — attacks, and the game's own alerts.
+
+Two detectors, because Factorio's alert system belongs to *players*:
+`player.get_alerts` is per-player and only meaningful while someone is
+connected. That covers the case where somebody is already looking at the screen
+and misses the one worth waking up for.
+
+- **Alerts** are read from connected players and relayed, de-duplicated by
+  chunk — the same turret reports at slightly different coordinates each time.
+- **Losses** come from counting the force's structures by type on a timer.
+  Nothing destroys forty walls except an attack, a count is cheap, and it works
+  with the server empty and no companion mod. It cannot say what attacked; it
+  can say "you lost 40 walls and 6 turrets", which is the sentence that gets
+  somebody to log in.
+
+Belts and other things players remove constantly are not counted, and a single
+disappearance is not reported — that is somebody rebuilding.
+
+```jsonc
+{
+  "poll_interval_seconds": 60,
+  "loss_threshold": 5,
+  "watch_types": ["wall", "gate", "ammo-turret", "..."],
+  "ignore_alerts": ["no_material_for_construction"]
+}
+```
+
+## trains
+
+`!!trains` for the network, `!!trains stuck` for the one holding it up.
+
+On any base past a handful of trains, "something is not arriving" is a weekly
+question with two usual answers: a train with no path, or one that has been
+sitting at a station long enough that it is not coming back. Both are in
+`train.state`; neither is visible without walking the rails.
+
+No-path is wrong immediately and reported immediately. Waiting states are normal
+briefly and reported only after `stuck_after_minutes`, and the clock resets when
+a train changes state — a train that moved is not stuck even if it stops again.
+
+`force.get_trains()` was removed in 2.0 — measured, it raises *"LuaForce doesn't
+contain key get_trains"*. This uses `game.train_manager.get_trains{}`.
+
+```jsonc
+{ "poll_interval_seconds": 120, "stuck_after_minutes": 15, "max_reported": 5 }
+```
+
+## power
+
+`!!power` — accumulator charge and the supply gap.
+
+A Factorio power failure is quiet: accumulators drain, machines slow rather than
+stop, and the first visible symptom is research taking longer than it should.
+Charge at dawn is the whole story on a solar base, so that is what is watched,
+summed in Lua against the prototype's `buffer_capacity` (5 MJ, measured) so a
+megabase costs one query rather than one per accumulator.
+
+Thresholds report on the way down and again on the way back up, once each — a
+base hovering at 29% is not news every two minutes.
+
+```jsonc
+{ "poll_interval_seconds": 120, "charge_thresholds": [0.3, 0.1] }
+```
+
+## research
+
+`!!research` shows what the labs are on; `add`, `cancel` and `search` change it.
+
+The queue is trivially editable through the API and impossible to reach from a
+mine or a phone, which is the entire gap this fills. A technology whose
+prerequisites are missing is refused *by the game* and the refusal is relayed
+verbatim, rather than predicted here and predicted wrong.
+
+`research_queue_enabled` does not exist on 2.0.77 — it was a 1.1 property.
+
+```jsonc
+{ "manage_permission": "helper", "announce_changes": true }
+```
+
+## vote
+
+`!!vote start <question>`, then `!!vote yes` / `!!vote no`.
+
+Restarting, restoring and turning the lights off are things one admin can do and
+several players have to live with. The counting rules are the plugin:
+
+- **Only players online when it started may vote.** Someone who joined midway
+  did not hear the question, and letting them in lets a vote be won by inviting
+  friends.
+- **It ends as soon as the outcome is settled**, rather than running out a timer
+  whose result is already decided — that is how people learn to ignore votes.
+- **Silence is a no.** A quorum of "most of the people here" only means
+  something if not answering counts as not agreeing.
+
+A finished vote emits `vote.finished` and does nothing else. Wiring "passed" to
+an actual restart is a separate and deliberate choice, not a default.
+
+```jsonc
+{ "duration_seconds": 120, "majority": 0.5, "minimum_voters": 2 }
+```
+
+## mail
+
+`!!mail <player> <message>` — leave a message for someone who is offline.
+
+Servers spread across timezones lose most of what people say to each other. The
+mailbox is the oldest fix there is and costs almost nothing here, since the join
+event and per-plugin storage already exist.
+
+Delivery waits a few seconds after a join: a player who has just connected is
+looking at a loading screen, and a message printed then scrolls past behind the
+join spam. Messages to someone who *is* online are delivered at once — waiting
+for them to reconnect to hear something said while they were standing there
+would be absurd. A full mailbox drops its oldest message rather than refusing
+the newest, because a full mailbox is usually someone who has not logged in for
+a month.
+
+```jsonc
+{ "deliver_after_seconds": 8, "max_per_player": 20, "max_length": 200 }
+```
 
 ## production
 
