@@ -1,0 +1,48 @@
+help:
+  expression: "arithmetic in chat"
+  ratio: "what it takes to build something"
+  recipe: "one recipe, with times and ratios"
+  belt: "how many belts a rate needs"
+
+detail:
+  pointing: "With no item, it uses the machine you are hovering over, or what is in your cursor."
+  options: "Options: rate 30/m, machine=foundry, prod=20, speed=50, modules=speed-module-3*4, raw=iron-plate, use=advanced-oil-processing"
+  example: "Example: !!ratio electronic-circuit 5/s machine=assembling-machine-3"
+
+expression:
+  result: "{expression} = {result}"
+  failed: "Cannot work that out: {error}"
+
+ratio:
+  what: "What should I plan for? Name an item, or hover over a machine and try again."
+
+refresh:
+  done: "Recipe data cleared; the next question re-reads it from the game."
+
+plan:
+  header: "{item} at {rate}/s -- {machines} machines, {power}"
+  modules: "  with {modules} in every machine"
+  step: "  {machines} x {machine}  {recipe}  {rate}/s"
+  more: "  ... and {count} more steps"
+  raw: "  needs: {items}"
+  surplus: "  byproducts: {items}"
+  belts: "  output is {count} x {belt} ({throughput}/s)"
+
+recipe:
+  line: "{recipe}: {seconds}s, {ingredients} -> {products}"
+  machine: "  in {machine} (speed {speed}): {rate} crafts/s each"
+
+belt:
+  usage: "Usage: !!belt <rate>, for example !!belt 45/s or !!belt 900/m"
+  none: "The server reported no transport belts."
+  header: "{rate}/s needs:"
+  line: "  {count} x {belt} ({throughput}/s, {lane}/s per lane)"
+
+error:
+  needs_server: "That needs the running game to read recipes from: {error}"
+  too_deep: "That recipe graph goes too deep to follow: {error}"
+  no_recipe: "Nothing makes {item}."
+  no_recipe_hint: "Nothing makes {item}. Did you mean: {matches}"
+  no_machine: "No machine on this server can craft {item}."
+  infeasible: "There is no way to make {item} from what the recipes allow."
+  unbounded: "These recipes produce something from nothing, so there is no answer."

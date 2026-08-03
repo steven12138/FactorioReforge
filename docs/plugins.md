@@ -1,6 +1,6 @@
 # Bundled plugins
 
-Thirteen plugins ship in `plugins/`, each a package that owns its code, its
+Fourteen plugins ship in `plugins/`, each a package that owns its code, its
 configuration and its translations. All of them can be reloaded, unloaded or
 deleted without touching the framework — none is special.
 
@@ -211,6 +211,77 @@ rejected at save time rather than failing later when someone asks for it.
 ```jsonc
 { "radius": 32, "manage_permission": "user" }
 ```
+
+## calculator
+
+`==1400/7.5` for arithmetic, and `!!ratio` for the question people actually open
+a browser tab to answer: what does it take to build this.
+
+```
+!!ratio electronic-circuit 5/s
+electronic-circuit at 5/s -- 8.33 machines, 1.25 MW
+  3.33 x assembling-machine-3  electronic-circuit  5/s
+  5.00 x assembling-machine-3  copper-cable        15/s
+  needs: copper-plate 7.5/s, iron-plate 5/s
+  output is 0.33 x transport-belt (15/s)
+```
+
+**The recipes come from your server, not from this repository.** Every other
+Factorio calculator ships a data dump scraped from one version, which is why
+they all have a version dropdown and none of them knows about your mods. This
+one reads `prototypes.recipe` over RCON, so the numbers are the ones your server
+will run. The cost is that `!!ratio` needs the server up; `==` arithmetic does
+not.
+
+**The maths is the same as the good calculators do it.** Recipes become a matrix
+— rows items, columns recipes, positive for a product and negative for an
+ingredient — and the rates are a linear program, solved with a simplex in exact
+rational arithmetic. A tree walk is not enough and this is not a hypothetical:
+advanced oil processing, heavy cracking and light cracking all produce
+overlapping fluids, so how much of each to run is not a property of any one
+recipe, and Kovarex consumes the thing it produces, which a walk recurses on
+forever. Both fall out of the same solve. See
+[Ratios and the solver](architecture.md#ratios-and-the-solver).
+
+**Naming the item is the worst part of every other calculator**, and this one is
+running inside the game, so it mostly does not have to be typed:
+
+| What you do | What it plans |
+|---|---|
+| hover over an assembler, `!!ratio` | the recipe set in that machine |
+| hold an item, `!!ratio` | the item in your cursor |
+| `!!ratio [item=iron-gear-wheel]` | the icon from the in-game picker |
+| `!!ratio green circuit 30/m` | spaces, capitals and short names |
+
+```jsonc
+{
+  "expression_prefix": "==",
+  "announce_expression_results": true,   // everyone saw the question
+  "machines": ["assembling-machine-3", "electric-furnace", "chemical-plant",
+               "oil-refinery", "centrifuge", "rocket-silo"],
+  "belt": "transport-belt",
+  "default_rate": "1/s",
+  "raw_items": [],                       // stop the walk here
+  "raw_costs": {"water": 0.01, "steam": 0.01},
+  "max_steps": 14
+}
+```
+
+`raw_costs` is the one number that is a judgement rather than a fact from the
+game, and it cannot be avoided: cracking heavy oil and pumping more crude both
+produce petroleum, and which is better depends on your map. Charging water the
+same as crude oil makes the solver refuse to crack at all.
+
+Arithmetic is evaluated by walking the parsed syntax tree against a whitelist of
+node types. `eval` is never called on player input — not sandboxed, not with
+`__builtins__` stripped, not at all — because the input comes from anyone who
+can type in chat. What is left is size rather than access, so `9**9**9` is
+refused before it runs rather than after.
+
+Beacons are deliberately not modelled. 2.0 gives beacons a diminishing `profile`
+by count, and a beacon number that is quietly wrong is worse than one the
+calculator never claimed to know; `speed=` takes a figure you worked out
+yourself.
 
 ## production
 

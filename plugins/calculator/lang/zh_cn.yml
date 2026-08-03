@@ -1,0 +1,48 @@
+help:
+  expression: "在聊天框里算数"
+  ratio: "造一个东西需要什么"
+  recipe: "单条配方，含时间和比例"
+  belt: "某个速率要几条传送带"
+
+detail:
+  pointing: "不写物品时，用你正指着的机器，或者手上拿着的东西。"
+  options: "可选项：速率 30/m、machine=foundry、prod=20、speed=50、modules=speed-module-3*4、raw=iron-plate、use=advanced-oil-processing"
+  example: "例：!!ratio electronic-circuit 5/s machine=assembling-machine-3"
+
+expression:
+  result: "{expression} = {result}"
+  failed: "算不出来：{error}"
+
+ratio:
+  what: "要算什么？写一个物品名，或者指着一台机器再敲一次。"
+
+refresh:
+  done: "配方缓存已清空，下一次提问会重新从游戏里读。"
+
+plan:
+  header: "{item} {rate}/s —— 共 {machines} 台机器，{power}"
+  modules: "  每台机器插了 {modules}"
+  step: "  {machines} 台 {machine}  {recipe}  {rate}/s"
+  more: "  ……还有 {count} 步"
+  raw: "  需要投入：{items}"
+  surplus: "  副产物：{items}"
+  belts: "  产出相当于 {count} 条 {belt}（{throughput}/s）"
+
+recipe:
+  line: "{recipe}：{seconds} 秒，{ingredients} -> {products}"
+  machine: "  在 {machine}（速度 {speed}）里：每台 {rate} 次/秒"
+
+belt:
+  usage: "用法：!!belt <速率>，例如 !!belt 45/s 或 !!belt 900/m"
+  none: "服务器没有报告任何传送带。"
+  header: "{rate}/s 需要："
+  line: "  {count} 条 {belt}（{throughput}/s，单侧 {lane}/s）"
+
+error:
+  needs_server: "这个要从运行中的游戏里读配方：{error}"
+  too_deep: "这条配方链太深了，跟不下去：{error}"
+  no_recipe: "没有任何配方能产出 {item}。"
+  no_recipe_hint: "没有任何配方能产出 {item}。你是不是想找：{matches}"
+  no_machine: "这个服务器上没有机器能制造 {item}。"
+  infeasible: "按现有配方，做不出 {item}。"
+  unbounded: "这些配方可以无中生有，所以没有答案。"

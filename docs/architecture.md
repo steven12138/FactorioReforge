@@ -139,6 +139,51 @@ overwriting the world in order to back it up, which is what a bare
 And a world is one zip rather than a live directory, so QBM's `save-off` /
 `save-all flush` dance has no equivalent here and is simply absent.
 
+## Ratios and the solver
+
+`!!ratio` is the one piece of arithmetic here complicated enough to be worth
+describing, and the design is not original: Kirk McDonald's calculator,
+FactorioLab and YAFC all converged on the same shape, so `calculator/solver.py`
+does too rather than inventing a fourth answer.
+
+Recipes become a **matrix**: rows are items, columns are recipes, a cell is how
+much of that item one craft nets — positive for a product, negative for an
+ingredient. The rates you want are the solution to `A x >= b`.
+
+A recursive walk down the ingredient tree is enough for most of the graph, and
+that is only because most items have exactly one recipe. Two shapes break it,
+both of them in vanilla:
+
+* **Several recipes producing overlapping items.** Advanced oil processing makes
+  heavy, light and petroleum together; heavy cracking turns heavy into light;
+  light cracking turns light into petroleum. How much of each to run is not a
+  property of any one recipe, so a walk has to guess.
+* **A recipe that consumes what it produces.** Kovarex lists uranium-238 as both
+  an ingredient and a product, and a walk recurses on it forever.
+
+Both are the same solve. Whether to crack is decided by minimising cost, and the
+cycle nets out in the coefficients — an item is treated as raw when no recipe
+*nets* any of it, which is what stops the solver from believing Kovarex makes its
+own uranium-238.
+
+**Exact arithmetic, throughout.** The ratios in this game are fractions: 3/2
+gears per belt, 7/12 of a machine. In floating point that becomes
+0.5833333333333334, and a machine count comes out as 2.9999999999999996 —
+technically right and visibly wrong. Everything is `fractions.Fraction` until
+the moment it is printed.
+
+**Bland's rule, not the fastest pivot.** Degenerate vertices are the normal case
+here rather than a corner case: two recipes producing the same item in the same
+proportion is a tie, and Factorio's graph is full of them. Bland's rule is the
+one pivot choice that provably cannot cycle. The problems are tens of variables,
+so what it costs is not measurable and what it guarantees is termination.
+
+The data does not live in this repository. It is read from the running game
+through the same RCON channel as everything else, which makes the answer correct
+for the server's version and its mods, and makes a stale table impossible. What
+it costs is that the server has to be up. See
+[`calculator`](plugins.md#calculator).
+
 ## Plugins
 
 Discovery, dependency-ordered loading, and hot reload. On reload the registry is
@@ -209,7 +254,7 @@ worth reporting — the RCON bind above all — are printed after it.
 ## Tests
 
 ```bash
-python -m pytest tests/ -q        # 279 tests
+python -m pytest tests/ -q        # 346 tests
 ```
 
 Parser tests run against output sampled from a real server, in

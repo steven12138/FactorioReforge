@@ -6,7 +6,7 @@
   <img alt="Python 3.11+" src="https://img.shields.io/badge/python-3.11%2B-3776ab?logo=python&logoColor=white">
   <img alt="Factorio 2.0" src="https://img.shields.io/badge/factorio-2.0%20headless-d4761a">
   <img alt="License MIT" src="https://img.shields.io/badge/license-MIT-green">
-  <img alt="279 tests" src="https://img.shields.io/badge/tests-279%20passing-brightgreen">
+  <img alt="346 tests" src="https://img.shields.io/badge/tests-346%20passing-brightgreen">
   <img alt="i18n" src="https://img.shields.io/badge/i18n-en%20%C2%B7%20zh__cn-blue">
 </p>
 
@@ -20,7 +20,7 @@
 in-game chat, from your terminal, or from Telegram.**
 
 It owns the server process, turns its output into structured events, and hands
-those to plugins. Thirteen plugins ship with it: slot-based backups with a
+those to plugins. Fourteen plugins ship with it: slot-based backups with a
 one-command restore, Telegram control, mod installs from the portal, a rendered
 world map, crash diagnosis, a blueprint library, production charts and more.
 
@@ -65,7 +65,7 @@ server.
 | [**Tutorial**](docs/TUTORIAL.md) | Step by step from nothing to a running, managed server |
 | [**Commands**](docs/commands.md) | Every command, what it does, who may run it |
 | [**Configuration**](docs/configuration.md) | `config.yml`, and what it refuses to start with |
-| [**Plugins**](docs/plugins.md) | The thirteen bundled plugins and their settings |
+| [**Plugins**](docs/plugins.md) | The fourteen bundled plugins and their settings |
 | [**Writing plugins**](docs/writing-plugins.md) | Events, the server API, storage, translations |
 | [**Running a Factorio server**](docs/factorio-server.md) | Headless servers on their own, without any of this |
 | [**Architecture**](docs/architecture.md) | How it works inside, and why it works that way |
@@ -117,6 +117,7 @@ included. Each plugin ships its own translations.
 | [`server_utils`](docs/plugins.md#server_utils) | `!!here` `!!info` `!!list` `!!seen` `!!stats` `!!tp` |
 | [`warp`](docs/plugins.md#warp) | Named, clickable, pinned map locations |
 | [`blueprints`](docs/plugins.md#blueprints) | A shared server-side blueprint library |
+| [`calculator`](docs/plugins.md#calculator) | `==1+1`, and `!!ratio` — machines, belts and power to build anything |
 | [`production`](docs/plugins.md#production) | Production history that outlives a session |
 | [`world_watch`](docs/plugins.md#world_watch) | Evolution, pollution, research and rocket alerts |
 | [`leaderboard`](docs/plugins.md#leaderboard) | `!!top` — playtime, kills, production |

@@ -18,6 +18,21 @@
 
 ### Added
 
+- **`calculator`**: `==1400/7.5` answers arithmetic in chat, and `!!ratio` answers
+  what it takes to build something — machines, inputs, belts and power.
+  - Recipes are read from the running game (`prototypes.recipe` over RCON), so
+    the numbers match your version and your mods and no table here can go stale.
+  - The rates are solved as a linear program with an exact-rational simplex, the
+    same approach Kirk McDonald's calculator, FactorioLab and YAFC settled on. A
+    recursive walk cannot answer oil processing (overlapping products) or Kovarex
+    (consumes what it produces); both fall out of the same solve.
+  - With no item named, it uses the machine you are hovering over and the recipe
+    set in it, or what is in your cursor. Icons from the in-game picker
+    (`[item=iron-plate]`) work as arguments.
+  - `!!recipe` and `!!belt` for the smaller questions.
+  - Arithmetic is evaluated by walking the parsed AST against a whitelist;
+    `eval` is never called on player input, and `9**9**9` is refused before it
+    runs rather than after.
 - **`server_admin`**: `!!server` reads and edits `server-settings.json` from
   chat — name, description, password, player limit, visibility, autosave, pause,
   verification. Writes go through a temp file and a rename, because a truncated

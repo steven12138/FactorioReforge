@@ -145,6 +145,37 @@ Locations, not teleports: **nobody is moved**.
 Only releases built for your Factorio version are offered — see
 [`mod_manager`](plugins.md#mod_manager).
 
+## Calculator — `!!ratio`
+
+Arithmetic, and production ratios solved from the recipes your server is
+actually running. See [`calculator`](plugins.md#calculator).
+
+| Command | Level | What it does |
+|---|---|---|
+| `==<expression>` | user | Arithmetic in chat: `==1400/7.5` |
+| `!!calc <expression>` | user | The same, from the terminal or Telegram |
+| `!!ratio [item] [rate]` | user | Machines, inputs, belts and power to build it |
+| `!!ratio refresh` | helper | Forget the cached recipe data and re-read it |
+| `!!recipe [item]` | user | One recipe: time, ingredients, per-machine rate |
+| `!!belt <rate>` | user | How many belts of each tier a rate needs |
+
+With no item, `!!ratio` and `!!recipe` use **the machine you are hovering over**
+— its set recipe — or failing that whatever is in your cursor. An icon pasted
+from the in-game picker (`[item=iron-plate]`) works as an argument, and so do
+spaces, capitals and short names: `!!ratio green circuit 30/m`.
+
+Options go anywhere on the line as `key=value`:
+
+| Option | Effect |
+|---|---|
+| `30/m`, `5/s`, `90/h` | The rate. Per second if the unit is left off |
+| `machine=foundry` | Prefer a machine, ahead of the configured list |
+| `prod=20` `speed=50` | Module effects as percentages |
+| `modules=speed-module-3*4` | The same, read from the module's real prototype |
+| `raw=iron-plate` | Stop expanding here and treat it as bought in |
+| `use=advanced-oil-processing` | Pin a recipe where several would do |
+| `cost:water=0.5` | Change what a raw input is worth to the solver |
+
 ## Production, maps and diagnostics
 
 | Command | Level | Does |

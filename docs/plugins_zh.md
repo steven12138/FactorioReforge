@@ -1,6 +1,6 @@
 # 自带插件
 
-`plugins/` 里自带十三个插件，每个都是一个包，
+`plugins/` 里自带十四个插件，每个都是一个包，
 自己拥有自己的代码、配置和翻译。它们都可以被重载、卸载或直接删掉，
 不会影响框架——没有哪一个是特殊的。
 
@@ -197,6 +197,71 @@ Telegram 会重新压缩照片，而一 tile 一像素恰恰是那种一压就�
 ```jsonc
 { "radius": 32, "manage_permission": "user" }
 ```
+
+## calculator
+
+`==1400/7.5` 算数，`!!ratio` 回答那个真正会让人去开浏览器标签页的问题：
+造这个东西，需要什么。
+
+```
+!!ratio electronic-circuit 5/s
+electronic-circuit 5/s —— 共 8.33 台机器，1.25 MW
+  3.33 台 assembling-machine-3  electronic-circuit  5/s
+  5.00 台 assembling-machine-3  copper-cable        15/s
+  需要投入：copper-plate 7.5/s, iron-plate 5/s
+  产出相当于 0.33 条 transport-belt（15/s）
+```
+
+**配方来自你的服务器，不是来自这个仓库。** 别的 Factorio 计算器都自带一份
+从某个版本扒下来的数据，所以它们都有一个版本下拉框，并且都不知道你装了什么 mod。
+这个插件通过 RCON 读 `prototypes.recipe`，所以算的就是你服务器真会跑的数。
+代价是 `!!ratio` 需要服务器在跑；`==` 算数不需要。
+
+**算法和那几个成熟计算器是同一套。** 配方变成一个矩阵 ——
+行是物品、列是配方，产物为正、原料为负 —— 速率则是一个线性规划，
+用精确有理数的单纯形法解出来。递归展开是不够的，而且这不是假想：
+高级石油裂解、重油裂化、轻油裂化产出的流体互相重叠，
+各跑多少并不是任何单条配方的性质；而 Kovarex 会消耗自己产出的东西，
+递归展开会在那里无限下去。这两种情况在同一次求解里一起解决。见
+[产能比例与求解器](architecture_zh.md#产能比例与求解器)。
+
+**别的计算器里最难受的一步是把物品名打出来**，而这个插件跑在游戏里面，
+所以大多数时候根本不用打：
+
+| 你做什么 | 它算什么 |
+|---|---|
+| 鼠标指着一台组装机，敲 `!!ratio` | 那台机器里设的配方 |
+| 手上拿着一个物品，敲 `!!ratio` | 你光标里的那个物品 |
+| `!!ratio [item=iron-gear-wheel]` | 游戏内图标选择器插进来的图标 |
+| `!!ratio green circuit 30/m` | 空格、大小写和俗称都认 |
+
+```jsonc
+{
+  "expression_prefix": "==",
+  "announce_expression_results": true,   // 反正大家都看见问题了
+  "machines": ["assembling-machine-3", "electric-furnace", "chemical-plant",
+               "oil-refinery", "centrifuge", "rocket-silo"],
+  "belt": "transport-belt",
+  "default_rate": "1/s",
+  "raw_items": [],                       // 展开到这里就停
+  "raw_costs": {"water": 0.01, "steam": 0.01},
+  "max_steps": 14
+}
+```
+
+`raw_costs` 是唯一一个属于判断而不是游戏事实的数字，而且绕不开：
+裂化重油和多抽原油都能产出石油气，哪个更划算取决于你的地图。
+把水和原油算成一样贵，求解器就会干脆不裂化。
+
+算数是把解析出来的语法树按节点类型白名单走一遍算出来的。
+绝不对玩家输入调用 `eval` —— 不是沙箱里的 `eval`，
+也不是去掉 `__builtins__` 的 `eval`，而是根本不调用 ——
+因为输入来自任何一个能在聊天框里打字的人。
+剩下的风险是体量而不是权限，所以 `9**9**9` 是在**执行前**被拒绝的。
+
+信标是刻意不建模的。2.0 给信标加了随数量递减的 `profile`，
+而一个悄悄算错的信标数量，比一个明说自己不知道的计算器更糟；
+`speed=` 留给已经自己算明白的人。
 
 ## production
 

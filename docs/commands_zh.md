@@ -141,6 +141,37 @@ FactorioReforge 终端**永远**是 `owner`，且不可配置：
 只会提供为你这个 Factorio 版本构建的发布版——见
 [`mod_manager`](plugins_zh.md#mod_manager)。
 
+## 计算器 —— `!!ratio`
+
+算数，以及用你服务器真正在跑的配方解出来的产能比例。见
+[`calculator`](plugins_zh.md#calculator)。
+
+| 命令 | 等级 | 作用 |
+|---|---|---|
+| `==<表达式>` | user | 在聊天框里算数：`==1400/7.5` |
+| `!!calc <表达式>` | user | 同上，用于终端和 Telegram |
+| `!!ratio [物品] [速率]` | user | 造它要多少机器、投入、传送带和电 |
+| `!!ratio refresh` | helper | 丢掉配方缓存，下次重新从游戏里读 |
+| `!!recipe [物品]` | user | 单条配方：时间、原料、单台产率 |
+| `!!belt <速率>` | user | 这个速率各档传送带各要几条 |
+
+不写物品时，`!!ratio` 和 `!!recipe` 用**你鼠标正指着的那台机器**里设的配方，
+指不到就用你手上拿着的东西。游戏内图标选择器插进来的
+`[item=iron-plate]` 可以直接当参数用，空格、大小写和俗称也都认：
+`!!ratio green circuit 30/m`。
+
+可选项写成 `key=value`，放在这一行的任何位置：
+
+| 选项 | 作用 |
+|---|---|
+| `30/m`、`5/s`、`90/h` | 速率。不写单位就是每秒 |
+| `machine=foundry` | 优先用某台机器，排在配置的列表前面 |
+| `prod=20` `speed=50` | 模块效果，按百分比 |
+| `modules=speed-module-3*4` | 同上，但从模块真实的 prototype 里读 |
+| `raw=iron-plate` | 展开到这里就停，当成外部买进来的 |
+| `use=advanced-oil-processing` | 有多条配方可选时钉死一条 |
+| `cost:water=0.5` | 改某种原料在求解器眼里的价值 |
+
 ## 产量、地图与诊断
 
 | 命令 | 等级 | 作用 |
