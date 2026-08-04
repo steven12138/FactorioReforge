@@ -11,6 +11,7 @@ The commands each plugin registers are also discoverable at runtime:
 !!help                 the index: core commands, then one line per plugin
 !!help warp            one plugin: version, author, what it does, its commands
 !!help ratio           search -- finds the plugin that provides !!ratio
+!!help qb              a core topic: every backup subcommand
 !!FR plugin list       every plugin with its version and commands
 ```
 

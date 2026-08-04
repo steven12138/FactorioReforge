@@ -217,3 +217,69 @@ class TestShortcut:
         """`!!FR` is where status, plugin and server live; that is not `!!help`."""
         lines = await run(commands, "!!help")
         assert any(line.strip().startswith("!!FR") for line in lines)
+
+
+class TestCoreTopics:
+    """The framework's own commands are not plugins, so nothing could find them.
+
+    `!!help qb` -- an obvious thing to type about the backup command -- used to
+    report that nothing matched, while the index two lines above printed it.
+    """
+
+    async def test_qb_is_a_topic(self, commands):
+        lines = await run(commands, "!!help qb")
+        assert any("!!qb make" in line for line in lines)
+        assert all("help.no_match" not in line for line in lines)
+
+    async def test_the_old_name_reaches_the_same_topic(self, commands):
+        """`!!save` still works, so someone typing it deserves the backup help."""
+        assert await run(commands, "!!help save") == await run(commands, "!!help qb")
+
+    async def test_fr_lists_the_framework_commands(self, commands):
+        lines = await run(commands, "!!help fr")
+        assert any("!!FR status" in line for line in lines)
+        assert any("!!FR permission" in line for line in lines)
+
+    async def test_a_core_command_name_is_searchable(self, commands):
+        """`!!help back` should reach the backup command, not a dead end."""
+        lines = await run(commands, "!!help back")
+        assert any("!!qb back" in line for line in lines)
+
+    async def test_a_core_description_is_searchable(self, commands):
+        """The words in the description count too, not just the command.
+
+        With real catalogues this is what makes `!!help restore` find
+        `!!qb back`; the fake translator here answers with the key, so the key
+        is what there is to search for.
+        """
+        lines = await run(commands, "!!help qb_back")
+        assert any("!!qb back" in line for line in lines)
+
+    async def test_a_search_can_match_core_and_plugins_at_once(self, commands):
+        lines = await run(commands, "!!help re")
+        assert any("!!FR" in line or "!!qb" in line for line in lines)
+        assert any("help.matches" in line for line in lines)
+
+    async def test_every_core_description_resolves(self, commands):
+        """`help.lang` was never in the catalogue, so the index printed the key.
+
+        A raw key in a help screen is the kind of thing everyone sees and
+        nobody reports, so it is worth a test rather than an eye.
+        """
+        from pathlib import Path
+
+        from factorio_reforge.i18n import Translator
+
+        translator = Translator()
+        translator.load_directory(
+            Path(__file__).resolve().parent.parent / "factorio_reforge" / "lang"
+        )
+        _, server = commands
+        server.tr = translator.tr
+        for topic in builtin.HelpCommands(server).core_commands().values():
+            for command, description in topic:
+                assert not description.startswith("help."), command
+
+    async def test_a_genuine_miss_still_says_so(self, commands):
+        lines = await run(commands, "!!help zzzznothing")
+        assert any("help.no_match" in line for line in lines)

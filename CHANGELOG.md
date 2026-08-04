@@ -111,6 +111,13 @@
 
 ### Fixed
 
+- **`!!help qb` found nothing.** The framework's own commands are not plugins,
+  so they were in no registry and the lookup could not see them -- while the
+  index two lines above printed them. `qb` and `fr` are topics now, `save` and
+  `backup` reach the backup one, and core commands are included in searches.
+- `help.lang` was never in the catalogue, so the help index printed the raw key
+  where the description of `!!FR lang` should have been.
+
 - **`install.sh` could write a config.yml with no RCON password.** It was
   generated inside the "if the Factorio binary is here" block, so `--no-server`
   — and any run where the download had failed — produced an empty password and

@@ -104,8 +104,14 @@ help:
   reload: "reload every changed plugin"
   server: "start, stop, restart or kill the server"
   permission: "view or change permissions"
+  language: "show or switch the interface language"
   exit: "stop the server and quit"
   qb: "backups: make, list, restore"
+  qb_make: "back up into slot 1; everything else shifts down"
+  qb_list: "every slot, with age, size and comment"
+  qb_back: "stage a restore -- nothing happens until confirm"
+  qb_confirm: "carry out the staged restore, or call it off"
+  qb_edit: "delete or re-comment a slot; a1, a2 are the automatic ones"
 
 error:
   rcon_down: "RCON is not connected"

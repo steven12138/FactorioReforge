@@ -72,6 +72,48 @@ class HelpCommands:
             return meta.description
         return meta.name if meta else plugin_id
 
+    def core_commands(self) -> dict[str, list[tuple[str, str]]]:
+        """The commands the framework itself provides, as searchable topics.
+
+        These are not plugins, so they were in no registry, so nothing could
+        find them: ``!!help qb`` -- an entirely reasonable thing to type about
+        the backup command -- reported that nothing matched. The index printed
+        them and the lookup could not see them, which is the worst combination.
+        """
+        base = self.server.config.command_prefix
+        framework = [
+            (f"{base}FR {name}", self.tr(f"help.{key}"))
+            for name, key in (
+                ("status", "status"),
+                ("plugin list", "plugin_list"),
+                ("plugin reload <id>", "plugin_reload"),
+                ("reload", "reload"),
+                ("server start|stop|restart|kill", "server"),
+                ("permission list|set <player> <level>", "permission"),
+                ("lang [set <code>]", "language"),
+                ("exit", "exit"),
+            )
+        ]
+        backups = [
+            (f"{base}qb {name}", self.tr(f"help.{key}"))
+            for name, key in (
+                ("make [comment]", "qb_make"),
+                ("list", "qb_list"),
+                ("back <slot>", "qb_back"),
+                ("confirm | abort", "qb_confirm"),
+                ("del | rename <slot>", "qb_edit"),
+            )
+        ]
+        return {"fr": framework, "qb": backups}
+
+    #: Other names for a topic. ``save`` is the old backup command and still
+    #: works, so somebody who types it deserves the backup help, not a miss.
+    CORE_ALIASES = {"save": "qb", "backup": "qb", "framework": "fr", "reforge": "fr"}
+
+    async def show_topic(self, source: CommandSource, topic: str):
+        for command, description in self.core_commands()[topic]:
+            await source.reply(f"  {command:<40} {description}")
+
     def visible_entries(self, source: CommandSource) -> list:
         return [
             entry for entry in self.server.plugins.registry.help_messages
@@ -155,6 +197,12 @@ class HelpCommands:
         if self.server.plugins.get(term) is not None:
             await self.help_plugin(source, ctx)
             return
+
+        topic = term.lower().lstrip(self.server.config.command_prefix)
+        topic = self.CORE_ALIASES.get(topic, topic)
+        if topic in self.core_commands():
+            await self.show_topic(source, topic)
+            return
         await self.help_search(source, term)
 
     async def help_search(self, source: CommandSource, term: str):
@@ -164,16 +212,26 @@ class HelpCommands:
         fallback, not the interface.
         """
         needle = term.lower().lstrip(self.server.config.command_prefix)
+        core = [
+            (command, description)
+            for topic in self.core_commands().values()
+            for command, description in topic
+            if needle in command.lower() or needle in description.lower()
+        ]
         matches = [
             entry for entry in self.visible_entries(source)
             if needle in entry.prefix.lower()
             or needle in entry.message.lower()
             or needle in entry.plugin_id.lower()
         ]
-        if not matches:
+        if not core and not matches:
             await source.reply(self.tr("help.no_match", term=term, prefix=self.prefix))
             return
-        await source.reply(self.tr("help.matches", term=term, count=len(matches)))
+
+        await source.reply(self.tr(
+            "help.matches", term=term, count=len(core) + len(matches)))
+        for command, description in core[:8]:
+            await source.reply(f"  {command:<40} {description}")
         for entry in matches[:12]:
             await source.reply(f"  {entry.prefix:<28} {entry.message}")
             await source.reply(self.tr("help.from_plugin", id=entry.plugin_id, prefix=self.prefix))

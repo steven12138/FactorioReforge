@@ -103,8 +103,14 @@ help:
   reload: 重载所有改动过的插件
   server: 启动、停止、重启或强杀服务器
   permission: 查看或修改权限
+  language: "查看或切换界面语言"
   exit: 停止服务器并退出
   qb: "备份：创建、列出、回档"
+  qb_make: "备份到槽位 1，其余顺次下移"
+  qb_list: "所有槽位，带时间、大小和备注"
+  qb_back: "预备回档 —— 在 confirm 之前什么都不会发生"
+  qb_confirm: "执行预备好的回档，或者取消掉"
+  qb_edit: "删除槽位或改备注；a1、a2 是自动备份那一圈"
 
 error:
   rcon_down: RCON 未连接
