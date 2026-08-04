@@ -455,7 +455,11 @@ class TestRconExposureCheck:
         config.rcon.password = "x"
         (working / "s.zip").write_text("")
         config.saves.current_save = str(working / "s.zip")
-        config.start_command = f"./factorio --start-server s.zip {rcon_args}"
+        # A matching --rcon-password, because a config without one is invalid
+        # on its own account now and this class is about the bind address.
+        config.start_command = (
+            f"./factorio --start-server s.zip {rcon_args} --rcon-password x"
+        )
         return config
 
     def test_rcon_port_is_refused(self, tmp_path):
@@ -482,6 +486,90 @@ class TestRconExposureCheck:
 
         assert "--rcon-bind 127.0.0.1:" in Config().start_command
         assert "--rcon-port" not in Config().start_command
+
+
+class TestRconPasswordCheck:
+    """The password lives in two places, and nothing linked them.
+
+    ``start_command`` says what Factorio listens with; ``rcon.password`` says
+    what this side connects with. When they drift the symptom is that RCON
+    simply never comes up -- every query fails and half the plugins go quiet --
+    with nothing pointing at the cause.
+    """
+
+    def _config(self, tmp_path, command_password, config_password="secret"):
+        from factorio_reforge.config import Config
+
+        working = tmp_path / "server"
+        working.mkdir()
+        config = Config()
+        config.root = tmp_path
+        config.working_directory = str(working)
+        config.rcon.password = config_password
+        (working / "s.zip").write_text("")
+        config.saves.current_save = str(working / "s.zip")
+        argument = f" --rcon-password {command_password}" if command_password else ""
+        config.start_command = (
+            f"./factorio --start-server s.zip --rcon-bind 127.0.0.1:27015{argument}"
+        )
+        return config
+
+    def test_matching_passwords_are_fine(self, tmp_path):
+        self._config(tmp_path, "secret").validate()
+
+    def test_a_mismatch_is_refused(self, tmp_path):
+        from factorio_reforge.config import ConfigError
+
+        config = self._config(tmp_path, "something-else")
+        with pytest.raises(ConfigError, match="does not match"):
+            config.validate()
+
+    def test_a_missing_argument_is_refused(self, tmp_path):
+        from factorio_reforge.config import ConfigError
+
+        with pytest.raises(ConfigError, match="no --rcon-password"):
+            self._config(tmp_path, "").validate()
+
+    def test_a_leading_dash_is_refused(self, tmp_path):
+        """Quoting gets it past shlex; Factorio's own parser still sees a flag."""
+        from factorio_reforge.config import ConfigError
+
+        config = self._config(tmp_path, "'-dashy'", config_password="-dashy")
+        with pytest.raises(ConfigError, match="begins with a dash"):
+            config.validate()
+
+    def test_a_password_eaten_by_the_next_flag_is_refused(self, tmp_path):
+        """What a generated password starting with a dash used to produce.
+
+        `--rcon-password -HjOaa2...` is read by Factorio's argument parser as
+        another flag, so the server came up with no RCON password at all and one
+        install in sixty-six was silently broken.
+        """
+        from factorio_reforge.config import Config, ConfigError
+
+        working = tmp_path / "server"
+        working.mkdir()
+        config = Config()
+        config.root = tmp_path
+        config.working_directory = str(working)
+        config.rcon.password = "secret"
+        (working / "s.zip").write_text("")
+        config.saves.current_save = str(working / "s.zip")
+        config.start_command = (
+            "./factorio --start-server s.zip --rcon-password --rcon-bind 127.0.0.1:27015"
+        )
+        with pytest.raises(ConfigError, match="begins with a dash"):
+            config.validate()
+
+    def test_rcon_switched_off_does_not_need_one(self, tmp_path):
+        config = self._config(tmp_path, "", config_password="")
+        config.rcon.enabled = False
+        config.validate()
+
+    def test_a_quoted_password_survives_the_round_trip(self, tmp_path):
+        """shlex.split unquotes it, so a password with a space still matches."""
+        config = self._config(tmp_path, "'two words'", config_password="two words")
+        config.validate()
 
 
 class TestServerSettingsWrites:

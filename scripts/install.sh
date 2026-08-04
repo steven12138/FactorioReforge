@@ -61,7 +61,10 @@ while [[ $# -gt 0 ]]; do
     --version)     FACTORIO_VERSION="${2:?--version needs a value}"; shift ;;
     --port)        GAME_PORT="${2:?--port needs a value}"; shift ;;
     --rcon-port)   RCON_PORT="${2:?--rcon-port needs a value}"; shift ;;
-    --rcon-password) RCON_PASSWORD="${2:?--rcon-password needs a value}"; shift ;;
+    --rcon-password) RCON_PASSWORD="${2:?--rcon-password needs a value}"
+                     [[ -n $RCON_PASSWORD ]] || die "--rcon-password cannot be empty"
+                     [[ $RCON_PASSWORD != -* ]] || die "--rcon-password cannot start with a dash: Factorio reads it as a flag"
+                     shift ;;
     -h|--help)     usage ;;
     *)             die "unknown option: $1  (try --help)" ;;
   esac
@@ -128,17 +131,47 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# 2. Server configuration and a map
+# 2. An RCON password
+#
+# Its own step, before anything that needs it. It used to be generated inside
+# the "if the binary exists" block below, so --no-server -- and any run where
+# the download had failed -- wrote a config.yml with an empty password and no
+# working RCON.
+#
+# The alphabet is deliberately just letters and digits. `secrets.token_urlsafe`
+# emits base64url, which includes `-`, and 1.5% of its output *starts* with one:
+# `--rcon-password -HjOaa2...` is read by Factorio's argument parser as another
+# flag, so one install in sixty-six came up with RCON broken and nothing saying
+# why. Alphanumeric cannot be mistaken for a flag by anything.
+# ---------------------------------------------------------------------------
+
+if [[ -z $RCON_PASSWORD ]]; then
+  step "Generating an RCON password"
+  RCON_PASSWORD=$("$PYTHON" -c '
+import secrets, string
+alphabet = string.ascii_letters + string.digits
+print("".join(secrets.choice(alphabet) for _ in range(24)))
+' 2>/dev/null) || RCON_PASSWORD=""
+
+  if [[ -z $RCON_PASSWORD ]]; then
+    # Python is a hard requirement later, but not having to trust it here costs
+    # one line and removes a way for this to fail halfway.
+    RCON_PASSWORD=$(LC_ALL=C tr -dc 'A-Za-z0-9' < /dev/urandom | head -c 24 || true)
+  fi
+  [[ ${#RCON_PASSWORD} -ge 16 ]] || die "could not generate an RCON password"
+  note "generated a random RCON password (${#RCON_PASSWORD} characters)"
+fi
+
+# A password nobody chose is better than a password everyone knows, but only if
+# it actually reaches the file. Everything downstream may now assume this.
+[[ -n $RCON_PASSWORD ]] || die "internal error: RCON password is empty"
+
+# ---------------------------------------------------------------------------
+# 3. Server configuration and a map
 # ---------------------------------------------------------------------------
 
 if [[ -x $BINARY ]]; then
   step "Setting up server configuration"
-
-  if [[ -z $RCON_PASSWORD ]]; then
-    # A password nobody chose is better than a password everyone knows.
-    RCON_PASSWORD=$("$PYTHON" -c 'import secrets; print(secrets.token_urlsafe(18))')
-    note "generated a random RCON password"
-  fi
 
   if [[ -f "$FACTORIO_DIR/server-settings.json" && $FORCE -eq 0 ]]; then
     info "server-settings.json already exists, leaving it alone"
@@ -182,7 +215,7 @@ PY
 fi
 
 # ---------------------------------------------------------------------------
-# 3. Python environment
+# 4. Python environment
 # ---------------------------------------------------------------------------
 
 step "Building the Python environment"
@@ -201,7 +234,7 @@ fi
 info "installed FactorioReforge and its optional extras"
 
 # ---------------------------------------------------------------------------
-# 4. config.yml
+# 5. config.yml
 # ---------------------------------------------------------------------------
 
 step "Writing FactorioReforge configuration"
@@ -216,19 +249,27 @@ else
     info "keeping the existing config.yml"
   else
     "$VENV/bin/python" - "$GAME_PORT" "$RCON_PORT" "$RCON_PASSWORD" <<'PY'
+import shlex
 import sys
 from pathlib import Path
 from factorio_reforge.config import Config
 
 game_port, rcon_port, rcon_password = sys.argv[1], sys.argv[2], sys.argv[3]
+if not rcon_password:
+    sys.exit("refusing to write a config.yml with an empty RCON password")
+
 config = Config()
 config.root = Path.cwd()
+# shlex.quote, because start_command is parsed with shlex.split: a password
+# containing a space would otherwise silently become two arguments, and one
+# starting with a dash would be read as a flag.
 config.start_command = (
     "./bin/x64/factorio --start-server ./saves/reforge.zip "
     "--server-settings ./server-settings.json "
     "--server-adminlist ./server-adminlist.json "
     "--server-banlist ./server-banlist.json "
-    f"--port {game_port} --rcon-bind 127.0.0.1:{rcon_port} --rcon-password {rcon_password}"
+    f"--port {game_port} --rcon-bind 127.0.0.1:{rcon_port} "
+    f"--rcon-password {shlex.quote(rcon_password)}"
 )
 config.rcon.port = int(rcon_port)
 config.rcon.password = rcon_password
@@ -239,7 +280,7 @@ PY
 fi
 
 # ---------------------------------------------------------------------------
-# 5. Validate the whole thing
+# 6. Validate the whole thing
 # ---------------------------------------------------------------------------
 
 step "Validating the configuration"

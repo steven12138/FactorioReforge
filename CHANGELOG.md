@@ -96,6 +96,20 @@
 
 ### Fixed
 
+- **`install.sh` could write a config.yml with no RCON password.** It was
+  generated inside the "if the Factorio binary is here" block, so `--no-server`
+  — and any run where the download had failed — produced an empty password and
+  no working RCON. It is now its own step, before anything that needs it, with a
+  `/dev/urandom` fallback.
+- **One install in sixty-six generated a broken password.**
+  `secrets.token_urlsafe` emits base64url, 1.5% of which *starts* with `-`, and
+  it was interpolated unquoted: `--rcon-password -HjOaa2...` is read by
+  Factorio's argument parser as another flag. Passwords are now alphanumeric and
+  `shlex.quote`d.
+- **Startup now refuses a config whose two RCON passwords disagree**, or whose
+  password begins with a dash. Both used to fail silently, and silently means
+  every query failing with nothing to point at.
+
 - **The calculator answered every question in `assembling-machine-3`**, whatever
   the save had researched — the machine list comes from prototypes, and
   prototypes know nothing about research. It now picks the fastest machine the

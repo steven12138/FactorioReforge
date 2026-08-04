@@ -201,6 +201,7 @@ class Config:
             raise ConfigError("command_prefix must not be blank")
 
         self._check_rcon_exposure()
+        self._check_rcon_password()
 
         # Rollback replaces current_save on disk, so a launch command that does
         # not name that exact file would silently keep loading the old map.
@@ -276,6 +277,52 @@ class Config:
                 "start_command uses --rcon-port, which listens on every interface. "
                 "RCON is plaintext, so that exposes control of the server to the "
                 f"network. Use --rcon-bind 127.0.0.1:{port} instead."
+            )
+
+    def _check_rcon_password(self) -> None:
+        """The password is written twice; refuse to start if the copies disagree.
+
+        ``start_command`` tells Factorio what to listen with and ``rcon.password``
+        tells this side what to connect with, and nothing links them. When they
+        drift -- an edited config.yml, a password with a shell character that the
+        installer failed to quote -- the symptom is that RCON simply never
+        connects: every query fails, half the plugins go quiet, and the log says
+        authentication failed without saying why it would.
+
+        A missing ``--rcon-password`` is the same failure and is caught here too:
+        one install in sixty-six used to produce it, because a generated password
+        beginning with ``-`` was read by Factorio as another flag.
+        """
+        if not self.rcon.enabled:
+            return
+        argv = self.command_argv
+        if "--rcon-password" not in argv:
+            raise ConfigError(
+                "rcon.enabled is true but start_command has no --rcon-password, "
+                "so the server will not listen for the connection this side makes"
+            )
+        index = argv.index("--rcon-password") + 1
+        in_command = argv[index] if index < len(argv) else ""
+        if not in_command:
+            raise ConfigError(
+                "start_command has --rcon-password with nothing after it, so the "
+                "server would listen with no password while this side sends one"
+            )
+        if in_command.startswith("-"):
+            # Quoting gets it through shlex, but argv is handed to Factorio
+            # unchanged and its parser reads any leading dash as another option.
+            # This is refused rather than warned about because the result is a
+            # server that starts, runs, and has no working RCON.
+            raise ConfigError(
+                f"the RCON password in start_command begins with a dash "
+                f"({in_command[:3]!r}...), which Factorio's argument parser reads "
+                "as another flag. Choose a password without a leading dash."
+            )
+        if in_command != self.rcon.password:
+            raise ConfigError(
+                "the RCON password in start_command does not match rcon.password. "
+                "Factorio would listen with one and FactorioReforge would connect "
+                "with the other, so RCON would never come up. Make them the same."
             )
 
     def dump(self, path: Path) -> None:

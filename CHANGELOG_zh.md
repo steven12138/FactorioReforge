@@ -86,6 +86,17 @@ English: [CHANGELOG.md](CHANGELOG.md)
 
 ### 修复
 
+- **`install.sh`可能写出一个没有 RCON 密码的 config.yml。**
+  密码原来是在「Factorio 二进制存在吗」那个判断**里面**生成的，
+  所以 `--no-server`（以及任何下载失败的运行）会得到空密码和一个不工作的 RCON。
+  现在它是独立的一步，排在所有需要它的东西之前，并带 `/dev/urandom` 兜底。
+- **每 66 次安装就有一次生成出坏密码。** `secrets.token_urlsafe` 产生的是
+  base64url，其中 1.5% 以 `-` **开头**，而它是不加引号直接拼进命令行的：
+  `--rcon-password -HjOaa2...` 会被 Factorio 的参数解析器当成另一个选项。
+  现在密码只用字母数字，并且经过 `shlex.quote`。
+- **启动时会拒绝两处 RCON 密码不一致的配置**，以及以短横线开头的密码。
+  这两种情况原来都是无声失败，而无声意味着所有查询都失败却无从查起。
+
 - **计算器不管存档研究到哪一步，一律回答 `assembling-machine-3`** ——
   机器列表来自 prototype，而 prototype 不知道科技树的事。
   现在会挑本势力真正造得出来的最快机器；`machines` 配置和 `machine=`

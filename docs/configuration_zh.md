@@ -69,6 +69,18 @@ RCON 是所有**要拿返回值**的东西的通道：玩家列表、Lua 表达�
 设成 `enabled: false` 时，需要返回值的插件会抛 `RconError`，
 而不是编一个结果给你。聊天、命令、备份仍然照常工作——它们走 stdin。
 
+### rcon.password
+
+它写在两个地方：`rcon.password` 是 FactorioReforge **连接**时用的，
+`start_command` 里的 `--rcon-password` 是 Factorio **监听**时用的。
+**两者必须一致**，不一致会在启动时被直接拒绝 ——
+因为它们一旦对不上，唯一的症状是 RCON 永远连不上：所有查询失败、
+一半插件哑掉，而没有任何东西指出原因。
+
+密码不能以短横线开头。`argv` 是原样交给 Factorio 的，
+它的参数解析器会把开头的短横线当成另一个选项，于是服务器照常启动、照常运行、
+但没有 RCON。`install.sh` 生成的密码只用字母和数字，正是为了这个。
+
 ### saves.auto_slot_protection
 
 同样是一个列表，但属于自动备份那一圈槽位。自动备份和手动备份**分开**顺移，

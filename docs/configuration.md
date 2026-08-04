@@ -73,6 +73,19 @@ With `enabled: false`, plugins that need a result raise `RconError` rather than
 returning something invented. Chat, commands and backups still work — they go
 over stdin.
 
+### rcon.password
+
+Written in two places: `rcon.password`, which is what FactorioReforge connects
+with, and `--rcon-password` inside `start_command`, which is what Factorio
+listens with. **They must match**, and startup refuses the config if they do not
+— when they drift the only symptom is that RCON never comes up, every query
+fails and half the plugins go quiet with nothing pointing at the cause.
+
+A password must not begin with a dash. `argv` reaches Factorio unchanged and its
+argument parser reads a leading dash as another flag, so the server starts,
+runs, and has no RCON. `install.sh` generates alphanumeric passwords for exactly
+this reason.
+
 ### saves.auto_slot_protection
 
 The same list, for the ring automatic backups use. Automatic and manual backups
