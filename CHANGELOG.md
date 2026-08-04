@@ -96,6 +96,17 @@
 
 ### Fixed
 
+- **The calculator answered every question in `assembling-machine-3`**, whatever
+  the save had researched — the machine list comes from prototypes, and
+  prototypes know nothing about research. It now picks the fastest machine the
+  force can actually place, with `machines` in the config and `machine=` on a
+  question to override.
+- **Item and machine names now render in each player's own language.** Plans were
+  written in prototype ids, which are not words in any language. Lines sent into
+  the game are LocalisedStrings, so Factorio translates them client-side from its
+  own catalogue; the console and Telegram still get the ids, having no Factorio
+  to render with.
+
 - **`!!mod refresh` logged its progress line twice, once untranslated.** Core
   logged an English line the plugin had already said in the operator's language.
 - **Portal errors reached chat in English**, so `!!mod info nosuchmod` answered

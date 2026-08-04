@@ -256,12 +256,26 @@ running inside the game, so it mostly does not have to be typed:
 | `!!ratio [item=iron-gear-wheel]` | the icon from the in-game picker |
 | `!!ratio green circuit 30/m` | spaces, capitals and short names |
 
+**Names are translated by the game.** A plan written in `electronic-circuit` and
+`assembling-machine-3` is unreadable to most of the people reading it, and there
+is no server-side translation worth having: Factorio renders a **LocalisedString**
+on each client, so the same line is Chinese for one player and English for the
+next, from the game's own catalogue. The console and Telegram get the prototype
+ids, because there is no Factorio there to render anything.
+
+**The machine is one you can build.** Plans used to come out in
+`assembling-machine-3` whatever the save had researched, because the machine
+list comes from prototypes and prototypes know nothing about research. Now the
+default is the fastest machine whose item a researched recipe produces — or one
+already standing on the map, since somebody clearly has one. Name machines in
+`machines` to pin them, or pass `machine=` for a single question.
+
 ```jsonc
 {
   "expression_prefix": "==",
   "announce_expression_results": true,   // everyone saw the question
-  "machines": ["assembling-machine-3", "electric-furnace", "chemical-plant",
-               "oil-refinery", "centrifuge", "rocket-silo"],
+  "machines": [],                        // empty: the best you can build
+  "only_researched_machines": true,
   "belt": "transport-belt",
   "default_rate": "1/s",
   "only_researched": true,               // plan with what this save has unlocked

@@ -428,6 +428,99 @@ class TestGameData:
         assert machine.energy_watts == 375_000
 
 
+class TestMachineChoice:
+    """Which machine a plan is written in -- the answer people actually act on."""
+
+    @pytest.fixture
+    def book(self, recipes):
+        book = recipes.RecipeBook(None)
+        book.machines = {
+            name: recipes.parse_machine(name, {"speed": speed, "categories": ["crafting"]})
+            for name, speed in (
+                ("assembling-machine-1", 0.5),
+                ("assembling-machine-2", 0.75),
+                ("assembling-machine-3", 1.25),
+            )
+        }
+        return book
+
+    def test_it_does_not_name_a_machine_you_cannot_build(self, book):
+        """The bug: every plan came out in assembling-machine-3 regardless.
+
+        The machine list comes from prototypes, and prototypes know nothing
+        about research, so a save that has only tier 1 was told to use tier 3.
+        """
+        book.buildable = {"assembling-machine-1", "assembling-machine-2"}
+        assert book.best_machine("crafting", []).name == "assembling-machine-2"
+
+    def test_the_fastest_buildable_wins(self, book):
+        book.buildable = set(book.machines)
+        assert book.best_machine("crafting", []).name == "assembling-machine-3"
+
+    def test_an_explicit_preference_beats_availability(self, book):
+        """Naming one is a decision; second-guessing it would be rude."""
+        book.buildable = set(book.machines)
+        chosen = book.best_machine("crafting", ["assembling-machine-1"])
+        assert chosen.name == "assembling-machine-1"
+
+    def test_nothing_buildable_still_answers(self, book):
+        """A plan naming a machine to unlock beats no plan at all."""
+        book.buildable = set()
+        assert book.best_machine("crafting", []).name == "assembling-machine-3"
+
+    def test_the_restriction_can_be_lifted(self, book):
+        book.buildable = {"assembling-machine-1"}
+        chosen = book.best_machine("crafting", [], researched_only=False)
+        assert chosen.name == "assembling-machine-3"
+
+
+class TestLocalisedOutput:
+    """Item names are prototype ids, which are not words in any language."""
+
+    @pytest.fixture(autouse=True)
+    def _config(self, plugin):
+        plugin._state.clear()
+        plugin._state["config"] = plugin.DEFAULT_CONFIG
+        yield
+        plugin._state.clear()
+
+    def test_in_game_names_are_marked_for_translation(self, plugin):
+        marked = plugin._icon("iron-plate", True)
+        assert "[item=iron-plate]" in marked
+        assert marked.count(plugin.NAME_MARK) == 2
+
+    def test_outside_the_game_a_name_is_just_a_name(self, plugin):
+        """The console and Telegram have no Factorio to render a LocalisedString."""
+        assert plugin._icon("iron-plate", False) == "iron-plate"
+        assert plugin.localise("iron-plate 5/s") is None
+
+    def test_a_marked_line_becomes_a_localised_string(self, plugin):
+        line = f"needs: {plugin._icon('iron-plate', True)} 5/s"
+        parts = plugin.localise(line)
+        assert parts[0] == ""
+        assert any(
+            isinstance(part, list) and part[0] == "?"
+            and part[1] == ["item-name.iron-plate"]
+            for part in parts
+        )
+
+    def test_the_bare_name_is_the_last_fallback(self, plugin):
+        """An unknown key degrades to what would have been printed anyway."""
+        parts = plugin.localise(plugin._icon("modded-thing", True))
+        localised = next(p for p in parts if isinstance(p, list))
+        assert localised[-1] == "modded-thing"
+
+    def test_a_line_with_too_many_names_stays_plain(self, plugin):
+        """Factorio caps a LocalisedString at 20 parameters."""
+        line = " ".join(plugin._icon(f"item-{i}", True) for i in range(15))
+        assert plugin.localise(line) is None
+
+    def test_markers_never_reach_a_reader(self, plugin):
+        line = f"a {plugin._icon('iron-plate', True)} b"
+        assert plugin.NAME_MARK not in plugin.plain(line)
+        assert plugin.plain(line) == "a [item=iron-plate]iron-plate b"
+
+
 class TestQueryParsing:
     @pytest.fixture(autouse=True)
     def _config(self, plugin):

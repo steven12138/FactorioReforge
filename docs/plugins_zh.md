@@ -247,12 +247,24 @@ electronic-circuit 5/s —— 共 8.33 台机器，1.25 MW
 | `!!ratio [item=iron-gear-wheel]` | 游戏内图标选择器插进来的图标 |
 | `!!ratio green circuit 30/m` | 空格、大小写和俗称都认 |
 
+**物品名由游戏自己翻译。** 一份写满 `electronic-circuit`、`assembling-machine-3`
+的方案，对大多数看它的人来说是读不懂的；而在服务端做翻译并不值得 ——
+Factorio 支持 **LocalisedString**，由每个客户端在本地渲染，
+所以同一行对一个玩家是中文、对另一个是英文，用的还是游戏自带的词条。
+终端和 Telegram 拿到的仍是 prototype id，因为那边没有 Factorio 来渲染。
+
+**机器是你造得出来的那一台。** 以前不管存档研究到哪一步，方案一律写
+`assembling-machine-3` —— 因为机器列表来自 prototype，而 prototype
+根本不知道科技树的事。现在默认取「其物品能被已研究配方产出」的最快机器，
+或者地图上已经立着的（既然有人已经造出来了）。想钉死就写进 `machines`，
+或者单次提问用 `machine=`。
+
 ```jsonc
 {
   "expression_prefix": "==",
   "announce_expression_results": true,   // 反正大家都看见问题了
-  "machines": ["assembling-machine-3", "electric-furnace", "chemical-plant",
-               "oil-refinery", "centrifuge", "rocket-silo"],
+  "machines": [],                        // 留空：用你造得出来的最好的
+  "only_researched_machines": true,
   "belt": "transport-belt",
   "default_rate": "1/s",
   "only_researched": true,               // 只用这个存档已经研究出来的配方

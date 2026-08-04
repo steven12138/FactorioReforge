@@ -27,6 +27,11 @@ API notes, all of them things that moved in 2.0 and would silently return nil:
 * productivity built into a machine (foundry, electromagnetic plant, biochamber)
   lives in ``effect_receiver.base_effect``, which does not exist on every
   prototype and is read through a pcall for that reason.
+* which machines a save can actually *place* is worked out from the force's
+  enabled recipes -- a machine whose item no researched recipe produces cannot
+  be built, and answering "use an assembling machine 3" on a save that has not
+  researched them is the single most useless thing this can say. A machine
+  already standing on the map counts too, since somebody clearly has one.
 * what a **mining drill** yields is read from ``mineable_properties`` on every
   ``resource`` entity, and it matters more than it sounds. With Space Age data
   loaded, iron ore is a *product* -- of asteroid crushing -- so "nothing makes
@@ -103,6 +108,25 @@ def static_data() -> str:
         "for name, it in pairs(prototypes.get_item_filtered({{filter = 'type', type = 'module'}})) do "
         "  modules[name] = safe(function() return it.module_effects end) or {} "
         "end "
+        "local buildable = {} "
+        "local made = {} "
+        "for name, r in pairs(game.forces.player.recipes) do "
+        "  if r.enabled then "
+        "    for _, p in pairs(r.products) do made[p.name] = true end "
+        "  end "
+        "end "
+        "for name in pairs(machines) do "
+        "  local e = prototypes.entity[name] "
+        "  local ok = false "
+        "  for _, stack in pairs(safe(function() return e.items_to_place_this end) or {}) do "
+        "    if made[stack.name or stack] then ok = true end "
+        "  end "
+        "  if not ok then "
+        "    ok = (safe(function() "
+        "      return game.surfaces[1].count_entities_filtered{name = name} end) or 0) > 0 "
+        "  end "
+        "  if ok then buildable[#buildable + 1] = name end "
+        "end "
         "local mined = {} "
         "for _, kind in pairs({'resource', 'plant'}) do "
         "  for _, e in pairs(prototypes.get_entity_filtered({{filter = 'type', type = kind}})) do "
@@ -110,7 +134,8 @@ def static_data() -> str:
         "    for _, p in pairs((m and m.products) or {}) do mined[#mined + 1] = p.name end "
         "  end "
         "end "
-        "return {machines = machines, belts = belts, modules = modules, mined = mined} end)()"
+        "return {machines = machines, belts = belts, modules = modules, "
+        "        mined = mined, buildable = buildable} end)()"
     )
 
 
@@ -437,6 +462,9 @@ class RecipeBook:
         self.mined: set[str] = set()
         """What a mining drill yields -- the things that genuinely come from the map."""
 
+        self.buildable: set[str] = set()
+        """Machines this save can place: researched, or already standing."""
+
         self._static_loaded = False
 
     def set_unlocked_only(self, flag: bool) -> None:
@@ -453,6 +481,7 @@ class RecipeBook:
         self.belts.clear()
         self.modules.clear()
         self.mined.clear()
+        self.buildable.clear()
         self._static_loaded = False
 
     async def load_static(self) -> None:
@@ -465,6 +494,7 @@ class RecipeBook:
             self.belts[name] = belt_throughput(speed)
         self.modules = data.get("modules") or {}
         self.mined = {str(name) for name in _as_list(data.get("mined"))}
+        self.buildable = {str(name) for name in _as_list(data.get("buildable"))}
         self._static_loaded = True
 
     async def fetch(self, items: list[str], keep: set[str] | None = None) -> None:
@@ -546,11 +576,24 @@ class RecipeBook:
     def machines_for(self, category: str) -> list[Machine]:
         return [m for m in self.machines.values() if category in m.categories]
 
-    def best_machine(self, category: str, preferred: list[str]) -> Machine | None:
-        """The configured machine for this category, else the fastest that fits.
+    def best_machine(
+        self, category: str, preferred: list[str], *, researched_only: bool = True
+    ) -> Machine | None:
+        """The machine to plan with: what was asked for, else the best available.
 
-        Preference is by name and checked first, so a server that wants steel
-        furnaces gets steel furnaces even though electric ones are faster.
+        Three steps, in order:
+
+        1. a name from ``preferred`` -- the config list, or ``machine=`` on the
+           question. A server that wants steel furnaces gets steel furnaces even
+           though electric ones are faster;
+        2. the fastest machine this save can actually **place**. Answering "use
+           an assembling machine 3" to somebody who has not researched them is
+           the most useless thing this can say, and it was what it used to do,
+           because the machine list comes from prototypes and prototypes know
+           nothing about research;
+        3. the fastest that exists, when nothing in the category is buildable --
+           better a plan denominated in a machine you have to unlock than no
+           plan at all.
         """
         candidates = self.machines_for(category)
         if not candidates:
@@ -559,6 +602,11 @@ class RecipeBook:
         for name in preferred:
             if name in by_name:
                 return by_name[name]
+
+        if researched_only and self.buildable:
+            available = [m for m in candidates if m.name in self.buildable]
+            if available:
+                return max(available, key=lambda m: (m.speed, m.name))
         return max(candidates, key=lambda m: (m.speed, m.name))
 
     def assign_machines(
@@ -567,6 +615,7 @@ class RecipeBook:
         preferred: list[str],
         modules: Modules,
         overrides: dict[str, str] | None = None,
+        researched_only: bool = True,
     ) -> tuple[dict[str, Machine], list[str]]:
         """Pick the machine for each recipe and fold modules into it.
 
@@ -586,7 +635,9 @@ class RecipeBook:
             if name in overrides:
                 machine = self.machines.get(overrides[name])
             if machine is None:
-                machine = self.best_machine(recipe.category, preferred)
+                machine = self.best_machine(
+                    recipe.category, preferred, researched_only=researched_only
+                )
             if machine is None:
                 unbuildable.append(name)
                 continue

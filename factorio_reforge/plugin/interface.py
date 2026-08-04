@@ -195,6 +195,19 @@ class ServerInterface:
     ) -> dict:
         return await self.lua_json(lua.teleport(player, position, surface)) or {}
 
+    async def game_print_localised(self, parts: list) -> None:
+        """Broadcast a LocalisedString, which each client renders in its own language.
+
+        Use :func:`lua.localised_name` to turn a prototype id into one. This is
+        the only way a message naming items reads correctly for players with
+        different language settings, since the translation happens client-side.
+        """
+        await self.lua_json(lua.print_localised_to_all(parts))
+
+    async def tell_localised(self, player: str, parts: list) -> None:
+        """The same, to one player."""
+        await self.lua_json(lua.print_localised_to_player(player, parts))
+
     async def game_print(self, message: str) -> None:
         """Broadcast via Lua rather than stdin.
 

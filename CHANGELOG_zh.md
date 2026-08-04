@@ -86,6 +86,15 @@ English: [CHANGELOG.md](CHANGELOG.md)
 
 ### 修复
 
+- **计算器不管存档研究到哪一步，一律回答 `assembling-machine-3`** ——
+  机器列表来自 prototype，而 prototype 不知道科技树的事。
+  现在会挑本势力真正造得出来的最快机器；`machines` 配置和 `machine=`
+  选项都可以覆盖。
+- **物品名和机器名现在按每个玩家自己的语言显示。** 原来方案是用 prototype id
+  写的，而那在任何一种语言里都不是词。发进游戏的行现在是 LocalisedString，
+  由 Factorio 在客户端用它自己的词条翻译；终端和 Telegram 仍是 id，
+  因为那边没有 Factorio 可以渲染。
+
 - **`!!mod refresh` 的进度行打了两遍，其中一遍还是英文。**
   核心又用英文说了一遍插件刚刚用操作者语言说过的话。
 - **门户的错误是以英文进聊天的**，所以中文服务器上 `!!mod info nosuchmod`

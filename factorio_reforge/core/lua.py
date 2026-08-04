@@ -227,6 +227,42 @@ def print_to_all(message: str) -> str:
     return "(function() game.print(%s) return true end)()" % lua_string(message)
 
 
+def localised_name(name: str) -> list:
+    """A LocalisedString that renders an internal name in the reader's language.
+
+    ``iron-plate`` is not a word in any language, and a production plan written
+    in prototype ids is unreadable to anyone not already fluent in them. Factorio
+    solves this itself: pass a **LocalisedString** to ``game.print`` and every
+    client renders it locally, so the same message is Chinese for one player and
+    English for the next -- which is better than anything this side could do,
+    because there is no server-side translation table to go stale.
+
+    The ``?`` form takes the first alternative that resolves, which is how one
+    token covers items, fluids, entities and recipes without knowing which it
+    is. The bare name is the last alternative, so an unknown key degrades to
+    what would have been printed anyway.
+    """
+    return [
+        "?",
+        [f"item-name.{name}"],
+        [f"fluid-name.{name}"],
+        [f"entity-name.{name}"],
+        [f"recipe-name.{name}"],
+        name,
+    ]
+
+
+def print_localised_to_all(parts: list) -> str:
+    return "(function() game.print(%s) return true end)()" % lua_value(parts)
+
+
+def print_localised_to_player(player: str, parts: list) -> str:
+    return (
+        "(function() local p = game.get_player(%s) "
+        "if not p then return false end p.print(%s) return true end)()"
+    ) % (lua_string(player), lua_value(parts))
+
+
 def print_to_player(player: str, message: str) -> str:
     return (
         "(function() local p = game.get_player(%s) "

@@ -45,12 +45,17 @@ DEFAULT_CONFIG = {
     #: Everyone saw the question go by, so everyone gets the answer. Off means
     #: the result goes only to whoever asked.
     "announce_expression_results": True,
-    #: Machine preference per crafting category, first match wins. Anything not
-    #: named here falls back to the fastest machine that can run the recipe.
-    "machines": [
-        "assembling-machine-3", "electric-furnace", "chemical-plant",
-        "oil-refinery", "centrifuge", "rocket-silo",
-    ],
+    #: Machine preference by name, first match wins. **Empty by default**, which
+    #: means "the fastest one this save can actually build".
+    #:
+    #: It used to list assembling-machine-3 first, so every plan was denominated
+    #: in a machine the server might not have researched -- the most useless
+    #: answer available. Name machines here to pin them (steel furnaces over
+    #: electric ones, say), or pass `machine=` on a single question.
+    "machines": [],
+    #: Only plan with machines this save can place. Off means the fastest
+    #: machine in the game, researched or not.
+    "only_researched_machines": True,
     #: Belt used to express throughput in the answer.
     "belt": "transport-belt",
     #: Rate assumed when the command does not say one.
@@ -99,6 +104,15 @@ DEFAULT_CONFIG = {
 }
 
 _state: dict = {}
+
+#: Wraps a prototype id inside a formatted line, so the finished line can be
+#: split back apart and handed to Factorio as a LocalisedString. NUL never
+#: appears in a translation or an item name, so it cannot collide with content.
+NAME_MARK = "\x00"
+
+#: Factorio caps a LocalisedString at 20 parameters. A line past that is sent
+#: as plain text rather than silently truncated by the game.
+MAX_LOCALISED_PARTS = 20
 
 #: ``[item=iron-plate]``, which is what a player gets from the in-game icon
 #: picker. Accepting it means the icon they inserted *is* a valid argument.
@@ -354,7 +368,7 @@ async def _cmd_ratio(source, ctx=None):
     if used_everything and unlocked_only:
         await source.reply(server.tr("plan.not_researched"))
     for line in _format_plan(server, plan, item, rate, modules, in_game=in_game):
-        await source.reply(line)
+        await _say(source, line)
 
     # An input that is neither mined nor declared raw is something a recipe
     # makes -- it is only an input here because that recipe is not researched.
@@ -364,7 +378,7 @@ async def _cmd_ratio(source, ctx=None):
         supplied = _raw_items(options) | book.mined
         blocked = sorted(name for name in plan.raw if name not in supplied)
         if blocked:
-            await source.reply(server.tr(
+            await _say(source, server.tr(
                 "plan.unresearched", items=", ".join(_icon(n, in_game) for n in blocked)
             ))
 
@@ -385,7 +399,9 @@ async def _solve(book, item, rate, options, modules, only_unlocked):
         raise _NoRecipe(item)
 
     machines, unbuildable = book.assign_machines(
-        recipes, _machine_preference(options), modules, _machine_overrides(options)
+        recipes, _machine_preference(options), modules, _machine_overrides(options),
+        researched_only=only_unlocked
+        and bool(_state["config"].get("only_researched_machines", True)),
     )
     for name in unbuildable:
         recipes.pop(name, None)
@@ -443,7 +459,7 @@ def _preferred_recipes(options: dict[str, str]) -> dict[str, str]:
 
 
 def _machine_preference(options: dict[str, str]) -> list[str]:
-    names = [normalise(n) for n in _state["config"].get("machines", [])]
+    names = [normalise(n) for n in (_state["config"].get("machines") or [])]
     for key in ("machine", "machines", "furnace"):
         if options.get(key):
             names = [normalise(n) for n in options[key].split(",")] + names
@@ -512,8 +528,59 @@ def _num(value: Number, places: int = 2) -> str:
 
 
 def _icon(name: str, in_game: bool) -> str:
-    """An item tag renders as the icon in game and as noise anywhere else."""
-    return f"{lua.item_tag(name)}{name}" if in_game else name
+    """An item tag renders as the icon in game and as noise anywhere else.
+
+    In game the name is wrapped in markers so :func:`localise` can hand it to
+    Factorio for translation. ``iron-plate`` is not a word in any language, and
+    a plan written in prototype ids is unreadable to most of the people reading
+    it.
+    """
+    if not in_game:
+        return name
+    return f"{lua.item_tag(name)}{NAME_MARK}{name}{NAME_MARK}"
+
+
+def localise(text: str) -> list | None:
+    """Split a marked-up line into a LocalisedString, or None if it is plain.
+
+    Each client renders the result in its own language, which is the only way
+    one message reads correctly for a Chinese player and an English one at the
+    same time -- the translation happens on their machine, from the game's own
+    catalogue, so there is nothing here to keep up to date.
+    """
+    if NAME_MARK not in text:
+        return None
+    chunks = text.split(NAME_MARK)
+    parts: list = [""]
+    for index, chunk in enumerate(chunks):
+        if index % 2 == 0:
+            if chunk:
+                parts.append(chunk)
+        else:
+            parts.append(lua.localised_name(chunk))
+    return parts if len(parts) <= MAX_LOCALISED_PARTS else None
+
+
+def plain(text: str) -> str:
+    """The same line with the markers taken out, for the console and Telegram."""
+    return text.replace(NAME_MARK, "")
+
+
+async def _say(source, text: str) -> None:
+    """Reply, translated by the game when the reader is in the game.
+
+    Falls back to the plain line everywhere else: the console and Telegram have
+    no Factorio to render a LocalisedString, and a partial answer is worse than
+    an untranslated one.
+    """
+    parts = localise(text) if source.player else None
+    if parts is None:
+        await source.reply(plain(text))
+        return
+    try:
+        await source.server.tell_localised(source.player, parts)
+    except QueryError:
+        await source.reply(plain(text))
 
 
 def _rate(value: Number, in_game: bool, name: str | None = None) -> str:
@@ -542,7 +609,7 @@ def _format_plan(server, plan: Plan, item: str, rate: Number, modules, in_game: 
         lines.append(server.tr(
             "plan.step" if single else "plan.step_crafts",
             machines=_num(step.machines),
-            machine=step.machine,
+            machine=_icon(step.machine, in_game),
             recipe=_icon(step.recipe, in_game),
             rate=_num(sum(step.outputs.values()) if single else step.crafts_per_second),
         ))
@@ -629,7 +696,7 @@ async def _cmd_recipe(source, ctx=None):
     for name in names[:4]:
         recipe = book.recipes[name]
         machine = book.best_machine(recipe.category, _machine_preference({}))
-        await source.reply(server.tr(
+        await _say(source, server.tr(
             "recipe.line",
             recipe=_icon(name, in_game),
             seconds=_num(recipe.energy),
@@ -644,8 +711,8 @@ async def _cmd_recipe(source, ctx=None):
         ))
         if machine is not None:
             per_second = machine.speed / recipe.energy
-            await source.reply(server.tr(
-                "recipe.machine", machine=machine.name,
+            await _say(source, server.tr(
+                "recipe.machine", machine=_icon(machine.name, in_game),
                 speed=_num(machine.speed), rate=_num(per_second),
             ))
 
