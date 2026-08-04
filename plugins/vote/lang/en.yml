@@ -1,3 +1,4 @@
+description: "Put a question to the players, with a timer and a quorum"
 help: put a question to the players
 detail:
   start: "!!vote start restart the server? then everyone answers !!vote yes or !!vote no"

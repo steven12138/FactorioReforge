@@ -1,3 +1,4 @@
+description: "Measure the update rate and warn before the factory bogs down"
 help: update rate, and what is eating it
 detail:
   why: "!!ups why lists what the world is full of -- the usual answer to a slow factory"

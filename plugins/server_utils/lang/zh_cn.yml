@@ -1,3 +1,4 @@
+description: "!!here、!!seen、!!list、!!stats、!!tp"
 here:
   no_position: "!!here 需要在游戏内使用 —— 控制台没有位置。"
   cooldown: "太快了 —— {seconds} 秒后再试。"

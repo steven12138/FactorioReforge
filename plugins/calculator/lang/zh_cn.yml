@@ -1,3 +1,4 @@
+description: "聊天框算数，以及用实时配方解出的产能比例"
 help:
   expression: "在聊天框里算数"
   ratio: "造一个东西需要什么"

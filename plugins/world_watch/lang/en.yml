@@ -1,3 +1,4 @@
+description: "Evolution and pollution alerts, plus research and rocket milestones"
 help: alert and milestone state
 alert:
   evolution: "⚠️ Evolution has passed {threshold} (now {value})"

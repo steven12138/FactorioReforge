@@ -1,3 +1,4 @@
+description: "!!here, !!seen, !!list, !!stats, !!tp"
 here:
   no_position: "!!here only makes sense in game -- the console has nowhere to stand."
   cooldown: "Slow down -- try !!here again in {seconds}s."

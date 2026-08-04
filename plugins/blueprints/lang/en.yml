@@ -1,3 +1,4 @@
+description: "Save and share blueprints server-side"
 help: shared blueprint library
 list:
   empty: "The library is empty. Stand somewhere and use !!bp save <name>"

@@ -1,3 +1,4 @@
+description: "查看和修改实验室正在研究的东西"
 help: 实验室正在研究什么，接下来研究什么
 detail:
   add: "!!research add logistics-3 排一项；名字对空格和大小写都宽容"

@@ -8,10 +8,18 @@ stdin, so `/players` and `/promote alice` work exactly as they always did.
 The commands each plugin registers are also discoverable at runtime:
 
 ```
-!!FR help              every command, grouped by the plugin that provides it
+!!FR help              the index: core commands, then one line per plugin
 !!FR help warp         one plugin: version, author, what it does, its commands
+!!FR help ratio        search -- finds the plugin that provides !!ratio
 !!FR plugin list       every plugin with its version and commands
 ```
+
+One argument covers all three, because they are the same question asked three
+ways: a number is a page, a plugin id is that plugin, anything else is a search.
+
+The index is **paginated for players only**. The console and Telegram have
+scrollback; the in-game chat box does not, so it is the one place where a long
+answer loses its beginning off the top.
 
 ## Permission levels
 
@@ -32,8 +40,10 @@ that is the truth.
 
 | Command | Level | Does |
 |---|---|---|
-| `!!FR help` | guest | Every command, grouped by plugin |
+| `!!FR help` | guest | The index: core commands, one line per plugin |
+| `!!FR help <n>` | guest | Page `n` of the index |
 | `!!FR help <plugin>` | guest | One plugin in detail |
+| `!!FR help <term>` | guest | Find a command by any part of its name |
 | `!!FR status` | user | Server, RCON, plugin and backup state |
 | `!!FR plugin list` | admin | Loaded plugins; marks any whose files changed |
 | `!!FR plugin reload <id>` | admin | Reload one plugin |

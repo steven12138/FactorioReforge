@@ -1,3 +1,4 @@
+description: "给不在线的玩家留言"
 help: 给不在线的人留言
 detail:
   read: "!!mail 读自己的；进服几秒后也会自动送到"

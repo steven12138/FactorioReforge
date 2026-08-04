@@ -1,3 +1,4 @@
+description: "Install and update mods from the portal, from chat or Telegram"
 help: search and install mods
 usage:
   - "!!mod search <query>      find mods on the portal"

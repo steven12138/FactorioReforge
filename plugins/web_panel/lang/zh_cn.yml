@@ -1,3 +1,4 @@
+description: "HTTP 上的只读状态页"
 help: Web 面板地址
 disabled: web_panel 在配置里被禁用了。
 not_serving: "web_panel 没有在服务 —— 查看日志里的绑定错误。"

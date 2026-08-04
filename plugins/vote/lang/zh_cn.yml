@@ -1,3 +1,4 @@
+description: "把一个问题交给玩家表决，带计时和法定人数"
 help: 把一个问题交给玩家们表决
 detail:
   start: "!!vote start 要不要重启服务器？ 然后大家用 !!vote yes 或 !!vote no 回答"

@@ -1,3 +1,4 @@
+description: "Leave messages for players who are offline"
 help: leave a message for someone who is offline
 detail:
   read: "!!mail reads yours; they are also delivered a few seconds after you join"

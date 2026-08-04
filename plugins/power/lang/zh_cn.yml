@@ -1,3 +1,4 @@
+description: "蓄电池电量与供电缺口，在断电之前"
 help: 蓄电池电量与供电缺口
 
 alert:

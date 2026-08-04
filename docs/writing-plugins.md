@@ -92,6 +92,10 @@ When the input does not match, the **deepest** failure is reported — typing
 Where a node has literal children, they are listed: `Unknown option 'lst'.
 Expected one of: list, buy, gift`.
 
+A `description` key in your `lang/` catalogue is used for the one-line summary
+in `!!FR help`, in the reader's language; `PLUGIN_METADATA["description"]` is
+the fallback and is always English, being a Python literal.
+
 `register_help_message(prefix, message, detail=(...))` puts a command in
 `!!FR help`; `detail` lines show under `!!FR help <your_plugin>`.
 

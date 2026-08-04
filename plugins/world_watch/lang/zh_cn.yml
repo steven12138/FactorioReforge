@@ -1,3 +1,4 @@
+description: "进化度和污染提醒，加上科技与火箭里程碑"
 help: 告警与里程碑状态
 alert:
   evolution: "⚠️ 进化度已超过 {threshold}（当前 {value}）"

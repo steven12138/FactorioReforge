@@ -90,6 +90,10 @@ async def buy(source, item: str, count: int):
 节点有字面量子节点时会把它们列出来：
 `未知选项 'lst'。可选：list、buy、gift`。
 
+在你的 `lang/` 目录里放一个 `description` 键，`!!FR help`
+的那一行摘要就会用读者的语言显示；`PLUGIN_METADATA["description"]`
+是兜底，而它是 Python 字面量，永远是英文。
+
 `register_help_message(前缀, 说明, detail=(...))` 把命令放进 `!!FR help`；
 `detail` 里的行会出现在 `!!FR help <你的插件>` 里。
 

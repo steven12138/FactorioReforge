@@ -1,3 +1,4 @@
+description: "Periodic and event-driven snapshots"
 help: automatic backup status
 scheduled: "Backing up every {minutes} minutes"
 reason_scheduled: scheduled

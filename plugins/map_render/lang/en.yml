@@ -1,3 +1,4 @@
+description: "Draw an overview of the map and send it to chat or Telegram"
 help: render an overview of the map
 cooldown: "The map was just rendered -- try again in {seconds}s."
 rendering: Rendering the map...

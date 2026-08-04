@@ -1,3 +1,4 @@
+description: "See and change what the labs are working on"
 help: what the labs are working on, and what is next
 detail:
   add: "!!research add logistics-3 queues one; names are forgiving about spaces and case"

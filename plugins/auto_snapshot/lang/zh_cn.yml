@@ -1,3 +1,4 @@
+description: "定时备份，以及事件触发的备份"
 help: 自动备份状态
 scheduled: "每 {minutes} 分钟自动备份一次"
 reason_scheduled: 定时

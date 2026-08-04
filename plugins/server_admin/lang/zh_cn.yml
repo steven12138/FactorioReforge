@@ -1,3 +1,4 @@
+description: "在聊天里查看和修改 server-settings.json"
 help:
   summary: 查看和修改服务器设置
   detail:

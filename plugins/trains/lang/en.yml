@@ -1,3 +1,4 @@
+description: "No-path and stuck trains, and what the network is doing"
 help: trains with no path, and trains that stopped moving
 
 alert:

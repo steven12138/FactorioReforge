@@ -1,3 +1,4 @@
+description: "Playtime rankings and factory-wide totals"
 help: rankings
 playtime:
   failed: "Could not read the player list: {error}"

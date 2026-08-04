@@ -1,3 +1,4 @@
+description: "服务端共享蓝图库"
 help: 共享蓝图库
 list:
   empty: "蓝图库是空的。站到某处，用 !!bp save <名字> 保存。"

@@ -77,6 +77,17 @@
 
 ### Changed
 
+- **`!!FR help` is an index, not a transcript.** With twenty-one plugins the
+  grouped form ran past sixty lines, so the plugins late in the alphabet
+  scrolled off the top of the chat box and were undiscoverable. It is now one
+  line per plugin — id, commands, what it does — paginated **for players only**,
+  since the console and Telegram have scrollback and the chat box does not.
+  `!!FR help <n>` is a page, `!!FR help <plugin>` is that plugin, and anything
+  else is a search: `!!FR help ratio` finds the calculator.
+- Plugin summaries in that index come from a `description` key in the plugin's
+  own catalogue when it has one, so the widest column is no longer always
+  English. `PLUGIN_METADATA["description"]` remains the fallback.
+
 - **`!!save` is now `!!qb`**, matching
   [QuickBackupM](https://github.com/TISUnion/QuickBackupM), whose command set
   this already followed. `!!save` still works — a rename that silently breaks a

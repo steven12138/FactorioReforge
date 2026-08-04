@@ -1,3 +1,4 @@
+description: "画出地图总览并发到聊天或 Telegram"
 help: 渲染世界地图
 cooldown: "地图刚渲染过 —— {seconds} 秒后再试。"
 rendering: 正在渲染地图……

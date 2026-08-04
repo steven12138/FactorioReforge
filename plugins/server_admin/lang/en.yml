@@ -1,3 +1,4 @@
+description: "View and change server-settings.json from chat"
 help:
   summary: view and change server settings
   detail:

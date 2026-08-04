@@ -1,3 +1,4 @@
+description: "定时采样产量并画成曲线"
 help: 生产速率
 overview:
   nothing_watched: "没有在监控任何物品。用 !!prod watch <物品> 添加。"

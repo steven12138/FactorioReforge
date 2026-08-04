@@ -1,3 +1,4 @@
+description: "Relay chat to Telegram, and host Telegram commands for other plugins"
 no_token: "telegram_bridge has no token yet; edit {path} and reload the plugin"
 no_chats: "telegram_bridge has no allowed_chat_ids; it will ignore every message until you add one (send the bot a message to see its id in this log)"
 polling: "telegram_bridge is polling with {count} command(s)"

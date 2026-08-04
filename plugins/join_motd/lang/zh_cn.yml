@@ -1,3 +1,4 @@
+description: "玩家进服时显示一条欢迎语"
 lines:
   - "=== 欢迎，{player}！ ==="
   - "这个世界的第 {day} 天 —— 已游玩 {uptime}"

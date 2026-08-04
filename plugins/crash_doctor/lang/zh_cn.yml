@@ -1,3 +1,4 @@
+description: "诊断服务器为什么退出，并给出该怎么办"
 help: 服务器上次为什么退出
 nothing_yet: 自本插件加载以来，服务器没有意外退出过。
 last_exit: "上次意外退出：退出码 {code}"

@@ -1,3 +1,4 @@
+description: "Named, shareable map locations -- no teleporting"
 help: named map locations
 list:
   empty: "No warps yet. An admin can add one with !!warp set <name>"

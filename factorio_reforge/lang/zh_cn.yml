@@ -85,6 +85,14 @@ save:
 
 help:
   header: "FactorioReforge {version}"
+  header_counts: "FactorioReforge {version} —— {plugins} 个插件，{commands} 条命令（第 {page}/{pages} 页）"
+  core_header: "核心："
+  core_summary: "status | plugin | reload | server | permission | lang | exit"
+  plugins_header: "插件 —— 单个详情用 '{prefix} help <名字>'："
+  more: "下一页：{prefix} help {page}（共 {pages} 页）"
+  matches: "匹配 {term} 的有 {count} 条："
+  no_match: "没有匹配 {term} 的。'{prefix} help' 列出全部。"
+  from_plugin: "      来自 {id} —— {prefix} help {id}"
   plugin_header: "{name}（{id}）"
   plugin_version: "  v{version}，作者 {author}"
   no_commands: "  （没有注册命令）"

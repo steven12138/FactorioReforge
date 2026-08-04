@@ -1,3 +1,4 @@
+description: "Diagnose why the server exited and say what to do about it"
 help: why did the server last exit
 nothing_yet: The server has not exited unexpectedly since this plugin loaded.
 last_exit: "Last unexpected exit: code {code}"

@@ -1,3 +1,4 @@
+description: "Read-only status page over HTTP"
 help: web panel address
 disabled: web_panel is disabled in its config.
 not_serving: "web_panel is not serving -- check the log for a bind error."

@@ -1,3 +1,4 @@
+description: "从门户安装和更新 mod，聊天或 Telegram 里都行"
 help: 搜索并安装 mod
 usage:
   - "!!mod search <关键词>      在门户搜索"

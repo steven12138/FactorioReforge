@@ -1,3 +1,4 @@
+description: "Sample production rates over time and chart them"
 help: production rates
 overview:
   nothing_watched: "Nothing is being watched. Add items with !!prod watch <item>"

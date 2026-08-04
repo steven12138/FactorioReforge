@@ -69,6 +69,15 @@ English: [CHANGELOG.md](CHANGELOG.md)
 
 ### 变更
 
+- **`!!FR help` 现在是索引，不是全文。** 二十一个插件时，原来的分组形式超过六十行，
+  于是排在字母表后面的插件被挤出聊天框顶部，实际上无法被发现。
+  现在是每个插件一行 —— id、命令、做什么 —— 并且**只对玩家分页**，
+  因为终端和 Telegram 有滚动历史而聊天框没有。
+  `!!FR help <页码>` 是翻页，`!!FR help <插件>` 是那个插件，
+  其余一律当搜索：`!!FR help ratio` 能找到计算器。
+- 索引里的插件摘要优先取插件自己 `lang/` 目录里的 `description` 键，
+  所以最宽的那一列不再永远是英文。`PLUGIN_METADATA["description"]` 仍是兜底。
+
 - **`!!save` 改名为 `!!qb`**，和
   [QuickBackupM](https://github.com/TISUnion/QuickBackupM) 统一 ——
   命令集本来就是照它做的。`!!save` 仍然可用（一个悄悄让备份命令失效的改名

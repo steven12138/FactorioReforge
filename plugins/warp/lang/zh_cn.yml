@@ -1,3 +1,4 @@
+description: "命名的、可分享的地图位置 —— 不传送任何人"
 help: 命名地点
 list:
   empty: "还没有任何地点。管理员可以用 !!warp set <名字> 添加。"

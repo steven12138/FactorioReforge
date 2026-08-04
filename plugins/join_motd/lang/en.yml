@@ -1,3 +1,4 @@
+description: "Show a message when a player joins"
 lines:
   - "=== Welcome, {player}! ==="
   - "Day {day} of this world - {uptime} played"
