@@ -77,6 +77,10 @@
 
 ### Changed
 
+- **`!!help` works as well as `!!FR help`.** Help is what somebody types when
+  they do not know the commands, so making it the longest thing to type was
+  backwards. Same index, same paging, same search.
+
 - **`!!FR help` is an index, not a transcript.** With twenty-one plugins the
   grouped form ran past sixty lines, so the plugins late in the alphabet
   scrolled off the top of the chat box and were undiscoverable. It is now one

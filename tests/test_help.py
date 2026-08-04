@@ -106,6 +106,7 @@ def commands():
     server = FakeServer(TWENTY_ONE)
     manager = CommandManager(prefix="!!")
     manager.register("@core", builtin.build(server))
+    manager.register("@core", builtin.build_help_command(server))
     return manager, server
 
 
@@ -184,3 +185,35 @@ class TestLookup:
         lines = await run(commands, "!!FR help 2", player="alice")
         assert any("help.header_counts" in line for line in lines)
         assert all("help.no_match" not in line for line in lines)
+
+
+class TestShortcut:
+    """``!!help``, because help is what you type when you know nothing else."""
+
+    async def test_it_is_the_same_index(self, commands):
+        assert await run(commands, "!!help") == await run(commands, "!!FR help")
+
+    async def test_it_pages(self, commands):
+        short = await run(commands, "!!help 2", player="alice")
+        long = await run(commands, "!!FR help 2", player="alice")
+        assert short == long
+        assert any("help.header_counts" in line for line in short)
+
+    async def test_it_looks_plugins_up(self, commands):
+        lines = await run(commands, "!!help calculator")
+        assert any("help.plugin_version" in line for line in lines)
+
+    async def test_it_searches(self, commands):
+        lines = await run(commands, "!!help aler")
+        assert any("help.matches" in line for line in lines)
+
+    async def test_the_hints_name_the_short_form(self, commands):
+        """Telling someone to type the long one after they found the short one."""
+        lines = await run(commands, "!!help", player="alice")
+        hint = next(line for line in lines if "help.more" in line)
+        assert "prefix=!!help" in hint
+
+    async def test_the_core_row_still_names_the_framework_tree(self, commands):
+        """`!!FR` is where status, plugin and server live; that is not `!!help`."""
+        lines = await run(commands, "!!help")
+        assert any(line.strip().startswith("!!FR") for line in lines)

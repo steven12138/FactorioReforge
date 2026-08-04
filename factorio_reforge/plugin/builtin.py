@@ -38,10 +38,187 @@ if TYPE_CHECKING:
 PLUGINS_PER_PAGE = 10
 
 
+class HelpCommands:
+    """The help handlers, shared by ``!!FR help`` and its shortcut ``!!help``.
+
+    A class rather than a nest of closures because they are now built twice --
+    once as a subcommand of the framework tree and once as a root of their own
+    -- and two copies of this logic would be two things to keep in step.
+    """
+
+    def __init__(self, server: ReforgeServer):
+        self.server = server
+        self.tr = server.tr
+        #: What to tell people to type. The short form, because it is the one
+        #: worth learning and it works everywhere the long one does.
+        self.prefix = server.config.command_prefix + "help"
+        #: The framework tree, which the core row of the index names.
+        self.framework = server.config.command_prefix + "FR"
+
+    def describe_plugin(self, plugin_id: str, meta) -> str:
+        """One line about a plugin, in the operator's language when it offers one.
+
+        ``PLUGIN_METADATA["description"]`` is a Python literal and therefore
+        always English. It used to be a detail; now it is the widest column of
+        the help index, so a plugin's own catalogue gets to override it with a
+        ``description`` key. Falling back to the metadata keeps third-party
+        plugins working without one.
+        """
+        scoped = PluginTranslator(self.server.i18n, plugin_id)
+        translated = scoped.tr("description")
+        if translated and translated != "description":
+            return translated
+        if meta and meta.description:
+            return meta.description
+        return meta.name if meta else plugin_id
+
+    def visible_entries(self, source: CommandSource) -> list:
+        return [
+            entry for entry in self.server.plugins.registry.help_messages
+            if source.has_permission(entry.permission)
+        ]
+
+    async def help_message(self, source: CommandSource):
+        """The bare ``!!FR help``. Kept to one parameter on purpose.
+
+        The dispatcher decides what to pass by counting parameters, so a
+        second one with a default would quietly receive the CommandContext.
+        """
+        await self.show_index(source, 1)
+
+    async def show_index(self, source: CommandSource, page: int = 1):
+        """The index: core commands, then one line per plugin.
+
+        One *line* per plugin, not a block. With twenty-one plugins the grouped
+        form ran past sixty lines, and a help screen you have to scroll past is
+        one nobody reads to the end of -- the plugins near the end of the
+        alphabet were effectively undiscoverable.
+
+        Paginated only for players. The console and Telegram have scrollback;
+        the in-game chat box does not, so it is the one place where a long
+        answer genuinely loses information off the top.
+        """
+        entries = self.visible_entries(source)
+        by_plugin: dict[str, list] = {}
+        for entry in entries:
+            by_plugin.setdefault(entry.plugin_id, []).append(entry)
+
+        names = sorted(by_plugin)
+        paged = source.player is not None
+        size = PLUGINS_PER_PAGE if paged else len(names) or 1
+        pages = max(1, -(-len(names) // size))
+        page = max(1, min(page, pages))
+        shown = names[(page - 1) * size: page * size]
+
+        await source.reply(self.tr(
+            "help.header_counts", version=CORE_VERSION,
+            plugins=len(names), commands=len(entries),
+            page=page, pages=pages,
+        ))
+
+        if page == 1:
+            await source.reply(self.tr("help.core_header"))
+            await source.reply(
+                f"  {self.framework:<12} {self.tr('help.core_summary')}")
+            # Backups are core but live under their own self.prefix, so the loop
+            # above cannot reach them; they were missing entirely before.
+            await source.reply(
+                f"  {self.server.config.command_prefix + 'qb':<12} {self.tr('help.qb')}"
+            )
+            if names:
+                await source.reply(self.tr("help.plugins_header", prefix=self.prefix))
+
+        for plugin_id in shown:
+            plugin = self.server.plugins.get(plugin_id)
+            meta = plugin.metadata if plugin else None
+            # The description, not the display name: "Alerts" next to `alerts`
+            # is a column of nothing, while "attacks and in-game alerts" is the
+            # line somebody scans for.
+            summary = self.describe_plugin(plugin_id, meta)
+            commands = " ".join(entry.prefix.split()[0] for entry in by_plugin[plugin_id])
+            await source.reply(f"  {plugin_id:<14} {commands:<24} {summary}")
+
+        if page < pages:
+            await source.reply(self.tr("help.more", prefix=self.prefix, page=page + 1, pages=pages))
+
+    async def help_lookup(self, source: CommandSource, ctx: CommandContext):
+        """``!!FR help <something>``: a page, a plugin, or a search.
+
+        One argument covering three things because they are the same question
+        asked three ways, and making people remember which subcommand to use
+        for which is worse than guessing correctly on their behalf.
+        """
+        term = str(ctx["plugin_id"]).strip()
+        if term.isdigit():
+            await self.show_index(source, int(term))
+            return
+        if self.server.plugins.get(term) is not None:
+            await self.help_plugin(source, ctx)
+            return
+        await self.help_search(source, term)
+
+    async def help_search(self, source: CommandSource, term: str):
+        """Find a command by any part of its name, or a plugin by its own.
+
+        `!!FR help ratio` should find the calculator. Browsing an index is the
+        fallback, not the interface.
+        """
+        needle = term.lower().lstrip(self.server.config.command_prefix)
+        matches = [
+            entry for entry in self.visible_entries(source)
+            if needle in entry.prefix.lower()
+            or needle in entry.message.lower()
+            or needle in entry.plugin_id.lower()
+        ]
+        if not matches:
+            await source.reply(self.tr("help.no_match", term=term, prefix=self.prefix))
+            return
+        await source.reply(self.tr("help.matches", term=term, count=len(matches)))
+        for entry in matches[:12]:
+            await source.reply(f"  {entry.prefix:<28} {entry.message}")
+            await source.reply(self.tr("help.from_plugin", id=entry.plugin_id, prefix=self.prefix))
+
+    async def help_plugin(self, source: CommandSource, ctx: CommandContext):
+        """Everything one plugin has to say about itself."""
+        plugin_id = ctx["plugin_id"]
+        plugin = self.server.plugins.get(plugin_id)
+        if plugin is None:
+            await source.reply(self.tr("plugin.not_found", id=plugin_id))
+            return
+
+        meta = plugin.metadata
+        await source.reply(self.tr("help.plugin_header", name=meta.name, id=meta.id))
+        await source.reply(self.tr("help.plugin_version", version=meta.version,
+                              author=meta.author or self.tr("common.unknown")))
+        if meta.description:
+            await source.reply(f"  {meta.description}")
+
+        entries = [
+            entry for entry in self.server.plugins.registry.help_messages
+            if entry.plugin_id == plugin_id and source.has_permission(entry.permission)
+        ]
+        if not entries:
+            await source.reply(self.tr("help.no_commands"))
+            return
+        for entry in entries:
+            await source.reply(f"  {entry.prefix:<28} {entry.message}")
+            for line in entry.detail:
+                await source.reply(f"      {line}")
+
+    def tree(self):
+        """``!!help`` as a command root of its own."""
+        return (
+            Literal(self.prefix)
+            .runs(self.help_message)
+            .then(Text("plugin_id").runs(self.help_lookup))
+        )
+
+
 def build(server: ReforgeServer):
     """Build the ``!!FR`` tree bound to ``server``."""
     prefix = server.config.command_prefix + "FR"
     tr = server.tr
+    help_commands = HelpCommands(server)
 
     async def status(source: CommandSource):
         process = server.process
@@ -179,164 +356,15 @@ def build(server: ReforgeServer):
         for key in missing[:40]:
             await source.reply(f"  {key}")
 
-    def describe_plugin(plugin_id: str, meta) -> str:
-        """One line about a plugin, in the operator's language when it offers one.
-
-        ``PLUGIN_METADATA["description"]`` is a Python literal and therefore
-        always English. It used to be a detail; now it is the widest column of
-        the help index, so a plugin's own catalogue gets to override it with a
-        ``description`` key. Falling back to the metadata keeps third-party
-        plugins working without one.
-        """
-        scoped = PluginTranslator(server.i18n, plugin_id)
-        translated = scoped.tr("description")
-        if translated and translated != "description":
-            return translated
-        if meta and meta.description:
-            return meta.description
-        return meta.name if meta else plugin_id
-
-    def visible_entries(source: CommandSource) -> list:
-        return [
-            entry for entry in server.plugins.registry.help_messages
-            if source.has_permission(entry.permission)
-        ]
-
-    async def help_message(source: CommandSource):
-        """The bare ``!!FR help``. Kept to one parameter on purpose.
-
-        The dispatcher decides what to pass by counting parameters, so a
-        second one with a default would quietly receive the CommandContext.
-        """
-        await show_index(source, 1)
-
-    async def show_index(source: CommandSource, page: int = 1):
-        """The index: core commands, then one line per plugin.
-
-        One *line* per plugin, not a block. With twenty-one plugins the grouped
-        form ran past sixty lines, and a help screen you have to scroll past is
-        one nobody reads to the end of -- the plugins near the end of the
-        alphabet were effectively undiscoverable.
-
-        Paginated only for players. The console and Telegram have scrollback;
-        the in-game chat box does not, so it is the one place where a long
-        answer genuinely loses information off the top.
-        """
-        entries = visible_entries(source)
-        by_plugin: dict[str, list] = {}
-        for entry in entries:
-            by_plugin.setdefault(entry.plugin_id, []).append(entry)
-
-        names = sorted(by_plugin)
-        paged = source.player is not None
-        size = PLUGINS_PER_PAGE if paged else len(names) or 1
-        pages = max(1, -(-len(names) // size))
-        page = max(1, min(page, pages))
-        shown = names[(page - 1) * size: page * size]
-
-        await source.reply(tr(
-            "help.header_counts", version=CORE_VERSION,
-            plugins=len(names), commands=len(entries),
-            page=page, pages=pages,
-        ))
-
-        if page == 1:
-            await source.reply(tr("help.core_header"))
-            await source.reply(f"  {prefix:<12} {tr('help.core_summary')}")
-            # Backups are core but live under their own prefix, so the loop
-            # above cannot reach them; they were missing entirely before.
-            await source.reply(
-                f"  {server.config.command_prefix + 'qb':<12} {tr('help.qb')}"
-            )
-            if names:
-                await source.reply(tr("help.plugins_header", prefix=prefix))
-
-        for plugin_id in shown:
-            plugin = server.plugins.get(plugin_id)
-            meta = plugin.metadata if plugin else None
-            # The description, not the display name: "Alerts" next to `alerts`
-            # is a column of nothing, while "attacks and in-game alerts" is the
-            # line somebody scans for.
-            summary = describe_plugin(plugin_id, meta)
-            commands = " ".join(entry.prefix.split()[0] for entry in by_plugin[plugin_id])
-            await source.reply(f"  {plugin_id:<14} {commands:<24} {summary}")
-
-        if page < pages:
-            await source.reply(tr("help.more", prefix=prefix, page=page + 1, pages=pages))
-
-    async def help_lookup(source: CommandSource, ctx: CommandContext):
-        """``!!FR help <something>``: a page, a plugin, or a search.
-
-        One argument covering three things because they are the same question
-        asked three ways, and making people remember which subcommand to use
-        for which is worse than guessing correctly on their behalf.
-        """
-        term = str(ctx["plugin_id"]).strip()
-        if term.isdigit():
-            await show_index(source, int(term))
-            return
-        if server.plugins.get(term) is not None:
-            await help_plugin(source, ctx)
-            return
-        await help_search(source, term)
-
-    async def help_search(source: CommandSource, term: str):
-        """Find a command by any part of its name, or a plugin by its own.
-
-        `!!FR help ratio` should find the calculator. Browsing an index is the
-        fallback, not the interface.
-        """
-        needle = term.lower().lstrip(server.config.command_prefix)
-        matches = [
-            entry for entry in visible_entries(source)
-            if needle in entry.prefix.lower()
-            or needle in entry.message.lower()
-            or needle in entry.plugin_id.lower()
-        ]
-        if not matches:
-            await source.reply(tr("help.no_match", term=term, prefix=prefix))
-            return
-        await source.reply(tr("help.matches", term=term, count=len(matches)))
-        for entry in matches[:12]:
-            await source.reply(f"  {entry.prefix:<28} {entry.message}")
-            await source.reply(tr("help.from_plugin", id=entry.plugin_id, prefix=prefix))
-
-    async def help_plugin(source: CommandSource, ctx: CommandContext):
-        """Everything one plugin has to say about itself."""
-        plugin_id = ctx["plugin_id"]
-        plugin = server.plugins.get(plugin_id)
-        if plugin is None:
-            await source.reply(tr("plugin.not_found", id=plugin_id))
-            return
-
-        meta = plugin.metadata
-        await source.reply(tr("help.plugin_header", name=meta.name, id=meta.id))
-        await source.reply(tr("help.plugin_version", version=meta.version,
-                              author=meta.author or tr("common.unknown")))
-        if meta.description:
-            await source.reply(f"  {meta.description}")
-
-        entries = [
-            entry for entry in server.plugins.registry.help_messages
-            if entry.plugin_id == plugin_id and source.has_permission(entry.permission)
-        ]
-        if not entries:
-            await source.reply(tr("help.no_commands"))
-            return
-        for entry in entries:
-            await source.reply(f"  {entry.prefix:<28} {entry.message}")
-            for line in entry.detail:
-                await source.reply(f"      {line}")
-
     admin = PermissionLevel.ADMIN
     owner = PermissionLevel.OWNER
 
     return (
         Literal(prefix)
-        .runs(help_message)
+        .runs(help_commands.help_message)
         .then(
-            Literal("help").runs(help_message)
-            .then(Text("plugin_id").runs(help_lookup))
+            Literal("help").runs(help_commands.help_message)
+            .then(Text("plugin_id").runs(help_commands.help_lookup))
         )
         .then(Literal("status").requires(PermissionLevel.USER).runs(status))
         .then(
@@ -556,3 +584,12 @@ def _duration(seconds: float) -> str:
     if minutes:
         return f"{minutes}m{secs:02d}s"
     return f"{secs}s"
+
+
+def build_help_command(server: ReforgeServer):
+    """``!!help``, the same thing without having to remember ``!!FR``.
+
+    Help is the one command somebody types when they do not know the commands,
+    so making it the longest thing to type is backwards.
+    """
+    return HelpCommands(server).tree()

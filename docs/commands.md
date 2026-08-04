@@ -8,11 +8,14 @@ stdin, so `/players` and `/promote alice` work exactly as they always did.
 The commands each plugin registers are also discoverable at runtime:
 
 ```
-!!FR help              the index: core commands, then one line per plugin
-!!FR help warp         one plugin: version, author, what it does, its commands
-!!FR help ratio        search -- finds the plugin that provides !!ratio
+!!help                 the index: core commands, then one line per plugin
+!!help warp            one plugin: version, author, what it does, its commands
+!!help ratio           search -- finds the plugin that provides !!ratio
 !!FR plugin list       every plugin with its version and commands
 ```
+
+`!!help` and `!!FR help` are the same command. Help is what somebody types
+when they do not know the commands, so it should not be the longest one to type.
 
 One argument covers all three, because they are the same question asked three
 ways: a number is a page, a plugin id is that plugin, anything else is a search.
@@ -40,7 +43,7 @@ that is the truth.
 
 | Command | Level | Does |
 |---|---|---|
-| `!!FR help` | guest | The index: core commands, one line per plugin |
+| `!!help` / `!!FR help` | guest | The index: core commands, one line per plugin |
 | `!!FR help <n>` | guest | Page `n` of the index |
 | `!!FR help <plugin>` | guest | One plugin in detail |
 | `!!FR help <term>` | guest | Find a command by any part of its name |

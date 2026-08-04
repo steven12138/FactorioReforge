@@ -60,6 +60,9 @@ async def run(config: Config) -> int:
     print(banner(CORE_VERSION, server.tr("banner", prefix=config.command_prefix), palette))
 
     server.commands.register("@core", builtin.build(server))
+    # `!!help` as well as `!!FR help`: help is what somebody types when they do
+    # not know the commands, so making it the longest one to type is backwards.
+    server.commands.register("@core", builtin.build_help_command(server))
     # `!!qb`, plus the old `!!save` kept working but not advertised: people have
     # it in their fingers, and a rename that silently breaks a backup command is
     # the worst kind of rename. One staging dict between them, so staging under
