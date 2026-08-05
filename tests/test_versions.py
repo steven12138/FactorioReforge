@@ -24,6 +24,11 @@ from factorio_reforge.versions.compat import (
     check_switch,
     read_mod_series,
 )
+from factorio_reforge.versions.download import (
+    DownloadError,
+    download_url,
+    parse_available_versions,
+)
 from factorio_reforge.versions.errors import VersionError
 from factorio_reforge.versions.layout import SHARED_ENTRIES, Installation
 from factorio_reforge.versions.savefile import MapVersion, parse_version, read_save_version
@@ -503,3 +508,49 @@ def _add_tree(install: Installation, version: str) -> None:
     (tree / "bin" / "x64").mkdir(parents=True)
     (tree / "bin" / "x64" / "factorio").write_text(f"#!/bin/sh\n# {version}\n")
     install.link_shared(version)
+
+
+# ---------------------------------------------------------------------------
+# what the updater returns
+# ---------------------------------------------------------------------------
+
+class TestAvailableVersions:
+    """Sampled from updater.factorio.com: one request, 376 versions.
+
+    The channel markers ride along as an entry with no from/to, which is why
+    this endpoint is used instead of /api/latest-releases -- that one knows
+    only what is newest, and "newest" is never the question when going back.
+    """
+
+    SAMPLE = {
+        "core-linux_headless64": [
+            {"from": "2.0.75", "to": "2.0.76"},
+            {"from": "2.0.76", "to": "2.0.77"},
+            {"from": "2.0.9", "to": "2.0.10"},
+            {"experimental": "2.1.13", "stable": "2.0.77"},
+        ]
+    }
+
+    def test_both_ends_of_every_step_count(self):
+        """The newest is only ever a "to", the oldest only ever a "from"."""
+        versions, _ = parse_available_versions(self.SAMPLE)
+        assert "2.0.77" in versions and "2.0.9" in versions
+
+    def test_versions_are_ordered_numerically(self):
+        versions, _ = parse_available_versions(self.SAMPLE)
+        assert versions == ["2.0.9", "2.0.10", "2.0.75", "2.0.76", "2.0.77"]
+
+    def test_the_channel_markers_come_out_too(self):
+        _, channels = parse_available_versions(self.SAMPLE)
+        assert channels == {"experimental": "2.1.13", "stable": "2.0.77"}
+
+    def test_the_marker_entry_is_not_read_as_a_version(self):
+        versions, _ = parse_available_versions(self.SAMPLE)
+        assert "2.1.13" not in versions
+
+    def test_a_response_without_the_headless_key_is_an_error(self):
+        with pytest.raises(DownloadError, match="headless version list"):
+            parse_available_versions({"core-win64": []})
+
+    def test_a_download_url_names_the_version_asked_for(self):
+        assert download_url("2.0.76").endswith("/2.0.76/headless/linux64")

@@ -116,7 +116,7 @@ FactorioReforge 终端**永远**是 `owner`，且不可配置：
 | `!!here` | user | 把你的位置作为可点击的地图标记喊出来，并钉在地图上 |
 | `!!list` | user | 谁在线，带在线时长 |
 | `!!info [玩家]` | user | 在线时长、权限等级、位置 |
-| `!!seen <玩家>` | user | 在线时长，以及上次在线是什么时候 |
+| `!!seen <玩家>` | user | 在线时长，以及上次在线的具体日期时间 |
 | `!!stats` | user | 进化度、污染、科研、世界运行时间 |
 | `!!tp <玩家> <目标\|x y>` | 可配置 | 传送——**默认关闭** |
 | `!!top [time\|kills\|built]` | user | 排行榜 |
@@ -175,6 +175,7 @@ FactorioReforge 终端**永远**是 `owner`，且不可配置：
 | `!!version` | user | 当前版本、存档版本，以及两者合不合得上 |
 | `!!version list` | user | 已安装的版本 |
 | `!!version check` | helper | 官方放出了哪些版本 |
+| `!!version check <系列>` | helper | 一个系列里的全部版本，比如 `2.0` —— 降级目标从这里找 |
 | `!!version install <版本>` | admin | 下载下来——服务器照常跑 |
 | `!!version use <版本>` | owner | 预备切换，目前什么都不会发生 |
 | `!!version use <版本> with-save <槽位>` | owner | 版本**和**存档一起退回去 |

@@ -35,6 +35,23 @@ English: [CHANGELOG.md](CHANGELOG.md)
   - 资料片不是隐患：`space-age`、`quality`、`elevated-rails` 都在 `data/`
     里面，跟着二进制一起换。第三方 mod 钉的是 `major.minor`，
     所以补丁级升级不可能弄坏任何一个，而这一项是会检查的。
+- `!!version check <系列>` 列出一个系列里的全部版本。问 updater 而不是发布 API，
+  一次请求同时拿到渠道标记**和**全部 376 个已发布 headless 版本 ——
+  往回退的时候，"最新是什么"从来不是要问的问题。
+
+### 修复
+
+- `!!seen` 和 `!!info` 现在报的是上次在线的**日期时间**，
+  用的是管道这一侧记下来的账。Factorio 的 `player.last_online` 是一个 tick，
+  把 tick 换算成时长量的是**世界**跑了多久：开着 `auto_pause` 时空服不走 tick，
+  于是昨晚离开的人，在下一个玩家登录的那一刻会显示成"20 分钟前"。
+- 测试套件现在会用真正的插件管理器加载每一个自带插件。
+  `version_manager` 发出去的版本里伸手去拿 `server.config`，
+  而那个属性在核心上、不在插件拿到的接口上；535 项测试全过，
+  第一个真正跑 `on_load` 的是服务器。
+
+### 新增
+
 - **七个用于「人不在跟前」时盯服务器的插件。**
   - `ups_watch` —— `!!ups`。Factorio 不是靠崩溃失败的，是靠变慢失败的。
     用 `game.tick` 对墙钟采样。实测暂停的服务器读数是 0.5 ticks/s，

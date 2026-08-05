@@ -226,3 +226,39 @@ class TestNoCheatCommands:
         source = inspect.getsource(ServerInterface.lua)
         assert "/sc " in source
         assert "/c " not in source
+
+
+class TestProgressWithNothingToCount:
+    """Waiting on a round trip rather than on bytes.
+
+    ``!!version check`` is twelve kilobytes over five seconds: there is no
+    byte count worth a bar, and rendering "0" would read as no progress rather
+    than as no counter.
+    """
+
+    def bar(self, clock):
+        from factorio_reforge.core.progress import Progress
+
+        lines = []
+        return Progress(lines.append, quiet_for=1.0, interval=1.0, now=clock), lines
+
+    def test_elapsed_alone_when_there_is_nothing_to_count(self):
+        now = [0.0]
+        bar, lines = self.bar(lambda: now[0])
+        now[0] = 3.0
+        bar.update(0)
+        assert lines == ["[----------] 3s"]
+
+    def test_a_counter_still_wins_when_there_is_one(self):
+        now = [0.0]
+        bar, lines = self.bar(lambda: now[0])
+        now[0] = 3.0
+        bar.update(7)
+        assert "7" in lines[0]
+
+    def test_a_quick_answer_says_nothing_at_all(self):
+        now = [0.0]
+        bar, lines = self.bar(lambda: now[0])
+        now[0] = 0.5
+        bar.update(0)
+        assert lines == []

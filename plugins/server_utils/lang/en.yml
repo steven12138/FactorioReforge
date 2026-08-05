@@ -10,7 +10,8 @@ seen:
   usage: "Usage: !!seen <player>"
   never: "{player} has never joined this server."
   online_now: "{player} is online now, {played} played."
-  last_seen: "{player} was last seen {ago} ago (game time), {played} played."
+  last_seen: "{player} was last online {when}, {ago} ago. {played} played."
+  last_seen_game_time: "{player} was last seen {ago} ago (game time -- nobody was watching when they left), {played} played."
 list:
   nobody: Nobody is online.
   header: "{count} online:"
@@ -27,7 +28,8 @@ info:
   admin: "  Game admin: {game} | FactorioReforge: {level}"
   force: "  Force: {force}"
   at: "  At: ({x}, {y}) on {surface}"
-  last_seen: "  Last seen: {ago} ago (game time)"
+  last_seen: "  Last online: {when} ({ago} ago)"
+  last_seen_game_time: "  Last seen: {ago} ago (game time)"
 stats:
   surface: "Surface: {surface}"
   played: "Played: {played}"

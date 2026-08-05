@@ -121,7 +121,7 @@ refused. Edit the file by hand if you mean it.
 | `!!here` | user | Announce your position as a clickable map ping, and pin it |
 | `!!list` | user | Who is online, with playtime |
 | `!!info [player]` | user | Playtime, permission level, position |
-| `!!seen <player>` | user | Playtime, and when they were last online |
+| `!!seen <player>` | user | Playtime, and the date and time they were last online |
 | `!!stats` | user | Evolution, pollution, research, world uptime |
 | `!!tp <player> <target\|x y>` | configurable | Teleport — **disabled by default** |
 | `!!top [time\|kills\|built]` | user | Rankings |
@@ -182,6 +182,7 @@ Only releases built for your Factorio version are offered — see
 | `!!version` | user | The build, the world's version, and whether they fit |
 | `!!version list` | user | Installed version trees |
 | `!!version check` | helper | What factorio.com has released |
+| `!!version check <series>` | helper | Every release in a series, e.g. `2.0` — where a downgrade target comes from |
 | `!!version install <v>` | admin | Download it — the server keeps running |
 | `!!version use <v>` | owner | Stage a switch; nothing happens yet |
 | `!!version use <v> with-save <slot>` | owner | Go back a version *and* back to that world |

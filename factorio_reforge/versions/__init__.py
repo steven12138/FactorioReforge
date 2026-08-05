@@ -28,6 +28,7 @@ from factorio_reforge.versions.binary import (
 from factorio_reforge.versions.download import (
     DownloadError,
     download_url,
+    fetch_available_versions,
     fetch_latest_releases,
     install_version,
 )
@@ -44,6 +45,7 @@ __all__ = [
     "VersionError",
     "can_load",
     "download_url",
+    "fetch_available_versions",
     "fetch_latest_releases",
     "install_version",
     "parse_version",

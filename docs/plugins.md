@@ -1,6 +1,6 @@
 # Bundled plugins
 
-Twenty-one plugins ship in `plugins/`, each a package that owns its code, its
+Twenty-two plugins ship in `plugins/`, each a package that owns its code, its
 configuration and its translations. All of them can be reloaded, unloaded or
 deleted without touching the framework — none is special.
 
@@ -159,6 +159,12 @@ otherwise land inside `versions/2.0.78/saves` and disappear on a rollback. The
 live path keeps its name, so `working_directory` and `start_command` need no
 edit.
 
+`!!version check` asks the updater rather than the release API, because one
+request returns the channel markers *and* all 376 released versions back to
+0.12.34. "What is newest" is never the question when you are going back, so
+`!!version check 2.0` lists a whole series and every entry in it is something
+`!!version install` will accept.
+
 **Downloading is separate from switching.** `install` needs no downtime and
 takes minutes; `use` needs the server down and takes seconds. Fused, a failed
 download would leave the server both stopped and broken.
@@ -276,6 +282,15 @@ MCDReforged plugins people miss most.
 `!!here` sends a clickable `[gps=]` tag, which pings the position on everyone's
 map, *and* pins a chart tag so the spot stays marked. See
 [Rich text](writing-plugins.md#rich-text).
+
+`!!seen` answers in wall-clock time, from a record this plugin keeps itself.
+Factorio's own answer is `player.last_online`, a tick, and turning ticks into a
+duration measures how long the *world* ran: with `auto_pause` on, an empty
+server does not tick at all, so somebody who left last night reads as "20m ago"
+the moment the next player logs in. There is no clock in the Lua API, so the
+join and leave events are timed on this side of the pipe and written to
+`config/server_utils/last_seen.json`. Anyone who left before that file existed
+still falls back to game time, and is told so.
 
 ```jsonc
 {

@@ -10,7 +10,8 @@ seen:
   usage: "用法：!!seen <玩家>"
   never: "{player} 从来没进过这个服务器。"
   online_now: "{player} 正在线，已游玩 {played}。"
-  last_seen: "{player} 上次出现在 {ago} 前（游戏内时间），已游玩 {played}。"
+  last_seen: "{player} 上次在线是 {when}，{ago} 前。已游玩 {played}。"
+  last_seen_game_time: "{player} 上次出现在 {ago} 前（游戏内时间 —— 他离开时没人记下来），已游玩 {played}。"
 list:
   nobody: 当前无人在线。
   header: "在线 {count} 人："
@@ -27,7 +28,8 @@ info:
   admin: "  游戏管理员：{game} | FactorioReforge：{level}"
   force: "  阵营：{force}"
   at: "  位置：({x}, {y}) 于 {surface}"
-  last_seen: "  最后在线：{ago} 前（游戏内时间）"
+  last_seen: "  最后在线：{when}（{ago} 前）"
+  last_seen_game_time: "  最后在线：{ago} 前（游戏内时间）"
 stats:
   surface: "星球：{surface}"
   played: "已游玩：{played}"

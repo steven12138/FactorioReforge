@@ -31,6 +31,16 @@ from factorio_reforge.versions.layout import BINARY_SUFFIX, Installation
 LATEST_RELEASES_URL = "https://factorio.com/api/latest-releases"
 DOWNLOAD_URL = "https://factorio.com/get-download/{version}/{build}/{distro}"
 
+#: The updater's chain of ``{"from": ..., "to": ...}`` steps. Measured: one
+#: request returns 376 versions back to 0.12.34 *and* an entry carrying the
+#: channel markers, so it answers both "what is newest" and "what could I go
+#: back to" -- which ``/api/latest-releases`` cannot, and a downgrade needs.
+AVAILABLE_VERSIONS_URL = "https://updater.factorio.com/get-available-versions"
+
+#: The only key the endpoint returns; there is no linux64 or win64 alongside
+#: it, so this is not a lookup table waiting to grow.
+HEADLESS_KEY = "core-linux_headless64"
+
 USER_AGENT = "FactorioReforge/0.1 (+https://github.com/)"
 
 #: The first bytes of an xz stream. A download that redirects to an HTML error
@@ -48,13 +58,54 @@ def download_url(version: str, build: str = "headless", distro: str = "linux64")
     return DOWNLOAD_URL.format(version=version, build=build, distro=distro)
 
 
+async def fetch_available_versions() -> tuple[list[str], dict[str, str]]:
+    """Every released headless version, oldest first, and the channel markers.
+
+    Returns ``(versions, {"stable": "2.0.77", "experimental": "2.1.13"})``.
+    """
+    data = await asyncio.to_thread(_fetch_json_sync, AVAILABLE_VERSIONS_URL)
+    return parse_available_versions(data)
+
+
+def parse_available_versions(data: dict) -> tuple[list[str], dict[str, str]]:
+    """Pull the version list and the channel markers out of the update chain.
+
+    The chain is a list of ``{"from": ..., "to": ...}`` steps with one odd
+    entry among them carrying ``stable`` and ``experimental``. Both ends of
+    every step count: the newest version is only ever a ``to``, and the oldest
+    only ever a ``from``.
+    """
+    steps = data.get(HEADLESS_KEY)
+    if not isinstance(steps, list):
+        raise DownloadError("the updater did not return a headless version list")
+
+    versions: set[str] = set()
+    channels: dict[str, str] = {}
+    for step in steps:
+        if not isinstance(step, dict):
+            continue
+        if "from" in step or "to" in step:
+            versions.update(str(step[key]) for key in ("from", "to") if key in step)
+        else:
+            channels.update({str(k): str(v) for k, v in step.items()})
+    return sorted(versions, key=version_key), channels
+
+
+def version_key(version: str) -> tuple[int, ...]:
+    """Numeric ordering, so 2.0.9 sorts before 2.0.77 rather than after it."""
+    return tuple(int(part) if part.isdigit() else 0 for part in version.split("."))
+
+
 async def fetch_latest_releases() -> dict[str, dict[str, str]]:
     """``{"stable": {"headless": "2.0.77", ...}, "experimental": {...}}``."""
-    return await asyncio.to_thread(_fetch_latest_sync)
+    data = await asyncio.to_thread(_fetch_json_sync, LATEST_RELEASES_URL)
+    if not isinstance(data, dict):
+        raise DownloadError("factorio.com returned an unexpected shape for the release list")
+    return data
 
 
-def _fetch_latest_sync() -> dict[str, dict[str, str]]:
-    request = urllib.request.Request(LATEST_RELEASES_URL, headers={"User-Agent": USER_AGENT})
+def _fetch_json_sync(url: str) -> dict:
+    request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
     try:
         with urllib.request.urlopen(request, timeout=TIMEOUT) as response:
             data = json.loads(response.read().decode("utf-8"))
@@ -65,7 +116,7 @@ def _fetch_latest_sync() -> dict[str, dict[str, str]]:
     except json.JSONDecodeError as exc:
         raise DownloadError(f"factorio.com returned something that was not JSON: {exc}") from exc
     if not isinstance(data, dict):
-        raise DownloadError("factorio.com returned an unexpected shape for the release list")
+        raise DownloadError("factorio.com returned an unexpected shape")
     return data
 
 

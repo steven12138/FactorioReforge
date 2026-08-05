@@ -36,7 +36,7 @@ from factorio_reforge.saves.manager import PREUPGRADE_SLOT, SaveError, parse_slo
 from factorio_reforge.versions import (
     Installation,
     VersionError,
-    fetch_latest_releases,
+    fetch_available_versions,
     install_version,
     read_binary,
     read_save_version,
@@ -69,6 +69,9 @@ DEFAULT_CONFIG = {
 #: caches one to pick releases with -- can re-read it without a restart.
 VERSION_CHANGED = "version.changed"
 
+#: How many releases of one series to list before saying how many are left.
+SERIES_LIMIT = 20
+
 _state: dict = {}
 
 
@@ -90,13 +93,18 @@ def on_load(server, prev):
     )
     remove_download_leftovers(installation)
 
-    prefix = server.config.command_prefix + "version"
+    prefix = _core(server).config.command_prefix + "version"
     server.register_command(
         Literal(prefix)
         .requires(PermissionLevel.USER)
         .runs(_cmd_status)
         .then(Literal("list").runs(_cmd_list))
-        .then(Literal("check").requires(PermissionLevel.HELPER).runs(_cmd_check))
+        .then(
+            Literal("check")
+            .requires(PermissionLevel.HELPER)
+            .runs(_cmd_check)
+            .then(Text("series").runs(_cmd_check))
+        )
         .then(
             Literal("install")
             .requires(PermissionLevel.ADMIN)
@@ -127,6 +135,7 @@ def on_load(server, prev):
         detail=[
             server.tr("help.status", prefix=prefix),
             server.tr("help.check", prefix=prefix),
+            server.tr("help.series", prefix=prefix),
             server.tr("help.install", prefix=prefix),
             server.tr("help.use", prefix=prefix),
             server.tr("help.with_save", prefix=prefix),
@@ -139,12 +148,22 @@ async def on_unload(server):
     _state.clear()
 
 
+def _core(server):
+    """The core server, which is where config.yml lives.
+
+    ``PluginServerInterface`` deliberately does not expose it -- plugins are
+    given an API, not the object graph -- so the handful of plugins that need a
+    path out of config.yml reach through, as ``mod_manager`` and
+    ``server_admin`` do.
+    """
+    return server._server  # noqa: SLF001
+
+
 def _installation(server, config) -> Installation:
+    core = _core(server)
     configured = (config.get("versions_directory") or "").strip()
-    versions = Path(configured).expanduser() if configured else None
-    if versions is not None and not versions.is_absolute():
-        versions = server.get_data_folder().parent.parent / versions
-    return Installation(server.config.working_dir_path, versions)
+    versions = core.config.resolve(configured) if configured else None
+    return Installation(core.config.working_dir_path, versions)
 
 
 # ---------------------------------------------------------------------------
@@ -153,7 +172,7 @@ def _installation(server, config) -> Installation:
 
 def _current_save_version(server) -> tuple[MapVersion | None, str]:
     try:
-        return read_save_version(server.config.current_save_path), ""
+        return read_save_version(_core(server).config.current_save_path), ""
     except VersionError as exc:
         return None, str(exc)
 
@@ -166,7 +185,7 @@ def _slot_save_version(server, slot) -> tuple[MapVersion | None, str]:
 
 
 def _mods_directory(server) -> Path:
-    return server.config.working_dir_path / "mods"
+    return _core(server).config.working_dir_path / "mods"
 
 
 async def _online(server) -> list[str]:
@@ -211,7 +230,7 @@ async def _cmd_status(source):
     else:
         await source.reply(tr("status.unmanaged", path=installation.active_path))
         await source.reply(tr("status.adopt_hint",
-                              prefix=server.config.command_prefix + "version"))
+                              prefix=_core(server).config.command_prefix + "version"))
 
     preupgrade = server.saves.get_preupgrade()
     if preupgrade is not None:
@@ -239,35 +258,110 @@ async def _cmd_list(source):
         await source.reply(f"  {version}{mark}")
 
 
-async def _cmd_check(source):
+async def _cmd_check(source, ctx: CommandContext = None):
+    """What has been released. With a series, everything in it.
+
+    One request answers both questions. The updater's chain carries the
+    channel markers *and* every version back to 0.12.34, which is the half
+    that matters for a downgrade -- ``/api/latest-releases`` knows only what
+    is newest, and "newest" is never what you want when you are going back.
+    """
     server = _state["server"]
     tr = server.tr
-    build = _state["config"].get("build", "headless")
+    series = ((ctx or {}).get("series") or "").strip()
+    prefix = _core(server).config.command_prefix + "version"
 
     await source.reply(tr("check.asking"))
     try:
-        releases = await fetch_latest_releases()
+        versions, channels = await _while_waiting(source, fetch_available_versions())
     except VersionError as exc:
         await source.reply(tr("check.failed", error=exc))
         return
 
     installation: Installation = _state["installation"]
     installed = set(installation.installed())
-    current = installation.active_version or ""
-    prefix = server.config.command_prefix + "version"
+    current = await _current_release(server, installation)
+
+    def describe(version: str) -> str:
+        if version == current:
+            return tr("check.line_current", version=version)
+        if version in installed:
+            return tr("check.line_installed", version=version, prefix=prefix)
+        return tr("check.line_available", version=version, prefix=prefix)
+
+    if series:
+        matching = [v for v in versions if v == series or v.startswith(series + ".")]
+        if not matching:
+            await source.reply(tr("check.no_series", series=series))
+            return
+        await source.reply(tr("check.series_header", series=series, count=len(matching)))
+        # 2.0 alone has 72 releases. The chat box has no scrollback, so the
+        # older half would push its own heading off the top.
+        shown = list(reversed(matching))[:SERIES_LIMIT]
+        for version in shown:
+            await source.reply(f"  {describe(version)}")
+        if len(matching) > len(shown):
+            await source.reply(tr("check.series_more", count=len(matching) - len(shown)))
+        return
 
     for channel in ("stable", "experimental"):
-        version = (releases.get(channel) or {}).get(build)
-        if not version:
-            continue
-        if version == current:
-            await source.reply(tr("check.current", channel=channel, version=version))
-        elif version in installed:
-            await source.reply(tr("check.installed", channel=channel, version=version,
-                                  prefix=prefix))
-        else:
-            await source.reply(tr("check.available", channel=channel, version=version,
-                                  prefix=prefix))
+        version = channels.get(channel)
+        if version:
+            await source.reply(tr(f"check.{channel}", version=version))
+            await source.reply(f"  {describe(version)}")
+
+    await source.reply(tr("check.total", count=len(versions), newest=versions[-1] if versions else "?"))
+    await source.reply(tr("check.series_hint", prefix=prefix,
+                          series=_series_of(current or (versions[-1] if versions else "2.0"))))
+
+
+def _series_of(version: str) -> str:
+    parts = version.split(".")
+    return ".".join(parts[:2]) if len(parts) >= 2 else version
+
+
+async def _current_release(server, installation: Installation) -> str:
+    """What is running, whether or not the install has been adopted.
+
+    Without this an unadopted install has no active version, and every listing
+    offers to install the build already in front of you.
+    """
+    if installation.active_version:
+        return installation.active_version
+    try:
+        return (await read_binary(installation.active_binary)).release
+    except VersionError:
+        return ""
+
+
+async def _while_waiting(source, awaitable, *, quiet_for: float = 2.0):
+    """Run ``awaitable``, saying how long it is taking if it takes a while.
+
+    The wait here is a round trip, not a transfer -- twelve kilobytes over five
+    seconds -- so there is no byte count to put in a bar, and :class:`Progress`
+    renders elapsed time alone. Nothing is said at all if it comes back
+    quickly, which is most of the time.
+    """
+    loop = asyncio.get_running_loop()
+    bar = Progress(
+        lambda line: loop.call_soon_threadsafe(
+            lambda: asyncio.ensure_future(source.reply(line))
+        ),
+        interval=2.0,
+        quiet_for=quiet_for,
+    )
+    task = asyncio.ensure_future(awaitable)
+
+    async def tick():
+        while True:
+            await asyncio.sleep(0.5)
+            bar.update(0)
+
+    ticker = asyncio.ensure_future(tick())
+    try:
+        return await task
+    finally:
+        ticker.cancel()
 
 
 # ---------------------------------------------------------------------------
@@ -314,7 +408,7 @@ async def _cmd_install(source, ctx: CommandContext):
         _state["busy"] = False
 
     await source.reply(tr("install.done", version=version, path=target))
-    await source.reply(tr("install.next", prefix=server.config.command_prefix + "version",
+    await source.reply(tr("install.next", prefix=_core(server).config.command_prefix + "version",
                           version=version))
 
 
@@ -332,11 +426,11 @@ async def _cmd_use(source, ctx: CommandContext):
     if not installation.is_managed:
         await source.reply(tr("switch.unmanaged"))
         await source.reply(tr("status.adopt_hint",
-                              prefix=server.config.command_prefix + "version"))
+                              prefix=_core(server).config.command_prefix + "version"))
         return
     if not installation.is_installed(version):
         await source.reply(tr("switch.not_installed", version=version,
-                              prefix=server.config.command_prefix + "version"))
+                              prefix=_core(server).config.command_prefix + "version"))
         return
 
     findings = await _preflight(server, version, slot)
@@ -353,7 +447,7 @@ async def _cmd_use(source, ctx: CommandContext):
     }
     await source.reply(tr("switch.staged", version=version))
     await source.reply(tr("switch.confirm_hint",
-                          prefix=server.config.command_prefix + "version",
+                          prefix=_core(server).config.command_prefix + "version",
                           seconds=int(_state["config"].get("confirm_window_seconds", 120))))
 
 
@@ -408,7 +502,7 @@ async def _cmd_confirm(source):
 
     if not staged:
         await source.reply(tr("switch.nothing_staged",
-                              prefix=server.config.command_prefix + "version"))
+                              prefix=_core(server).config.command_prefix + "version"))
         return
     window = float(config.get("confirm_window_seconds", 120))
     if time.monotonic() - staged["at"] > window:
@@ -463,7 +557,7 @@ async def _switch(source, version: str, slot: str) -> None:
         slot=PREUPGRADE_SLOT,
         comment=tr("switch.preserved_comment", version=previous or "?", target=version),
     )
-    if preserved is None and server.config.current_save_path.is_file():
+    if preserved is None and _core(server).config.current_save_path.is_file():
         await source.reply(tr("switch.preserve_failed"))
         if was_running:
             await server.start()
@@ -565,7 +659,7 @@ async def _cmd_adopt(source):
         return
 
     await source.reply(tr("adopt.done", version=version, shared=installation.shared_dir))
-    await source.reply(tr("adopt.next", prefix=server.config.command_prefix + "version"))
+    await source.reply(tr("adopt.next", prefix=_core(server).config.command_prefix + "version"))
 
 
 async def _cmd_remove(source, ctx: CommandContext):

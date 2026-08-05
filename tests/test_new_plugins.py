@@ -404,3 +404,66 @@ class TestProgress:
         bar.update(10)
         bar.done("finished")
         assert lines == []
+
+
+# ---------------------------------------------------------------------------
+# server_utils -- when somebody was last here
+# ---------------------------------------------------------------------------
+
+class TestLastSeen:
+    """Real time, not game time.
+
+    ``player.last_online`` is a tick, and turning ticks into a duration
+    measures how long the *world* ran. With auto_pause on, an empty server does
+    not tick at all, so somebody who left last night reads as "20m ago" the
+    moment the next player logs in.
+    """
+
+    @pytest.fixture
+    def utils(self, tmp_path):
+        module = load("server_utils")
+        module._state.clear()
+        module._state.update(seen={}, server=self.FakeServer(tmp_path))
+        return module
+
+    class FakeServer:
+        def __init__(self, folder):
+            self.folder = folder
+
+            class Logger:
+                def warning(self, *a, **k):
+                    pass
+
+            self.logger = Logger()
+
+        def get_data_folder(self):
+            return self.folder
+
+    def test_leaving_is_recorded_in_wall_clock_time(self, utils):
+        before = time.time()
+        utils._note_seen("Alice")
+        assert before <= utils._state["seen"]["Alice"] <= time.time()
+
+    def test_the_record_survives_a_restart(self, utils, tmp_path):
+        """It is on disk or it is worthless: the answer is wanted days later."""
+        utils._note_seen("Alice")
+        assert utils._load_seen(utils._state["server"])["Alice"] > 0
+
+    def test_a_corrupt_record_starts_over_rather_than_failing(self, utils, tmp_path):
+        (tmp_path / utils.SEEN_FILE).write_text("{not json", encoding="utf-8")
+        assert utils._load_seen(utils._state["server"]) == {}
+
+    def test_joining_counts_too(self, utils):
+        """Someone online when the server stopped never emits a leave."""
+        utils._note_seen("Bob")
+        first = utils._state["seen"]["Bob"]
+        assert first > 0
+
+    def test_it_reports_a_date_and_a_gap(self, utils):
+        when, ago = utils._when_text(1_000_000.0, now=1_000_000.0 + 3 * 3600 + 20 * 60)
+        assert ago == "3h20m"
+        assert when.count("-") == 2 and ":" in when
+
+    def test_a_long_absence_reads_in_days(self, utils):
+        _, ago = utils._when_text(0.0, now=5 * 86400 + 3 * 3600)
+        assert ago == "5d03h"

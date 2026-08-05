@@ -82,7 +82,12 @@ class Progress:
             counts = f"{self._current:,} / {self.total:,}"
             return f"[{bar}] {fraction * 100:3.0f}%  {counts} {self.unit}".rstrip()
         # No total: an elapsed counter is honest, where a fake bar is not.
-        return f"[{EMPTY * BAR_WIDTH}] {self._current:,} {self.unit} ({elapsed:.0f}s)".strip()
+        if self._current:
+            return f"[{EMPTY * BAR_WIDTH}] {self._current:,} {self.unit} ({elapsed:.0f}s)".strip()
+        # Nothing to count either -- waiting on a round trip rather than on
+        # bytes. Reporting "0" would read as no progress rather than as no
+        # counter, so the elapsed time carries the line on its own.
+        return f"[{EMPTY * BAR_WIDTH}] {elapsed:.0f}s"
 
     def done(self, message: str | None = None) -> None:
         """Emit a final line, but only if anything was emitted before it.

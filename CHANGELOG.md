@@ -39,6 +39,25 @@
   - The expansion is not a hazard: `space-age`, `quality` and `elevated-rails`
     ship inside `data/` and move with the binary. Third-party mods pin
     `major.minor`, so patch upgrades cannot break one, and those are checked.
+- `!!version check <series>` lists every release in a series. Asking the
+  updater instead of the release API returns the channel markers *and* all 376
+  released headless versions in one request -- "newest" is never the question
+  when you are going back a version.
+
+### Fixed
+
+- `!!seen` and `!!info` report the date and time somebody was last online,
+  from a record kept on this side of the pipe. Factorio's `player.last_online`
+  is a tick, and turning ticks into a duration measures how long the *world*
+  ran: with `auto_pause` on, an empty server does not tick, so somebody who
+  left last night read as "20m ago" the moment the next player logged in.
+- Every bundled plugin is now loaded through the real plugin manager in the
+  test suite. `version_manager` shipped reaching for `server.config`, which
+  lives on the core and not on the interface plugins are handed; 535 tests
+  passed and the server was the first thing to run `on_load` for real.
+
+### Added
+
 - **Seven plugins for watching a server you are not sitting in front of.**
   - `ups_watch` — `!!ups`. Factorio fails by getting slower, not by crashing.
     Samples `game.tick` against the wall clock. A paused server reads 0.5

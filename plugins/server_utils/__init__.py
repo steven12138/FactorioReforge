@@ -15,6 +15,7 @@ tag, so the location is both immediately pingable and permanently on the map.
 
 from __future__ import annotations
 
+import json
 import time
 
 from factorio_reforge.command.builder import GreedyText, Literal, Text
@@ -55,7 +56,7 @@ TICKS_PER_MINUTE = 3600
 def on_load(server, prev):
     config = server.load_config_simple("config.json", DEFAULT_CONFIG)
     _state.clear()
-    _state.update(config=config, last_here={})
+    _state.update(config=config, last_here={}, server=server, seen=_load_seen(server))
 
     server.register_command(Literal("!!here").requires(PermissionLevel.USER).runs(_here))
     server.register_command(
@@ -190,9 +191,18 @@ async def _seen(source, ctx):
         )
         return
 
+    recorded = _state["seen"].get(info["name"])
+    if recorded:
+        when, ago = _when_text(recorded)
+        await source.reply(source.server.tr(
+            "seen.last_seen", player=info["name"], when=when, ago=ago, played=played))
+        return
+
+    # Nobody was watching when they left -- they have not been seen since this
+    # record started. Game time is all there is, and it is labelled as such.
     ago_ticks = max(0, stats.get("tick", 0) - info.get("last_online", 0))
     await source.reply(source.server.tr(
-        "seen.last_seen", player=info["name"],
+        "seen.last_seen_game_time", player=info["name"],
         ago=_ticks_to_text(ago_ticks), played=played,
     ))
 
@@ -263,9 +273,86 @@ async def _report_player(source, name):
             surface=info.get("surface", "?"),
         ))
     else:
-        ago = max(0, stats.get("tick", 0) - info.get("last_online", 0))
-        await source.reply(tr("info.last_seen", ago=_ticks_to_text(ago)))
+        recorded = _state["seen"].get(info.get("name", ""))
+        if recorded:
+            when, ago = _when_text(recorded)
+            await source.reply(tr("info.last_seen", when=when, ago=ago))
+        else:
+            ago = max(0, stats.get("tick", 0) - info.get("last_online", 0))
+            await source.reply(tr("info.last_seen_game_time", ago=_ticks_to_text(ago)))
 
+
+# ---------------------------------------------------------------------------
+# when someone was last here, in real time
+# ---------------------------------------------------------------------------
+#
+# Factorio's own answer is ``player.last_online``, a tick. Turning that into a
+# duration measures *game* time, and the two come apart badly: with auto_pause
+# on, an empty server does not tick at all, so somebody who left last night
+# reads as "20m ago" the moment the next player logs in. A server that spent
+# the week idle reports everybody as having just left.
+#
+# There is no wall clock in the Lua API, so the only correct source is this
+# side of the pipe: FactorioReforge sees the join and leave events as they
+# happen and can note the time itself.
+
+SEEN_FILE = "last_seen.json"
+
+
+def _load_seen(server) -> dict[str, float]:
+    path = server.get_data_folder() / SEEN_FILE
+    if not path.is_file():
+        return {}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        server.logger.warning("%s is unreadable; starting a new last-seen record", path)
+        return {}
+    return {str(k): float(v) for k, v in data.items() if isinstance(v, (int, float))}
+
+
+def _save_seen(server) -> None:
+    path = server.get_data_folder() / SEEN_FILE
+    temp = path.with_suffix(".json.tmp")
+    temp.write_text(json.dumps(_state["seen"], indent=2), encoding="utf-8")
+    temp.replace(path)
+
+
+def _note_seen(player: str) -> None:
+    """Both joining and leaving count: a player online when the server stopped
+    never emits a leave, and their join is still the last time anyone saw them.
+    """
+    server = _state.get("server")
+    if server is None or not player:
+        return
+    _state["seen"][player] = time.time()
+    _save_seen(server)
+
+
+async def on_player_joined(server, player):
+    _note_seen(player)
+
+
+async def on_player_left(server, player):
+    _note_seen(player)
+
+
+def _when_text(timestamp: float, now: float | None = None) -> tuple[str, str]:
+    """``("2026-08-05 21:05", "3h20m")`` -- the date, and how long ago."""
+    now = time.time() if now is None else now
+    when = time.strftime("%Y-%m-%d %H:%M", time.localtime(timestamp))
+    return when, _duration_text(max(0.0, now - timestamp))
+
+
+def _duration_text(seconds: float) -> str:
+    minutes = int(seconds) // 60
+    if minutes < 60:
+        return f"{minutes}m"
+    hours, minutes = divmod(minutes, 60)
+    if hours < 24:
+        return f"{hours}h{minutes:02d}m"
+    days, hours = divmod(hours, 24)
+    return f"{days}d{hours:02d}h"
 
 # ---------------------------------------------------------------------------
 # !!stats
