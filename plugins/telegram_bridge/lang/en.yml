@@ -2,6 +2,9 @@ description: "Relay chat to Telegram, and host Telegram commands for other plugi
 no_token: "telegram_bridge has no token yet; edit {path} and reload the plugin"
 no_chats: "telegram_bridge has no allowed_chat_ids; it will ignore every message until you add one (send the bot a message to see its id in this log)"
 polling: "telegram_bridge is polling with {count} command(s)"
+unreachable: "telegram_bridge cannot reach Telegram ({error}); retrying in {seconds}s. The server is unaffected -- this is usually the network, and often needs a proxy."
+still_unreachable: "telegram_bridge still cannot reach Telegram ({error}); still retrying every {seconds}s."
+bad_token: "Telegram rejected the token ({error}). Fix it in the config and reload the plugin; retrying would not help."
 help_header: FactorioReforge bridge
 status:
   running: "Server running: {value}"

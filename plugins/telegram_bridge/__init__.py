@@ -21,6 +21,7 @@ confirmation; and ``/cmd``, which runs arbitrary commands, needs ``owner``.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import html
 
 from factorio_reforge.command.source import PluginCommandSource
@@ -155,8 +156,22 @@ async def on_unload(server):
     _state.clear()
 
 
+#: How long to wait before trying Telegram again, in seconds, then the last
+#: value forever. Not being able to reach Telegram is a property of the network
+#: rather than a fault in the server, and networks come back: a host behind a
+#: filtered link, or one waiting on a proxy to come up, should end up connected
+#: without anyone reloading a plugin.
+RETRY_DELAYS = (30, 60, 120, 300, 600)
+
+#: Say something on the first failure and then only every so often. A server
+#: that cannot reach Telegram at all would otherwise write a line every ten
+#: minutes forever, which trains everyone to skip the log.
+REMIND_EVERY = 6
+
+
 async def _run_bot(server, config):
     try:
+        from telegram.error import InvalidToken, NetworkError
         from telegram.ext import Application, CallbackQueryHandler, MessageHandler, filters
     except ImportError:
         server.logger.error(
@@ -164,25 +179,75 @@ async def _run_bot(server, config):
         )
         return
 
-    app = Application.builder().token(config["token"]).build()
-    _service.app = app
-    _service.attach_all()
-    app.add_handler(CallbackQueryHandler(_service.on_callback))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, _on_message))
+    def build():
+        app = Application.builder().token(config["token"]).build()
+        _service.app = app
+        _service.attach_all()
+        app.add_handler(CallbackQueryHandler(_service.on_callback))
+        app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, _on_message))
+        return app
 
+    failures = 0
+    while True:
+        try:
+            await _poll_forever(server, build())
+        except asyncio.CancelledError:
+            raise
+        except InvalidToken as exc:
+            # Waiting will not fix a token Telegram has rejected, and retrying
+            # a bad one every ten minutes is how a bot gets rate limited.
+            server.logger.error(server.tr("bad_token", error=exc))
+            return
+        except NetworkError as exc:
+            delay = RETRY_DELAYS[min(failures, len(RETRY_DELAYS) - 1)]
+            if failures == 0:
+                server.logger.warning(server.tr(
+                    "unreachable", error=_reason(exc), seconds=delay))
+            elif failures % REMIND_EVERY == 0:
+                server.logger.warning(server.tr(
+                    "still_unreachable", error=_reason(exc), seconds=delay))
+            else:
+                server.logger.debug("telegram_bridge still cannot connect: %s", exc)
+            failures += 1
+            await asyncio.sleep(delay)
+        except Exception:
+            # Not a reachability problem, so the traceback is the point.
+            server.logger.exception("telegram_bridge stopped unexpectedly")
+            return
+
+
+async def _poll_forever(server, app):
+    """Connect and stay connected. Returns only by being cancelled.
+
+    The application is torn down on the way out whatever happened, because a
+    half-initialised one cannot be started again and the next attempt builds a
+    fresh one anyway.
+    """
+    started = False
     try:
         await app.initialize()
         await app.start()
+        started = True
         await app.updater.start_polling(drop_pending_updates=True)
         server.logger.info(server.tr("polling", count=len(_service.commands)))
         # Tell sub-plugins the bridge exists. They register here as well as in
         # their own on_load, so reloading either side puts things back.
         await server.dispatch_event(READY_EVENT)
         await asyncio.Event().wait()
-    except asyncio.CancelledError:
-        raise
-    except Exception:
-        server.logger.exception("telegram_bridge stopped unexpectedly")
+    finally:
+        with contextlib.suppress(Exception):
+            if started:
+                await app.stop()
+            await app.shutdown()
+
+
+def _reason(exc: Exception) -> str:
+    """The message, or the exception's type when it has none.
+
+    ``telegram.error.TimedOut`` carries "Timed out"; some network errors arrive
+    with an empty string, and "could not reach Telegram: " reads like a bug.
+    """
+    return str(exc).strip() or type(exc).__name__
 
 
 # ---------------------------------------------------------------------------

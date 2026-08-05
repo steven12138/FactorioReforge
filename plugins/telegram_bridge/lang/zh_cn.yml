@@ -2,6 +2,9 @@ description: "聊天转发到 Telegram，并为其他插件托管 Telegram 命�
 no_token: "telegram_bridge 还没有 token；编辑 {path} 后重载插件"
 no_chats: "telegram_bridge 的 allowed_chat_ids 是空的，在你添加之前它会忽略所有消息（给 bot 发条消息，日志里就会显示 chat id）"
 polling: "telegram_bridge 已开始轮询，注册了 {count} 条命令"
+unreachable: "telegram_bridge 连不上 Telegram（{error}），{seconds} 秒后重试。服务器本身不受影响 —— 这通常是网络问题，往往需要代理。"
+still_unreachable: "telegram_bridge 仍然连不上 Telegram（{error}），仍在每 {seconds} 秒重试。"
+bad_token: "Telegram 拒绝了这个 token（{error}）。改好配置后重载插件；一直重试也没用。"
 help_header: FactorioReforge 桥接
 status:
   running: "服务器运行中：{value}"

@@ -46,6 +46,16 @@
 
 ### Fixed
 
+- `telegram_bridge` retries when it cannot reach Telegram, on a widening
+  backoff, instead of logging a traceback and staying dead until someone
+  reloads the plugin. Measured on a live server: api.telegram.org times out
+  entirely from there, which is the network's problem and not a fault in the
+  server. A token Telegram *rejects* is still not retried.
+- The colour tests read the developer's own environment: `FORCE_COLOR=3` in a
+  shell turned `test_disabled_when_not_a_tty` red, and the code was right --
+  forcing colour through a pipe is what that variable means. Both directions of
+  the convention are now covered, and the environment is isolated.
+
 - `!!seen` and `!!info` report the date and time somebody was last online,
   from a record kept on this side of the pipe. Factorio's `player.last_online`
   is a tick, and turning ticks into a duration measures how long the *world*

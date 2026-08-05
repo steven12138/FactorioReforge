@@ -6,6 +6,7 @@ one of them is a rule that would be wrong in a way nobody notices until it
 matters.
 """
 
+import contextlib
 import importlib.util
 import sys
 import time
@@ -467,3 +468,149 @@ class TestLastSeen:
     def test_a_long_absence_reads_in_days(self, utils):
         _, ago = utils._when_text(0.0, now=5 * 86400 + 3 * 3600)
         assert ago == "5d03h"
+
+
+# ---------------------------------------------------------------------------
+# telegram_bridge -- what happens when Telegram is unreachable
+# ---------------------------------------------------------------------------
+
+class TestTelegramRetry:
+    """Not reaching Telegram is the network's problem, not a crash.
+
+    Measured on the live server: api.telegram.org times out entirely from
+    there. The bridge used to log a full traceback and stay dead until someone
+    reloaded the plugin, which is the wrong answer twice -- a reachability
+    problem is not a bug, and networks come back.
+    """
+
+    @pytest.fixture
+    def bridge(self):
+        return load("telegram_bridge")
+
+    def test_the_backoff_grows_and_then_settles(self, bridge):
+        """Forever at ten minutes, not forever at thirty seconds."""
+        delays = bridge.RETRY_DELAYS
+        assert list(delays) == sorted(delays)
+        assert delays[-1] >= 300
+
+    def test_the_delay_for_a_late_attempt_is_the_last_one(self, bridge):
+        delays = bridge.RETRY_DELAYS
+        index = min(99, len(delays) - 1)
+        assert delays[index] == delays[-1]
+
+    def test_a_reason_is_never_blank(self, bridge):
+        """"could not reach Telegram: " reads like a bug in the message."""
+        assert bridge._reason(ValueError("")) == "ValueError"
+        assert bridge._reason(ValueError("  ")) == "ValueError"
+
+    def test_a_reason_uses_the_message_when_there_is_one(self, bridge):
+        assert bridge._reason(ValueError("Timed out")) == "Timed out"
+
+
+class TestTelegramRetryLoop:
+    """The loop itself, driven with the real exception types.
+
+    python-telegram-bot is installed, so these are the exceptions the bridge
+    will actually see rather than stand-ins that happen to have the right name.
+    """
+
+    @pytest.fixture
+    def bridge(self):
+        return load("telegram_bridge")
+
+    def run(self, bridge, monkeypatch, failures, exception):
+        """Run the loop with a _poll_forever that fails ``failures`` times."""
+        import asyncio
+
+        calls = {"polls": 0, "slept": []}
+
+        async def fake_poll(server, app):
+            calls["polls"] += 1
+            if calls["polls"] <= failures:
+                raise exception
+            raise asyncio.CancelledError
+
+        async def fake_sleep(seconds):
+            calls["slept"].append(seconds)
+
+        monkeypatch.setattr(bridge, "_poll_forever", fake_poll)
+        monkeypatch.setattr(bridge.asyncio, "sleep", fake_sleep)
+        monkeypatch.setattr(bridge, "_service", _FakeService())
+
+        server = _LoggingServer()
+        with contextlib.suppress(asyncio.CancelledError):
+            asyncio.run(bridge._run_bot(server, {"token": "1:x"}))
+        return calls, server
+
+    def test_a_network_failure_is_retried_not_fatal(self, bridge, monkeypatch):
+        from telegram.error import TimedOut
+
+        calls, _ = self.run(bridge, monkeypatch, failures=3, exception=TimedOut())
+        assert calls["polls"] == 4
+        assert calls["slept"] == list(bridge.RETRY_DELAYS[:3])
+
+    def test_a_network_failure_does_not_log_a_traceback(self, bridge, monkeypatch):
+        """A server that cannot reach Telegram has not malfunctioned."""
+        from telegram.error import TimedOut
+
+        _, server = self.run(bridge, monkeypatch, failures=2, exception=TimedOut())
+        assert server.exceptions == []
+        assert any("unreachable" in line for line in server.warnings)
+
+    def test_repeated_failures_are_not_repeated_warnings(self, bridge, monkeypatch):
+        """Otherwise it writes a line every ten minutes forever."""
+        from telegram.error import TimedOut
+
+        _, server = self.run(bridge, monkeypatch, failures=5, exception=TimedOut())
+        assert len(server.warnings) == 1
+
+    def test_a_rejected_token_is_not_retried(self, bridge, monkeypatch):
+        """Waiting cannot fix it, and retrying a bad token gets you limited."""
+        from telegram.error import InvalidToken
+
+        calls, server = self.run(
+            bridge, monkeypatch, failures=99, exception=InvalidToken("nope")
+        )
+        assert calls["polls"] == 1
+        assert calls["slept"] == []
+        assert any("bad_token" in line for line in server.errors)
+
+
+class _FakeService:
+    commands: dict = {}
+    app = None
+
+    def attach_all(self):
+        pass
+
+    async def on_callback(self, *a):
+        pass
+
+
+class _LoggingServer:
+    def __init__(self):
+        self.warnings: list[str] = []
+        self.errors: list[str] = []
+        self.exceptions: list[str] = []
+        self.logger = self
+
+    def tr(self, key, **kwargs):
+        return key
+
+    def warning(self, message, *a, **k):
+        self.warnings.append(str(message))
+
+    def error(self, message, *a, **k):
+        self.errors.append(str(message))
+
+    def exception(self, message, *a, **k):
+        self.exceptions.append(str(message))
+
+    def debug(self, *a, **k):
+        pass
+
+    def info(self, *a, **k):
+        pass
+
+    async def dispatch_event(self, *a):
+        pass

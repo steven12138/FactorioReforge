@@ -41,6 +41,15 @@ English: [CHANGELOG.md](CHANGELOG.md)
 
 ### 修复
 
+- `telegram_bridge` 连不上 Telegram 时会按逐步拉长的间隔重试，
+  而不是打一串 traceback 然后一直死到有人重载插件。实机测得：
+  api.telegram.org 在那台服务器上完全超时 —— 那是网络的问题，不是服务器出了故障。
+  但被 Telegram **拒绝**的 token 仍然不重试。
+- 颜色相关的测试会读开发者自己的环境变量：某个 shell 里的 `FORCE_COLOR=3`
+  让 `test_disabled_when_not_a_tty` 变红，而代码是对的 ——
+  强制给管道上色正是那个变量的含义。现在这个约定的两个方向都有测试，
+  并且环境被隔离了。
+
 - `!!seen` 和 `!!info` 现在报的是上次在线的**日期时间**，
   用的是管道这一侧记下来的账。Factorio 的 `player.last_online` 是一个 tick，
   把 tick 换算成时长量的是**世界**跑了多久：开着 `auto_pause` 时空服不走 tick，

@@ -69,6 +69,15 @@ need to fill in `allowed_chat_ids`.
 all, is `owner` only and confirms first. Unauthorised chats are dropped
 silently rather than told they were rejected.
 
+**Not reaching Telegram is the network's problem, not a crash.** A connection
+failure is retried on a widening backoff — 30s up to 10 minutes, then steadily
+— with one warning on the first failure and a reminder only occasionally, so a
+host behind a filtered link or waiting on a proxy ends up connected without
+anyone reloading a plugin. A token Telegram *rejects* is not retried: waiting
+cannot fix it, and hammering a bad token is how a bot gets rate limited.
+Anything else still raises with its traceback, because then the traceback is
+the point.
+
 The bridge is also a **service** other plugins register with, so a plugin can be
 driven from Telegram without importing `telegram` —
 see [Telegram sub-plugins](writing-plugins.md#telegram-sub-plugins).

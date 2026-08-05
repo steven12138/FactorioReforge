@@ -158,6 +158,18 @@ async def _unused_line(line: str) -> None:
 class TestTerminalColour:
     """Colour must never reach a pipe: it corrupts logs and breaks greps."""
 
+    @pytest.fixture(autouse=True)
+    def _no_inherited_colour_settings(self, monkeypatch):
+        """Whose shell runs the suite must not decide whether it passes.
+
+        FORCE_COLOR=3 in a developer's environment turned
+        test_disabled_when_not_a_tty red, and the code was right: forcing
+        colour through a pipe is exactly what that variable means. The test was
+        the thing reading its own environment.
+        """
+        for name in ("NO_COLOR", "FORCE_COLOR", "TERM"):
+            monkeypatch.delenv(name, raising=False)
+
     def test_disabled_when_not_a_tty(self):
         from factorio_reforge.core.terminal import supports_colour
 
@@ -166,6 +178,29 @@ class TestTerminalColour:
                 return False
 
         assert supports_colour(NotATty()) is False
+
+    def test_force_color_wins_over_a_pipe(self, monkeypatch):
+        """The other half of the convention, and the half nothing covered."""
+        from factorio_reforge.core.terminal import supports_colour
+
+        class NotATty:
+            def isatty(self):
+                return False
+
+        monkeypatch.setenv("FORCE_COLOR", "1")
+        assert supports_colour(NotATty()) is True
+
+    def test_no_color_beats_force_color(self, monkeypatch):
+        """Both set is a real state; NO_COLOR is the one that must win."""
+        from factorio_reforge.core.terminal import supports_colour
+
+        class Tty:
+            def isatty(self):
+                return True
+
+        monkeypatch.setenv("FORCE_COLOR", "1")
+        monkeypatch.setenv("NO_COLOR", "1")
+        assert supports_colour(Tty()) is False
 
     def test_no_color_env_wins_over_a_tty(self, monkeypatch):
         from factorio_reforge.core.terminal import supports_colour
@@ -184,8 +219,6 @@ class TestTerminalColour:
             def isatty(self):
                 return True
 
-        monkeypatch.delenv("NO_COLOR", raising=False)
-        monkeypatch.delenv("FORCE_COLOR", raising=False)
         monkeypatch.setenv("TERM", "dumb")
         assert supports_colour(Tty()) is False
 
