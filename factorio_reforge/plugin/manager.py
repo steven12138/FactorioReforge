@@ -267,6 +267,13 @@ class PluginManager:
                 self.logger.exception("Plugin %s raised in on_unload", plugin_id)
 
         plugin.registry.clear()
+        # The registry is the plugin's own record; the command manager keeps a
+        # separate index by root literal and does not watch it. Without this,
+        # every reload left the previous tree registered *and* sorted first, so
+        # !!ratio dispatched into the old module -- whose on_unload had just
+        # cleared its state, so it raised KeyError on the first line. Reloading
+        # three times registered four trees.
+        self.server.commands.unregister_plugin(plugin_id)
         self.server.i18n.unload_namespace(plugin_id)
         self.plugins.pop(plugin_id, None)
         sys.modules.pop(plugin.module_name, None)

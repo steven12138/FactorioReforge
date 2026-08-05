@@ -221,6 +221,93 @@ class TestReload:
         # Exactly one entry: the v1 callback must be gone, not merely shadowed.
         assert manager.get("listener").module.SEEN == [("v2", "bob")]
 
+    async def test_commands_from_the_old_version_do_not_survive_a_reload(
+        self, tmp_path, plugin_dir, caplog
+    ):
+        """The listener test above had no command equivalent, and the gap hid a
+        real bug for the whole life of the project.
+
+        Nothing ever called ``CommandManager.unregister_plugin``. The plugin's
+        own registry was cleared on unload, but the command manager keeps a
+        separate index by root literal -- so every reload left the previous
+        tree registered *and* first in the list. Dispatch tried it first, and it
+        ran the old module, whose ``on_unload`` had just cleared its state; on
+        the live server that surfaced as ``KeyError: 'book'`` from a plugin
+        whose new version was perfectly fine.
+
+        It stayed invisible because the stand-in used elsewhere in this file
+        implements ``unregister_plugin``. Satisfying a method nobody calls
+        proves nothing, so this one drives the real CommandManager.
+        """
+        import logging
+
+        from factorio_reforge.command.manager import CommandManager
+        from factorio_reforge.command.source import ConsoleCommandSource
+        from factorio_reforge.plugin.manager import PluginManager
+
+        core = FakeCore(tmp_path, logging.getLogger("test"))
+        core.commands = CommandManager(prefix="!!", logger=logging.getLogger("test"))
+        manager = PluginManager(core, [plugin_dir], logging.getLogger("test"))
+        core.plugins = manager
+        manager.server = core
+
+        path = write_plugin(plugin_dir, "commander", """
+            from factorio_reforge.command.builder import Literal
+            RAN = []
+            def on_load(server, prev):
+                server.register_command(Literal('!!ping').runs(_run))
+            def on_unload(server):
+                RAN.clear()
+            async def _run(source):
+                RAN.append('v1')
+        """)
+        await manager.load_all()
+        assert core.commands.roots()["!!ping"] == ["commander"]
+
+        path.write_text(
+            "PLUGIN_METADATA = {'id': 'commander', 'version': '2.0.0'}\n"
+            "from factorio_reforge.command.builder import Literal\n"
+            "RAN = []\n"
+            "def on_load(server, prev):\n"
+            "    server.register_command(Literal('!!ping').runs(_run))\n"
+            "def on_unload(server):\n"
+            "    RAN.clear()\n"
+            "async def _run(source):\n"
+            "    RAN.append('v2')\n"
+        )
+        await manager.reload("commander")
+
+        # One entry, not two: the old tree must be gone, not merely shadowed.
+        assert core.commands.roots()["!!ping"] == ["commander"]
+        assert not any("already owned by" in r.getMessage() for r in caplog.records)
+
+        await core.commands.dispatch(ConsoleCommandSource(core), "!!ping")
+        assert manager.get("commander").module.RAN == ["v2"]
+
+    async def test_unloading_a_plugin_leaves_no_command_behind(self, tmp_path, plugin_dir):
+        """Otherwise !!ping still dispatches into a module that is gone."""
+        import logging
+
+        from factorio_reforge.command.manager import CommandManager
+        from factorio_reforge.plugin.manager import PluginManager
+
+        core = FakeCore(tmp_path, logging.getLogger("test"))
+        core.commands = CommandManager(prefix="!!", logger=logging.getLogger("test"))
+        manager = PluginManager(core, [plugin_dir], logging.getLogger("test"))
+        core.plugins = manager
+        manager.server = core
+
+        write_plugin(plugin_dir, "commander2", """
+            from factorio_reforge.command.builder import Literal
+            def on_load(server, prev):
+                server.register_command(Literal('!!pong').runs(_run))
+            async def _run(source):
+                pass
+        """)
+        await manager.load_all()
+        await manager.unload("commander2")
+        assert "!!pong" not in core.commands.roots()
+
     async def test_unloading_a_plugin_others_depend_on_is_refused(self, manager, plugin_dir):
         from factorio_reforge.plugin.manager import PluginError
 
