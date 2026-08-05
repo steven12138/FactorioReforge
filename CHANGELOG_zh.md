@@ -41,6 +41,14 @@ English: [CHANGELOG.md](CHANGELOG.md)
 
 ### 修复
 
+- **烧料的机器被当成了接在电网上。** `!!ratio iron-plate 15`
+  对一份全是石炉的方案答"共 48 台机器，4.32 MW"，而石炉根本不吃电；
+  它们真正消耗的煤又完全没进投入清单。现在标题会说清是哪种能量，
+  燃料也和矿石并列：`需要投入：iron-ore 15/s, coal 1.08/s`。
+  用哪种燃料会尊重机器的 `fuel_categories` —— 2.0.77 实测：
+  生物仓烧 `nutrients`、捕获虫巢烧 `food`，所以对它们来说煤是错答案而不是近似。
+- 最后一条传送带被占满时会提示。"正好 1 条带"是最坏情况，不是最好情况。
+
 - 任何一直握着 stdin 写端的东西，不再会让 FactorioReforge 退不出去。
   `run_in_executor` 没法把底下阻塞的 `readline` 取消掉，
   而 asyncio 的默认线程池又不是 daemon —— 于是解释器在等一个永远不会返回的线程：

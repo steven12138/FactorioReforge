@@ -58,6 +58,11 @@ DEFAULT_CONFIG = {
     "only_researched_machines": True,
     #: Belt used to express throughput in the answer.
     "belt": "transport-belt",
+    #: Fuel preference for burner machines, first accepted match wins. A
+    #: machine only burns what its prototype accepts, so coal is skipped for a
+    #: biochamber (nutrients) or a captive biter spawner (food); with nothing
+    #: here matching, the cheapest accepted fuel is used.
+    "fuels": ["coal", "solid-fuel", "nutrients", "wood"],
     #: Rate assumed when the command does not say one.
     "default_rate": "1/s",
     #: Items to treat as supplied rather than built -- the walk stops here.
@@ -456,6 +461,13 @@ async def _say_pins(source, pinned: list[str], prefix: str) -> None:
         await source.reply(server.tr("machine.automatic", prefix=prefix))
 
 
+def _fuel_preference(options: dict) -> list[str]:
+    """Config order, with ``fuel=`` on the line taking precedence."""
+    names = [normalise(n) for n in (_state["config"].get("fuels") or [])]
+    chosen = options.get("fuel")
+    return [normalise(chosen), *names] if chosen else names
+
+
 def _researched_machines() -> bool:
     return bool(_state["config"].get("only_researched_machines", True))
 
@@ -603,6 +615,7 @@ async def _solve(book, item, rate, options, modules, only_unlocked):
         recipes, _machine_preference(options), modules, _machine_overrides(options),
         researched_only=only_unlocked
         and _researched_machines(),
+        fuels=_fuel_preference(options),
     )
     for name in unbuildable:
         recipes.pop(name, None)
@@ -795,7 +808,7 @@ def _format_plan(server, plan: Plan, item: str, rate: Number, modules, in_game: 
         item=_icon(item, in_game),
         rate=_num(rate),
         machines=_num(sum((step.machines for step in plan.steps), Fraction(0))),
-        power=_watts(plan.power_watts),
+        power=_energy_text(server, plan),
     )]
     note = modules.describe()
     if note:
@@ -817,8 +830,13 @@ def _format_plan(server, plan: Plan, item: str, rate: Number, modules, in_game: 
     if len(plan.steps) > limit:
         lines.append(server.tr("plan.more", count=len(plan.steps) - limit))
 
-    if plan.raw:
-        lines.append(server.tr("plan.raw", items=_items(plan.raw, in_game)))
+    # Fuel belongs beside the ore: without it the input list is a shopping
+    # list that leaves out the thing the furnaces actually eat.
+    inputs = dict(plan.raw)
+    for name, amount in plan.fuel_per_second.items():
+        inputs[name] = inputs.get(name, Fraction(0)) + amount
+    if inputs:
+        lines.append(server.tr("plan.raw", items=_items(inputs, in_game)))
     if plan.surplus:
         lines.append(server.tr("plan.surplus", items=_items(plan.surplus, in_game)))
 
@@ -836,16 +854,54 @@ def _items(rates: dict[str, Number], in_game: bool, limit: int = 8) -> str:
     return shown
 
 
+def _energy_text(server, plan: Plan) -> str:
+    """One phrase for the header, saying which kind of energy it is.
+
+    A stone furnace draws 90 kW and none of it comes from a wire. Reporting
+    both under one word called "power" is how "4.32 MW" gets read as a demand
+    on a grid that is not there.
+    """
+    electric, fuel = plan.power_watts, plan.fuel_watts
+    if fuel and electric:
+        return server.tr("plan.energy_both",
+                         power=_watts(electric), fuel=_watts(fuel))
+    if fuel:
+        return server.tr("plan.energy_fuel", fuel=_watts(fuel))
+    return server.tr("plan.energy_power", power=_watts(electric))
+
+
+#: A belt this full has no room for the jitter real throughput has. Past it the
+#: plan is arithmetically fine and will not hold up on the ground, which is
+#: exactly the thing a planning tool should say out loud.
+BELT_WARN_AT = Fraction(95, 100)
+
+
 def _belt_line(server, plan: Plan, item: str, rate: Number) -> str | None:
     book = _state["book"]
     name = normalise(str(_state["config"].get("belt", "transport-belt")))
     throughput = book.belts.get(name)
     if not throughput:
         return None
-    return server.tr(
-        "plan.belts", count=_num(rate / throughput), belt=name,
-        throughput=_num(throughput),
+    count = rate / throughput
+    line = server.tr(
+        "plan.belts", count=_num(count), belt=name, throughput=_num(throughput),
     )
+    used = count - int(count)
+    if count >= 1 and belt_is_tight(count):
+        line += server.tr("plan.belt_tight", percent=_num(round(used * 100) if used else 100))
+    return line
+
+
+def belt_is_tight(count: Number) -> bool:
+    """True when the last belt of a run is loaded past the warning threshold.
+
+    A whole number of belts is the worst case, not the best: "exactly 1 belt"
+    means 100% of one, with nothing left for compression to slip.
+    """
+    if count <= 0:
+        return False
+    remainder = count - int(count)
+    return remainder == 0 or remainder >= BELT_WARN_AT
 
 
 def _watts(value: Number) -> str:

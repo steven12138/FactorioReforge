@@ -30,6 +30,10 @@ plan:
   raw: "  needs: {items}"
   surplus: "  byproducts: {items}"
   belts: "  output is {count} x {belt} ({throughput}/s)"
+  belt_tight: "  -- {percent}% of the last one, with no room for compression to slip"
+  energy_power: "{power}"
+  energy_fuel: "{fuel} of fuel"
+  energy_both: "{power} electric + {fuel} of fuel"
   not_researched: "Nothing researched can make that yet -- this plan assumes you unlock it."
   unresearched: "  not researched yet, so counted as an input: {items} (add all=1 to plan them out)"
 

@@ -873,3 +873,147 @@ class TestMachineListing:
 
     def test_a_short_category_list_is_not(self, plugin):
         assert plugin._join_categories(["crafting"]) == "crafting"
+
+
+class TestBurnerFuel:
+    """A stone furnace draws 90 kW and none of it comes from a wire.
+
+    Reported as "4.32 MW" beside an electric plan, that number reads as a
+    demand on a grid that is not there -- and the coal it actually eats was
+    missing from the input list entirely, which made the list wrong rather
+    than merely incomplete.
+
+    Numbers here are the ones from the report: 48 stone furnaces making 15
+    iron plates a second is 4.32 MW of fuel, and coal at 4 MJ makes that
+    1.08 coal a second.
+    """
+
+    @pytest.fixture
+    def book(self, recipes):
+        book = recipes.RecipeBook(None)
+        book.machines = {
+            "stone-furnace": recipes.parse_machine("stone-furnace", {
+                "speed": 1, "categories": ["smelting"], "energy": 1500,
+                "source": "burner", "effectivity": 1, "fuel_categories": ["chemical"],
+            }),
+            "electric-furnace": recipes.parse_machine("electric-furnace", {
+                "speed": 2, "categories": ["smelting"], "energy": 3000,
+            }),
+            "biochamber": recipes.parse_machine("biochamber", {
+                "speed": 2, "categories": ["organic"], "energy": 1000,
+                "source": "burner", "effectivity": 1, "fuel_categories": ["nutrients"],
+            }),
+        }
+        book.fuels = {
+            "wood": (Fraction(2_000_000), "chemical"),
+            "coal": (Fraction(4_000_000), "chemical"),
+            "solid-fuel": (Fraction(12_000_000), "chemical"),
+            "nutrients": (Fraction(2_000_000), "nutrients"),
+            "bioflux": (Fraction(6_000_000), "food"),
+        }
+        return book
+
+    def test_a_stone_furnace_is_read_as_a_burner(self, book):
+        assert book.machines["stone-furnace"].is_burner
+        assert not book.machines["electric-furnace"].is_burner
+
+    def test_ninety_kilowatts(self, book):
+        """1500 J/tick x 60 = 90 kW, the number the report checked against."""
+        assert book.machines["stone-furnace"].energy_watts == 90_000
+
+    def test_the_preferred_fuel_is_used(self, book):
+        name, joules = book.choose_fuel(book.machines["stone-furnace"], ["coal"])
+        assert (name, joules) == ("coal", 4_000_000)
+
+    def test_a_fuel_the_machine_cannot_burn_is_skipped(self, book):
+        """A biochamber burns nutrients. Offering it coal is not an
+        approximation, it is wrong."""
+        name, _ = book.choose_fuel(book.machines["biochamber"], ["coal", "nutrients"])
+        assert name == "nutrients"
+
+    def test_with_no_preference_the_cheapest_accepted_fuel_wins(self, book):
+        """Coal before rocket fuel: the one you are likeliest to already have."""
+        name, _ = book.choose_fuel(book.machines["stone-furnace"], [])
+        assert name == "wood"
+
+    def test_an_electric_machine_has_no_fuel(self, book):
+        assert book.choose_fuel(book.machines["electric-furnace"], ["coal"]) == ("", 0)
+
+    def test_a_category_with_no_fuel_at_all_is_not_a_crash(self, book, recipes):
+        machine = recipes.parse_machine("odd", {
+            "speed": 1, "source": "burner", "fuel_categories": ["antimatter"]})
+        assert book.choose_fuel(machine, ["coal"]) == ("", 0)
+
+
+class TestBurnerPlan:
+    """The whole answer, with the report's numbers."""
+
+    @pytest.fixture
+    def plan(self, plugin, recipes, solver):
+        machine = solver.Machine(
+            name="stone-furnace", speed=Fraction(1), energy_watts=Fraction(90_000),
+            categories=("smelting",), energy_type="burner",
+            effectivity=Fraction(1), fuel="coal", fuel_joules=Fraction(4_000_000),
+        )
+        recipe = solver.Recipe(
+            name="iron-plate", energy=Fraction(16, 5),
+            ingredients={"iron-ore": Fraction(1)}, products={"iron-plate": Fraction(1)},
+        )
+        return plugin.build_plan(
+            {"iron-plate": recipe}, {"iron-plate": machine}, {"iron-plate": Fraction(15)}
+        )
+
+    def test_forty_eight_furnaces(self, plan):
+        """15 / (1 / 3.2) = 48, exactly."""
+        assert plan.steps[0].machines == 48
+
+    def test_the_energy_is_fuel_not_electricity(self, plan):
+        assert plan.power_watts == 0
+        assert plan.fuel_watts == 48 * 90_000
+
+    def test_coal_at_four_megajoules(self, plan):
+        """4.32 MW / 4 MJ = 1.08 coal a second."""
+        assert plan.fuel_per_second == {"coal": Fraction(108, 100)}
+
+    def test_effectivity_divides_the_fuel(self, plugin, solver):
+        """A machine that wastes half the energy needs twice the coal."""
+        machine = solver.Machine(
+            name="poor", speed=Fraction(1), energy_watts=Fraction(90_000),
+            categories=("smelting",), energy_type="burner",
+            effectivity=Fraction(1, 2), fuel="coal", fuel_joules=Fraction(4_000_000),
+        )
+        recipe = solver.Recipe(
+            name="iron-plate", energy=Fraction(16, 5),
+            ingredients={"iron-ore": Fraction(1)}, products={"iron-plate": Fraction(1)},
+        )
+        plan = plugin.build_plan(
+            {"iron-plate": recipe}, {"iron-plate": machine}, {"iron-plate": Fraction(15)}
+        )
+        assert plan.fuel_per_second == {"coal": Fraction(216, 100)}
+
+
+class TestBeltHeadroom:
+    """"Exactly 1 belt" is the worst case, not the best.
+
+    A plan that saturates a belt is arithmetically right and falls over the
+    moment compression slips, which is exactly the thing a planning tool
+    should say out loud.
+    """
+
+    def test_a_full_belt_is_flagged(self, plugin):
+        assert plugin.belt_is_tight(Fraction(1)) is True
+
+    def test_two_full_belts_are_flagged(self, plugin):
+        assert plugin.belt_is_tight(Fraction(2)) is True
+
+    def test_a_nearly_full_last_belt_is_flagged(self, plugin):
+        assert plugin.belt_is_tight(Fraction(196, 100)) is True
+
+    def test_a_comfortable_run_is_not(self, plugin):
+        assert plugin.belt_is_tight(Fraction(3, 2)) is False
+
+    def test_a_third_of_a_belt_is_not(self, plugin):
+        assert plugin.belt_is_tight(Fraction(1, 3)) is False
+
+    def test_nothing_at_all_is_not(self, plugin):
+        assert plugin.belt_is_tight(Fraction(0)) is False

@@ -46,6 +46,17 @@
 
 ### Fixed
 
+- **Burner machines were reported as if they were on the grid.** `!!ratio
+  iron-plate 15` answered "48 machines, 4.32 MW" for a plan made of stone
+  furnaces, which draw no electricity at all, and the coal they eat was missing
+  from the input list. The headline now says which kind of energy it is, and
+  fuel is listed beside the ore: `needs: iron-ore 15/s, coal 1.08/s`. Which
+  fuel respects the machine's `fuel_categories` -- measured on 2.0.77, a
+  biochamber burns `nutrients` and a captive biter spawner burns `food`, so
+  coal is a wrong answer for them rather than an approximation.
+- A run that fills its last belt is called out. "Exactly 1 belt" is the worst
+  case, not the best.
+
 - Anything holding the write end of stdin open no longer stops FactorioReforge
   from exiting. `run_in_executor` cannot be cancelled out of a blocking
   `readline`, and asyncio's default executor is non-daemon, so the interpreter

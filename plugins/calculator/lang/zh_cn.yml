@@ -30,6 +30,10 @@ plan:
   raw: "  需要投入：{items}"
   surplus: "  副产物：{items}"
   belts: "  产出相当于 {count} 条 {belt}（{throughput}/s）"
+  belt_tight: "  —— 最后一条占了 {percent}%，压缩稍有抖动就掉产能"
+  energy_power: "{power}"
+  energy_fuel: "{fuel} 燃料"
+  energy_both: "{power} 电力 + {fuel} 燃料"
   not_researched: "现有科技还造不出来 —— 下面这个方案假设你已经解锁了。"
   unresearched: "  以下还没研究，所以按外部投入算：{items}（加 all=1 可以把它们也展开）"
 

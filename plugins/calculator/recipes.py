@@ -93,8 +93,21 @@ def static_data() -> str:
         "    local energy = safe(function() return e.get_max_energy_usage() end) "
         "      or safe(function() return e.max_energy_usage end) "
         "      or safe(function() return e.energy_usage end) "
+        # Whether the thing is on a wire or eating coal, straight from the
+        # prototype. Measured on 2.0.77: stone and steel furnaces burn
+        # "chemical", a biochamber burns "nutrients", a captive biter spawner
+        # burns "food", and everything else is electric.
+        "    local burner = safe(function() return e.burner_prototype end) "
+        "    local fuelcats = {} "
+        "    if burner then "
+        "      for c in pairs(safe(function() return burner.fuel_categories end) or {}) do "
+        "        fuelcats[#fuelcats + 1] = c end "
+        "    end "
         "    if speed then "
         "      machines[name] = {speed = speed, categories = cats, "
+        "        source = burner and 'burner' or 'electric', "
+        "        effectivity = burner and (safe(function() return burner.effectivity end) or 1) or 1, "
+        "        fuel_categories = fuelcats, "
         "        slots = safe(function() return e.module_inventory_size end) or 0, "
         "        energy = energy or 0, productivity = prod, kind = kind} "
         "    end "
@@ -143,8 +156,17 @@ def static_data() -> str:
         "    for _, p in pairs((m and m.products) or {}) do mined[#mined + 1] = p.name end "
         "  end "
         "end "
+        # Every item that burns, with what it is worth and what accepts it.
+        "local fuels = {} "
+        "for name, it in pairs(prototypes.item) do "
+        "  local fv = safe(function() return it.fuel_value end) "
+        "  if fv and fv > 0 then "
+        "    fuels[name] = {value = fv, "
+        "      category = safe(function() return it.fuel_category end) or 'chemical'} "
+        "  end "
+        "end "
         "return {machines = machines, belts = belts, modules = modules, "
-        "        mined = mined, buildable = buildable} end)()"
+        "        mined = mined, buildable = buildable, fuels = fuels} end)()"
     )
 
 
@@ -403,6 +425,9 @@ def parse_machine(name: str, raw: dict) -> Machine:
         productivity=_fraction(raw.get("productivity")),
         energy_watts=_fraction(raw.get("energy")) * JOULES_PER_TICK_TO_WATTS,
         categories=tuple(str(c) for c in _as_list(raw.get("categories"))),
+        energy_type=str(raw.get("source") or "electric"),
+        effectivity=_fraction(raw.get("effectivity"), 1) or Fraction(1),
+        fuel_categories=tuple(str(c) for c in _as_list(raw.get("fuel_categories"))),
     )
 
 
@@ -474,6 +499,9 @@ class RecipeBook:
         self.buildable: set[str] = set()
         """Machines this save can place: researched, or already standing."""
 
+        self.fuels: dict[str, tuple[Number, str]] = {}
+        """Item -> (joules, fuel category), for everything that burns."""
+
         self._static_loaded = False
 
     def set_unlocked_only(self, flag: bool) -> None:
@@ -491,6 +519,7 @@ class RecipeBook:
         self.modules.clear()
         self.mined.clear()
         self.buildable.clear()
+        self.fuels.clear()
         self._static_loaded = False
 
     async def load_static(self) -> None:
@@ -504,6 +533,10 @@ class RecipeBook:
         self.modules = data.get("modules") or {}
         self.mined = {str(name) for name in _as_list(data.get("mined"))}
         self.buildable = {str(name) for name in _as_list(data.get("buildable"))}
+        self.fuels = {
+            str(name): (_fraction(raw.get("value")), str(raw.get("category") or "chemical"))
+            for name, raw in (data.get("fuels") or {}).items()
+        }
         self._static_loaded = True
 
     async def fetch(self, items: list[str], keep: set[str] | None = None) -> None:
@@ -628,6 +661,30 @@ class RecipeBook:
                 return max(available, key=lambda m: (m.speed, m.name))
         return min(candidates, key=lambda m: (m.speed, m.name))
 
+    def choose_fuel(self, machine: Machine, preferred: list[str]) -> tuple[str, Number]:
+        """What to burn in this machine, as ``(item, joules)``.
+
+        Preference order first, restricted to categories the machine actually
+        takes -- a biochamber burns nutrients and a captive biter spawner burns
+        food, so "coal" is not a default so much as a wrong answer for them.
+        Failing that, the *cheapest* accepted fuel by energy, which is the one
+        you are likeliest to already have: coal before rocket fuel.
+        """
+        if not machine.is_burner or not self.fuels:
+            return "", Fraction(0)
+        accepted = set(machine.fuel_categories) or {"chemical"}
+        usable = {
+            name: value for name, (value, category) in self.fuels.items()
+            if category in accepted and value > 0
+        }
+        if not usable:
+            return "", Fraction(0)
+        for name in preferred:
+            if name in usable:
+                return name, usable[name]
+        cheapest = min(usable.items(), key=lambda kv: (kv[1], kv[0]))
+        return cheapest[0], cheapest[1]
+
     def assign_machines(
         self,
         recipes: dict[str, Recipe],
@@ -635,6 +692,7 @@ class RecipeBook:
         modules: Modules,
         overrides: dict[str, str] | None = None,
         researched_only: bool = True,
+        fuels: list[str] | None = None,
     ) -> tuple[dict[str, Machine], list[str]]:
         """Pick the machine for each recipe and fold modules into it.
 
@@ -660,10 +718,13 @@ class RecipeBook:
             if machine is None:
                 unbuildable.append(name)
                 continue
+            fuel, joules = self.choose_fuel(machine, fuels or [])
             assigned[name] = dataclasses.replace(
                 machine,
                 speed=machine.speed * (1 + modules.speed),
                 productivity=machine.productivity + modules.productivity,
+                fuel=fuel,
+                fuel_joules=joules,
             )
         return assigned, unbuildable
 

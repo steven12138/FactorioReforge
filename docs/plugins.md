@@ -442,6 +442,32 @@ by count, and a beacon number that is quietly wrong is worse than one the
 calculator never claimed to know; `speed=` takes a figure you worked out
 yourself.
 
+**Burners are not on the grid.** A stone furnace draws 90 kW of *fuel*, so the
+headline says `4.32 MW of fuel` rather than a number that reads as a demand on
+electricity that is not there, and the fuel is listed beside the ore:
+
+```
+!!ratio iron-plate 15
+iron-plate at 15/s -- 48 machines, 4.32 MW of fuel
+  48 x stone-furnace  iron-plate  15/s
+  needs: iron-ore 15/s, coal 1.08/s
+  output is 1 x transport-belt (15/s)  -- 100% of the last one, with no room
+                                          for compression to slip
+```
+
+Fuel comes from `energy_watts / (fuel_value * effectivity)` — 90 kW of coal at
+4 MJ is 0.0225/s per furnace. Which fuel is a preference list restricted to the
+categories the machine's prototype accepts: a biochamber burns `nutrients` and
+a captive biter spawner burns `food`, so coal is not a default for them so much
+as a wrong answer. With nothing in the list accepted, the *cheapest* accepted
+fuel wins — the one you are likeliest to already have. A fuel that has to be
+manufactured is named but its own chain is not built, because fuel is not an
+ingredient of any recipe and so is not in the matrix the solver works over.
+
+A run that fills its last belt is called out. "Exactly 1 belt" is the worst
+case rather than the best: arithmetically fine, and the first thing to fall
+over when compression slips.
+
 `!!ratio machine` shows which machine each answer is written in, and changes
 it:
 

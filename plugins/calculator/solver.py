@@ -228,7 +228,32 @@ class Machine:
     """Bonus output, as a fraction: 0.5 means every craft yields 1.5x."""
 
     energy_watts: Number = Fraction(0)
+    """What it draws while running. For a burner this is fuel, not electricity."""
+
     categories: tuple[str, ...] = ()
+
+    #: "electric" or "burner". A stone furnace draws 90 kW and none of it comes
+    #: from a wire, so reporting one number called "power" for both is how an
+    #: answer gets read as a demand on the grid that does not exist.
+    energy_type: str = "electric"
+
+    #: Fraction of the fuel's energy the machine actually gets. 1 on every
+    #: burner measured on 2.0.77, and read rather than assumed because it is a
+    #: real prototype field that mods and other entities do vary.
+    effectivity: Number = Fraction(1)
+
+    #: Which fuels it accepts: "chemical" for furnaces, but a biochamber burns
+    #: "nutrients" and a captive biter spawner burns "food". Offering coal to
+    #: either is not an approximation, it is wrong.
+    fuel_categories: tuple[str, ...] = ()
+
+    #: The fuel picked for this machine, filled in when machines are assigned.
+    fuel: str = ""
+    fuel_joules: Number = Fraction(0)
+
+    @property
+    def is_burner(self) -> bool:
+        return self.energy_type == "burner"
 
 
 @dataclasses.dataclass
@@ -243,7 +268,15 @@ class Step:
     """Items per second this step produces, productivity included."""
 
     inputs: dict[str, Number]
+
     power_watts: Number = Fraction(0)
+    """Electrical draw. Zero for a burner -- see :attr:`fuel_watts`."""
+
+    fuel_watts: Number = Fraction(0)
+    """Chemical energy burned. Zero for anything on a wire."""
+
+    fuel: str = ""
+    fuel_per_second: Number = Fraction(0)
 
 
 @dataclasses.dataclass
@@ -259,7 +292,27 @@ class Plan:
 
     @property
     def power_watts(self) -> Number:
+        """Electrical demand only. Fuel is :attr:`fuel_watts`."""
         return sum((step.power_watts for step in self.steps), Fraction(0))
+
+    @property
+    def fuel_watts(self) -> Number:
+        return sum((step.fuel_watts for step in self.steps), Fraction(0))
+
+    @property
+    def fuel_per_second(self) -> dict[str, Number]:
+        """Fuel items per second, by item.
+
+        Reported rather than folded into :attr:`raw`, because the solver works
+        over the recipe matrix and fuel is not an ingredient of anything. Coal
+        is mined, so listing it beside the ore is the whole answer; a fuel that
+        has to be manufactured is named here but its own chain is not built.
+        """
+        totals: dict[str, Number] = {}
+        for step in self.steps:
+            if step.fuel and step.fuel_per_second:
+                totals[step.fuel] = totals.get(step.fuel, Fraction(0)) + step.fuel_per_second
+        return totals
 
     @property
     def machine_counts(self) -> dict[str, Number]:
@@ -370,6 +423,14 @@ def build_plan(
         recipe = recipes[name]
         machine = machines[name]
         count = rate * recipe.energy / machine.speed
+        draw = count * machine.energy_watts
+        burning = machine.is_burner
+        # Watts of fuel to items of fuel: a stone furnace burning 90 kW eats
+        # 90,000 / 4,000,000 = 0.0225 coal a second. Effectivity divides,
+        # because a machine that wastes half the energy needs twice the coal.
+        per_second = Fraction(0)
+        if burning and machine.fuel_joules > 0 and machine.effectivity > 0:
+            per_second = draw / (machine.fuel_joules * machine.effectivity)
         steps.append(Step(
             recipe=name,
             machine=machine.name,
@@ -377,7 +438,10 @@ def build_plan(
             machines=count,
             outputs={item: amount * rate for item, amount in recipe.products.items()},
             inputs={item: amount * rate for item, amount in recipe.ingredients.items()},
-            power_watts=count * machine.energy_watts,
+            power_watts=Fraction(0) if burning else draw,
+            fuel_watts=draw if burning else Fraction(0),
+            fuel=machine.fuel if burning else "",
+            fuel_per_second=per_second,
         ))
     steps.sort(key=lambda step: (-step.machines, step.recipe))
 
