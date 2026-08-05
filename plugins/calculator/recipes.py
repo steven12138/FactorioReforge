@@ -600,9 +600,16 @@ class RecipeBook:
            the most useless thing this can say, and it was what it used to do,
            because the machine list comes from prototypes and prototypes know
            nothing about research;
-        3. the fastest that exists, when nothing in the category is buildable --
-           better a plan denominated in a machine you have to unlock than no
-           plan at all.
+        3. when nothing in the category is unlocked, the **simplest** one that
+           exists -- better a plan in a machine you have yet to unlock than no
+           plan at all, and the one you will unlock first is the one worth
+           naming. Speed is the proxy for tier: stone before steel before
+           electric, assembling machine 1 before the foundry. Answering
+           "cryogenic plant" to somebody running assembling machine 1 is
+           technically the fastest and of no use to anyone.
+
+        Asking for the fastest regardless of research (``researched_only=False``)
+        is a different question and still gets the fastest.
         """
         candidates = self.machines_for(category)
         if not candidates:
@@ -612,11 +619,14 @@ class RecipeBook:
             if name in by_name:
                 return by_name[name]
 
-        if researched_only and self.buildable:
+        fastest = max(candidates, key=lambda m: (m.speed, m.name))
+        if not researched_only:
+            return fastest
+        if self.buildable:
             available = [m for m in candidates if m.name in self.buildable]
             if available:
                 return max(available, key=lambda m: (m.speed, m.name))
-        return max(candidates, key=lambda m: (m.speed, m.name))
+        return min(candidates, key=lambda m: (m.speed, m.name))
 
     def assign_machines(
         self,

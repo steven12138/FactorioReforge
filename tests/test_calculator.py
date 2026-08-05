@@ -463,10 +463,21 @@ class TestMachineChoice:
         chosen = book.best_machine("crafting", ["assembling-machine-1"])
         assert chosen.name == "assembling-machine-1"
 
-    def test_nothing_buildable_still_answers(self, book):
-        """A plan naming a machine to unlock beats no plan at all."""
+    def test_nothing_buildable_answers_with_the_one_you_reach_first(self, book):
+        """A plan naming a machine to unlock beats no plan at all -- but name
+        the *simplest* one, not the fastest.
+
+        Measured on a live Space Age save with only assembling machine 1: the
+        fastest-wins fallback answered "cryogenic plant" and "foundry" for
+        categories nothing was unlocked in, which is true and useless.
+        """
         book.buildable = set()
-        assert book.best_machine("crafting", []).name == "assembling-machine-3"
+        assert book.best_machine("crafting", []).name == "assembling-machine-1"
+
+    def test_the_fallback_does_not_apply_to_an_explicit_pin(self, book):
+        book.buildable = set()
+        assert book.best_machine("crafting", ["assembling-machine-3"]).name == (
+            "assembling-machine-3")
 
     def test_the_restriction_can_be_lifted(self, book):
         book.buildable = {"assembling-machine-1"}
@@ -651,6 +662,10 @@ STATIC_REPLY = {
     },
     "belts": {"transport-belt": 0.03125, "express-transport-belt": 0.09375},
     "modules": {"productivity-module": {"productivity": 0.04, "speed": -0.05}},
+    #: A save with the top tier researched. Without this the plan falls back to
+    #: "the one you would unlock first", which is right for a save that has not
+    #: researched them and wrong for what these tests are checking.
+    "buildable": ["assembling-machine-3", "electric-furnace"],
 }
 
 RECIPE_REPLIES = {
@@ -729,11 +744,22 @@ class TestEndToEnd:
         }
         assert plan.raw == {"iron-ore": Fraction(5), "copper-ore": Fraction(15, 2)}
 
-    async def test_it_picks_the_configured_machine_per_category(self, plugin, recipes):
+    async def test_it_picks_the_best_unlocked_machine_per_category(self, plugin, recipes):
         plan = await self.plan_for(plugin, recipes, "electronic-circuit", Fraction(5))
         used = {step.recipe: step.machine for step in plan.steps}
         assert used["electronic-circuit"] == "assembling-machine-3"
         assert used["iron-plate"] == "electric-furnace"
+
+    async def test_a_save_without_the_research_gets_a_plan_it_can_build(
+        self, plugin, recipes, monkeypatch
+    ):
+        """The whole complaint, end to end: only tier 2 researched."""
+        book = plugin._state["book"]
+        await book.load_static()
+        book.buildable = {"assembling-machine-2"}
+        closure = await book.closure(["electronic-circuit"])
+        machines, _ = book.assign_machines(closure, [], recipes.Modules())
+        assert machines["electronic-circuit"].name == "assembling-machine-2"
 
     async def test_smelting_machine_counts_are_right(self, plugin, recipes):
         """5 plates/s at 3.2 s each in a 2x furnace is exactly 8 furnaces."""
