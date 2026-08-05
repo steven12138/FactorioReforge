@@ -19,6 +19,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import sys
+import threading
 from collections.abc import Awaitable, Callable
 
 LineHandler = Callable[[str], Awaitable[None]]
@@ -99,15 +100,18 @@ class ConsoleReader:
             await self._deliver(line)
 
     async def _run_plain(self) -> None:
-        loop = asyncio.get_running_loop()
         interactive = self.interactive
+        lines = self._start_stdin_thread()
         while not self._stop.is_set():
             try:
-                line = await loop.run_in_executor(None, sys.stdin.readline)
+                line = await lines.get()
             except asyncio.CancelledError:
                 raise
             except Exception:
                 self.logger.exception("Console read failed")
+                return
+            if isinstance(line, BaseException):
+                self.logger.error("Console read failed: %s", line)
                 return
 
             if line == "":
@@ -123,6 +127,38 @@ class ConsoleReader:
                 return
 
             await self._deliver(line.rstrip("\r\n"))
+
+    def _start_stdin_thread(self) -> asyncio.Queue:
+        """Read stdin on a **daemon** thread, delivering lines to the loop.
+
+        Not ``run_in_executor``: cancelling that future does not stop the
+        blocking ``readline`` underneath it, and asyncio's default executor is
+        made of non-daemon threads, so a read that never returns keeps the
+        whole interpreter alive after everything else has shut down.
+
+        Measured: with stdin on a FIFO that stays open, FactorioReforge
+        stopped Factorio, unloaded every plugin, logged "goodbye" -- and then
+        sat there forever. Anything that holds the write end open does it: a
+        FIFO, ``tail -f | ...``, a supervisor with a socket on stdin. A daemon
+        thread cannot hold exit up, so the worst case becomes an abandoned
+        read rather than a process that will not die.
+        """
+        loop = asyncio.get_running_loop()
+        lines: asyncio.Queue = asyncio.Queue()
+
+        def pump() -> None:
+            while True:
+                try:
+                    line = sys.stdin.readline()
+                except Exception as exc:  # noqa: BLE001 -- reported on the loop
+                    loop.call_soon_threadsafe(lines.put_nowait, exc)
+                    return
+                loop.call_soon_threadsafe(lines.put_nowait, line)
+                if line == "":
+                    return
+
+        threading.Thread(target=pump, name="console-stdin", daemon=True).start()
+        return lines
 
     def _request_interrupt(self) -> None:
         if self.on_interrupt is None:

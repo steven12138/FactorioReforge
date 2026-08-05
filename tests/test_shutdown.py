@@ -151,6 +151,58 @@ class TestNonInteractiveEof:
         assert fired.is_set()
 
 
+class TestStdinThatNeverEnds:
+    """Something holding the write end of stdin open must not block exit.
+
+    Measured: launched with stdin on a FIFO that stayed open, FactorioReforge
+    stopped Factorio, unloaded every plugin, logged "goodbye" -- and then sat
+    there forever. `run_in_executor` cannot be cancelled out of a blocking
+    `readline`, and asyncio's default executor is non-daemon, so the interpreter
+    waited on a thread that was never going to return. A FIFO, `tail -f | ...`
+    and a supervisor with a socket on stdin all do this.
+    """
+
+    async def test_the_reader_thread_is_a_daemon(self, monkeypatch):
+        import threading
+
+        started = threading.Event()
+        release = threading.Event()
+        seen: list[threading.Thread] = []
+
+        def blocking_readline():
+            started.set()
+            release.wait(5)
+            return ""
+
+        monkeypatch.setattr(sys.stdin, "readline", blocking_readline, raising=False)
+        reader = ConsoleReader(_unused_line)
+        before = set(threading.enumerate())
+        reader._start_stdin_thread()
+        assert started.wait(2), "the reader never started"
+        seen = [t for t in threading.enumerate() if t not in before]
+        try:
+            assert seen, "no reader thread was started"
+            assert all(t.daemon for t in seen), "a non-daemon read blocks interpreter exit"
+        finally:
+            release.set()
+
+    async def test_stop_returns_even_though_the_read_is_stuck(self, monkeypatch):
+        """stop() must not wait for a line that is never coming."""
+        import threading
+
+        release = threading.Event()
+        monkeypatch.setattr(
+            sys.stdin, "readline", lambda: (release.wait(5), "")[1], raising=False
+        )
+        reader = ConsoleReader(_unused_line)
+        monkeypatch.setattr(type(reader), "interactive", property(lambda self: False))
+        reader.start()
+        try:
+            await asyncio.wait_for(reader.stop(), timeout=5)
+        finally:
+            release.set()
+
+
 async def _unused_line(line: str) -> None:
     raise AssertionError("no line should be delivered in these tests")
 

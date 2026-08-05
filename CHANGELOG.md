@@ -46,6 +46,13 @@
 
 ### Fixed
 
+- Anything holding the write end of stdin open no longer stops FactorioReforge
+  from exiting. `run_in_executor` cannot be cancelled out of a blocking
+  `readline`, and asyncio's default executor is non-daemon, so the interpreter
+  waited on a thread that was never going to return: Factorio stopped, plugins
+  unloaded, "goodbye" logged, and the process sat there. Found with stdin on a
+  FIFO; `tail -f | ...` and a supervisor with a socket on stdin do it too.
+
 - **The calculator wrote every plan in a machine you might not have.** Three
   separate causes, all of them live on a real save:
   - the config file still pinned the old hardcoded list, and

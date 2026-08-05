@@ -41,6 +41,13 @@ English: [CHANGELOG.md](CHANGELOG.md)
 
 ### 修复
 
+- 任何一直握着 stdin 写端的东西，不再会让 FactorioReforge 退不出去。
+  `run_in_executor` 没法把底下阻塞的 `readline` 取消掉，
+  而 asyncio 的默认线程池又不是 daemon —— 于是解释器在等一个永远不会返回的线程：
+  Factorio 停了、插件卸了、"再见"也打了，进程就那么杵着。
+  是用 FIFO 当 stdin 时发现的；`tail -f | ...`
+  和把 socket 接到 stdin 上的进程管理器也一样。
+
 - **计算器把每份方案都写成了你未必有的机器。** 三个各自独立的原因，实机上全中：
   - 配置文件里还钉着旧的那份硬编码列表，而 `load_config_simple`
     从不改写已经存在的键 —— 所以把默认值改成"用你造得出来的最好的那台"
