@@ -26,6 +26,7 @@ See :mod:`factorio_reforge.versions` for the measurements this rests on.
 from __future__ import annotations
 
 import asyncio
+import os
 import time
 from pathlib import Path
 
@@ -159,11 +160,27 @@ def _core(server):
     return server._server  # noqa: SLF001
 
 
+def _live_path(core) -> Path:
+    """``working_directory`` as written, made absolute but *not* resolved.
+
+    ``config.resolve`` ends in ``Path.resolve()``, which follows symlinks --
+    and once an install is adopted the live path is a symlink. Resolving it
+    hands back ``versions/2.0.77``, where ``is_managed`` is False and the
+    layout looks like an ordinary install that has never been adopted. The
+    symptom only appears after adopt succeeds, which is the worst time to
+    find it.
+    """
+    configured = Path(core.config.working_directory).expanduser()
+    if configured.is_absolute():
+        return configured
+    return Path(os.path.abspath(core.config.root / configured))
+
+
 def _installation(server, config) -> Installation:
     core = _core(server)
     configured = (config.get("versions_directory") or "").strip()
     versions = core.config.resolve(configured) if configured else None
-    return Installation(core.config.working_dir_path, versions)
+    return Installation(_live_path(core), versions)
 
 
 # ---------------------------------------------------------------------------

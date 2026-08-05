@@ -415,6 +415,21 @@ class TestInstallation:
         assert (tree / "saves" / "reforge.zip").read_text() == "world"
         assert (tree / "bin" / "x64" / "factorio").is_file()
 
+    def test_a_resolved_path_no_longer_points_at_the_layout(self, tmp_path):
+        """The trap that shipped: Path.resolve() follows the live symlink.
+
+        config.resolve() ends in Path.resolve(), so working_dir_path lands on
+        versions/2.0.77 rather than on the link. Everything then reads as an
+        ordinary unadopted install -- and only after adopt has succeeded, which
+        is the worst moment to discover it. version_manager builds the path
+        without resolving for exactly this reason.
+        """
+        tree = make_install(tmp_path)
+        Installation(tree).adopt("2.0.77")
+
+        assert Installation(tree).is_managed
+        assert not Installation(tree.resolve()).is_managed
+
     def test_activate_switches_which_tree_is_live(self, tmp_path):
         tree = make_install(tmp_path)
         install = Installation(tree)

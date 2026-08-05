@@ -233,3 +233,38 @@ def _slot_info(saves: SaveManager):
     info = Slot(id=1, comment="older world", created_at=0.0, size_bytes=1)
     info._tr = saves.tr
     return info
+
+
+class TestLivePath:
+    """The live path must survive being turned into an absolute path."""
+
+    def test_it_does_not_follow_the_symlink(self, tmp_path):
+        plugin = load_plugin()
+        live = tmp_path / "server" / "factorio"
+        (live / "bin" / "x64").mkdir(parents=True)
+        (live / "bin" / "x64" / "factorio").write_text("x")
+        Installation(live).adopt("2.0.77")
+
+        core = _FakeCore(tmp_path, "server/factorio")
+        assert plugin._live_path(core) == live
+        assert Installation(plugin._live_path(core)).is_managed
+
+    def test_an_absolute_working_directory_is_left_alone(self, tmp_path):
+        plugin = load_plugin()
+        core = _FakeCore(tmp_path, str(tmp_path / "elsewhere"))
+        assert plugin._live_path(core) == tmp_path / "elsewhere"
+
+    def test_a_dotted_path_is_normalised_without_touching_the_disk(self, tmp_path):
+        plugin = load_plugin()
+        core = _FakeCore(tmp_path, "server/../server/factorio")
+        assert plugin._live_path(core) == tmp_path / "server" / "factorio"
+
+
+class _FakeCore:
+    def __init__(self, root, working_directory):
+        class Cfg:
+            pass
+
+        self.config = Cfg()
+        self.config.root = root
+        self.config.working_directory = working_directory
