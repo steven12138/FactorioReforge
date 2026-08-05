@@ -91,6 +91,41 @@ features that depend on it, not take the server manager down.
 `[CHAT] <server>: ...` is recognised as FactorioReforge's own voice and
 discarded. Without that, the Telegram bridge relays its own relays forever.
 
+## Events pushed out of the game
+
+Most of what a plugin wants to know is polled, because RCON only answers
+questions it is asked. **Some of it does not have to be.** Measured on 2.0.77:
+`script` is available inside a `/sc` command, `script.on_event` registers a
+handler that really fires, and `print()` from inside that handler reaches
+stdout — which is already being parsed. So an event can travel game → stdout →
+plugin in one tick, with no mod and no `/c`.
+
+A plugin opts in with `server.request_lua_event("on_research_finished")` and
+receives `on_lua_event(server, payload)`. Research completion went from up to
+two minutes late to the tick it happened.
+
+Three things this has to get right, all of them found by measuring:
+
+* **Chain, never replace.** `script.on_event` overwrites, and a plain freeplay
+  save already has handlers on `on_research_finished` and `on_player_created`.
+  The previous handler is captured with `script.get_event_handler` and called
+  first — before our payload, so a fault on our side cannot cost the game its
+  own behaviour.
+* **Install once per server start.** Handlers do not survive a save/load, so
+  they are reinstalled when RCON reconnects; but installing twice in one session
+  makes our own wrapper the "previous" handler and prints everything twice. The
+  count lives on this side, because the game cannot tell the difference.
+* **The bridge is deliberately narrow.** `on_entity_died` fires thousands of
+  times a minute on a defended base, so what crosses it is a short list with a
+  declared payload rather than anything a plugin asks for.
+
+Bridged lines are dispatched and dropped before the echo: they are machine
+traffic, and JSON in the operator's console is not an improvement.
+
+Polling stays where it earns its place — it is the only thing that catches what
+happened while FactorioReforge was down, so `world_watch` keeps its slow sweep
+under the push and both write to the same seen-set.
+
 ## Command dispatch
 
 Commands run in their **own task**, never on the read loop.
@@ -291,7 +326,7 @@ worth reporting — the RCON bind above all — are printed after it.
 ## Tests
 
 ```bash
-python -m pytest tests/ -q        # 627 tests
+python -m pytest tests/ -q        # 649 tests
 ```
 
 Parser tests run against output sampled from a real server, in

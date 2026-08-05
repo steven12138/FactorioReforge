@@ -12,6 +12,7 @@ from pathlib import Path
 
 from factorio_reforge.command.manager import CommandManager
 from factorio_reforge.config import Config
+from factorio_reforge.core import lua, luahooks
 from factorio_reforge.core.handler import FactorioHandler
 from factorio_reforge.core.info import Info
 from factorio_reforge.core.loglens import LogLens, Severity
@@ -96,7 +97,7 @@ class ReforgeServer:
                 retry_interval=config.rcon.retry_interval,
                 logger=self.logger,
                 tr=self.tr,
-                on_connect=lambda: self.plugins.dispatch(ev.RCON_CONNECTED),
+                on_connect=self._on_rcon_connected,
                 on_lost=lambda: self.plugins.dispatch(ev.RCON_LOST),
             )
 
@@ -110,6 +111,10 @@ class ReforgeServer:
         self._expect_stop = False
         self._crash_watch: asyncio.Task | None = None
         self._startup_report: asyncio.Task | None = None
+        #: Factorio events plugins asked to have pushed, and whether the
+        #: handlers are in place for the current server process.
+        self._wanted_lua_events: set[str] = set()
+        self._lua_events_installed = False
         self.started_at = time.monotonic()
 
     def tr(self, key: str, /, *args, **kwargs) -> str:
@@ -160,6 +165,57 @@ class ReforgeServer:
     def on_rcon_port_open(self) -> None:
         if self.rcon is not None:
             self.rcon.start()
+
+    # -- bridged Factorio events --------------------------------------------
+
+    def request_lua_event(self, name: str) -> None:
+        """Ask for a real Factorio event to be pushed instead of polled for.
+
+        Plugins call this in ``on_load``; the handlers themselves live in the
+        game and are installed once per server start, so asking twice or
+        reloading a plugin costs nothing.
+        """
+        if name not in luahooks.BRIDGED:
+            raise luahooks.UnknownEvent(f"{name} is not a bridged event")
+        self._wanted_lua_events.add(name)
+        if self._lua_events_installed and self.rcon is not None and self.rcon.connected:
+            # The server is already up; a plugin loaded late still gets its
+            # events, and re-registering one already hooked is a no-op because
+            # the chain captures whatever is currently there.
+            asyncio.create_task(self.install_lua_hooks(only=[name]))
+
+    async def install_lua_hooks(self, only: list[str] | None = None) -> list[str]:
+        """Install the chained handlers. Called once the server is up.
+
+        Registering twice in one session would make our own wrapper the
+        "previous" handler and print every event twice, so this is counted
+        here rather than in the game -- the game cannot tell the difference.
+        """
+        names = sorted(only if only is not None else self._wanted_lua_events)
+        if not names or self.rcon is None:
+            return []
+        try:
+            # The core has no lua_json of its own -- that lives on the plugin
+            # interface -- so this goes through RCON the same way it does.
+            raw = await self.rcon.execute(
+                "/sc " + lua.json_query(luahooks.build_registration(names))
+            )
+            result = lua.parse_json_result(raw)
+        except Exception as exc:  # noqa: BLE001 -- a failed hook is not fatal
+            self.logger.warning(self.tr("log.lua_hooks_failed", error=exc))
+            return []
+        hooked = list((result or {}).get("hooked") or [])
+        if only is None:
+            self._lua_events_installed = True
+        if hooked:
+            self.logger.info(self.tr("log.lua_hooks", events=", ".join(hooked)))
+        return hooked
+
+    async def _on_rcon_connected(self) -> None:
+        """Hooks need RCON, and RCON connects after the game reaches InGame."""
+        await self.plugins.dispatch(ev.RCON_CONNECTED)
+        self._lua_events_installed = False
+        await self.install_lua_hooks()
 
     def on_save_completed(self) -> None:
         self._save_completed.set()

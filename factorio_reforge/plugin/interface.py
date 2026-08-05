@@ -217,6 +217,17 @@ class ServerInterface:
         """
         await self.lua_json(lua.print_to_all(message))
 
+    def request_lua_event(self, name: str) -> None:
+        """Have a real Factorio event pushed to plugins instead of polled for.
+
+        Call it in ``on_load``. The handler lives in the game and is installed
+        once per server start, so reloading a plugin does not duplicate it.
+        The event arrives as ``on_lua_event(server, payload)``, where
+        ``payload["event"]`` names which one it was. Available names are in
+        :data:`factorio_reforge.core.luahooks.BRIDGED`.
+        """
+        self._server.request_lua_event(name)
+
     async def server_save(self) -> None:
         """Ask the server to write the map to disk now (stdin)."""
         await self.execute("/server-save")

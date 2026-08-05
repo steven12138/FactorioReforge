@@ -145,6 +145,38 @@ from factorio_reforge.plugin.events import event_listener
 async def welcome(server, player, info): ...
 ```
 
+### Factorio 自己的事件
+
+上面那些是 FactorioReforge 自己注意到的事件。还有一小部分东西，
+你可以让 **Factorio 自己的事件**推给你，而不是去轮询：
+
+```python
+def on_load(server, prev):
+    server.request_lua_event("on_research_finished")
+
+async def on_lua_event(server, payload):
+    if payload["event"] == "on_research_finished":
+        await server.say(f"{payload['name']} 研究完了")
+```
+
+之所以行得通，是因为 `script.on_event` **可以**从 `/sc` 注册，
+而 handler 里的 `print()` 会到 stdout —— 这是实测出来的，
+而且和这个项目大半辈子的假设正好相反。事件在**发生的那一 tick** 就到，
+不用等下一轮轮询。
+
+能过桥的是 `factorio_reforge.core.luahooks.BRIDGED` 里一份声明好的短名单，
+不是你想要哪个就有哪个：`on_entity_died` 在有防御的基地上每分钟触发上千次，
+stdout 不是一个值得打开的水龙头。要加就得连同它的负载一起加进那份名单。
+
+依赖它之前有两件事要知道：
+
+* **它看不到过去。** handler 是服务器启动时装上的，
+  所以 FactorioReforge 不在线期间发生的事根本不会送达。
+  真在意的话，底下留一轮慢轮询兜底 —— `world_watch` 就是这么做的，
+  两条路径写同一个 seen 集合，谁先到算谁的。
+* **重复订阅是免费的。** handler 活在游戏里、每次服务器启动装一次，
+  所以重载你的插件不会装出第二份。
+
 ## 和服务器说话
 
 ```python

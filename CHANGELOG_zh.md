@@ -18,6 +18,20 @@ English: [CHANGELOG.md](CHANGELOG.md)
 
 ### 新增
 
+- **Factorio 自己的事件，改为推送而不是轮询。** 这个项目一直建立在
+  "RCON 注册不了事件钩子"这个前提上。2.0.77 实测下来是错的：`/sc` 里
+  `script` 是可用的，`script.on_event` 注册的 handler 真的会触发，
+  而它里面的 `print()` 会到 stdout —— 而 stdout 本来就在被解析。
+  插件调 `server.request_lua_event("on_research_finished")`，
+  就能在事件发生的那一 tick 收到 `on_lua_event(server, payload)`。
+  科技完成提示原来最多晚两分钟，现在是即时的。
+  - handler **串联，绝不替换**：普通 freeplay 存档在 `on_research_finished`
+    和 `on_player_created` 上本来就挂着 handler，覆盖掉会悄无声息地破坏 scenario。
+  - 每次服务器启动只装一次，次数记在 Python 侧 ——
+    同一会话装两遍会让我们自己上一个 wrapper 变成"前一个 handler"，所有事件打印两遍。
+  - `world_watch` 底下保留了那一轮慢轮询，因为推送送不到
+    "FactorioReforge 不在线时发生的事"。
+
 - **`version_manager` —— `!!version`。** 换服务器跑的 Factorio 版本，
   并且不因此丢掉世界。存档格式升级是一扇单向门，
   所以它长得像回档而不像安装：预备、备份、切换、验证、不行就退回去。

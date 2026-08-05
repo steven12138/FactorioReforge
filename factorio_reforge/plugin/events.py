@@ -55,6 +55,11 @@ PLAYER_JOINED = Event("reforge.player_joined", "on_player_joined")
 PLAYER_LEFT = Event("reforge.player_left", "on_player_left")
 PLAYER_DEATH = Event("reforge.player_death", "on_player_death")
 
+#: A real Factorio event, pushed out of the game rather than polled for. The
+#: payload is the dict the game sent; ``event`` names which one it was. See
+#: :mod:`factorio_reforge.core.luahooks`.
+LUA_EVENT = Event("reforge.lua_event", "on_lua_event")
+
 RCON_CONNECTED = Event("reforge.rcon_connected", "on_rcon_connected")
 RCON_LOST = Event("reforge.rcon_lost", "on_rcon_lost")
 

@@ -129,6 +129,8 @@ lang:
   unknown: "没有 {language!r} 的翻译。可用：{languages}"
 
 log:
+  lua_hooks: "{events}：改为从游戏里直接推送，不再轮询"
+  lua_hooks_failed: "挂不上 Factorio 事件（{error}），回退到轮询"
   config_retired: "config.yml：{section}.{key} 已废弃 —— {reason}"
   plugin_loaded: "已加载插件 {plugin}"
   plugin_unloaded: "已卸载插件 {id}"

@@ -148,6 +148,41 @@ from factorio_reforge.plugin.events import event_listener
 async def welcome(server, player, info): ...
 ```
 
+### Real Factorio events
+
+The events above are what FactorioReforge itself notices. For a handful of
+things, you can have **Factorio's own events** pushed to you instead of polling
+for them:
+
+```python
+def on_load(server, prev):
+    server.request_lua_event("on_research_finished")
+
+async def on_lua_event(server, payload):
+    if payload["event"] == "on_research_finished":
+        await server.say(f"{payload['name']} is done")
+```
+
+This works because `script.on_event` *can* be registered from `/sc`, and
+`print()` from inside the handler reaches stdout — measured, and the opposite of
+what this project assumed for most of its life. The event arrives on the tick it
+happened rather than at the next poll.
+
+What is bridged is a short declared list in
+`factorio_reforge.core.luahooks.BRIDGED`, not anything you name: `on_entity_died`
+fires thousands of times a minute on a defended base, and stdout is not a
+firehose worth opening. Adding one means adding its payload there.
+
+Two things worth knowing before you rely on it:
+
+* **It cannot see the past.** Handlers are installed when the server starts, so
+  anything that happened while FactorioReforge was down is simply not delivered.
+  If that matters, keep a slow poll underneath as the backstop —
+  `world_watch` does exactly this, and both paths write to the same seen-set so
+  whichever arrives first wins.
+* **Asking twice is free.** The handler lives in the game, installed once per
+  server start, so reloading your plugin does not duplicate it.
+
 ## Talking to the server
 
 ```python

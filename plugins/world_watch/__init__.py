@@ -60,6 +60,11 @@ def on_load(server, prev):
         config=config, server=server, task=None,
         seen=_load_seen(server),
     )
+    # Real events instead of a 120-second poll: research completion used to be
+    # announced up to two minutes after it happened.
+    for event in ("on_research_finished", "on_rocket_launched"):
+        server.request_lua_event(event)
+
     server.register_command(
         Literal("!!watch").requires(PermissionLevel.USER).runs(_cmd_status)
     )
@@ -185,6 +190,38 @@ async def _check_rockets(server, config, launched: int) -> bool:
     )
     await _announce(server, config, message, "", milestone=True)
     return True
+
+
+async def on_lua_event(server, payload):
+    """A research really finished, this tick, straight out of the game.
+
+    The poll below still runs: it is what catches anything that completed
+    while FactorioReforge was down, which no push can. Both write to the same
+    seen-set, so whichever gets there first announces and the other finds
+    nothing new -- no coordination needed and no double announcement.
+    """
+    config = _state.get("config") or {}
+    if payload.get("event") != "on_research_finished":
+        return
+    if not config.get("announce_research", True) or payload.get("by_script"):
+        return
+
+    name = payload.get("name")
+    known = set(_state["seen"]["technologies"])
+    if not name or name in known:
+        return
+    # An established world that has never been polled must not be announced a
+    # technology at a time; leave that to the first poll's bulk guard.
+    if not known:
+        return
+
+    _state["seen"]["technologies"] = sorted(known | {name})
+    _save_seen(server)
+    await _announce(
+        server, config,
+        server.tr("milestone.research", tag=lua.technology_tag(name), name=name),
+        "", milestone=True,
+    )
 
 
 async def _check_research(server, config) -> bool:

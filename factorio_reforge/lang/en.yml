@@ -130,6 +130,8 @@ lang:
   unknown: "No translations for {language!r}. Available: {languages}"
 
 log:
+  lua_hooks: "{events}: pushed straight out of the game instead of polled for"
+  lua_hooks_failed: "Could not hook Factorio events ({error}); falling back to polling"
   config_retired: "config.yml: {section}.{key} is no longer used -- {reason}"
   plugin_loaded: "Loaded plugin {plugin}"
   plugin_unloaded: "Unloaded plugin {id}"

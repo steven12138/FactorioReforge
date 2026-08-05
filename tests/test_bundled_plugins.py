@@ -55,8 +55,19 @@ class FakeCore:
         self.rcon = None
         self.process = _Process()
 
+        self.requested_lua_events: list[str] = []
+
     def tr(self, key, /, *args, **kwargs):
         return self.i18n.translate(key, *args, **kwargs)
+
+    def request_lua_event(self, name):
+        from factorio_reforge.core import luahooks
+
+        # Same refusal the real core gives, so a plugin asking for an event
+        # nobody wrote a payload for fails here rather than on a server.
+        if name not in luahooks.BRIDGED:
+            raise luahooks.UnknownEvent(name)
+        self.requested_lua_events.append(name)
 
 
 class _Commands:

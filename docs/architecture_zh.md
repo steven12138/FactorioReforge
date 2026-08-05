@@ -84,6 +84,37 @@ Online players (1):
 `[CHAT] <server>: ...` 会被识别为 FactorioReforge 自己的声音并丢弃。
 没有这一步，Telegram 桥接会永远转发自己转发的东西。
 
+## 从游戏里推出来的事件
+
+插件想知道的大部分东西是轮询来的，因为 RCON 只回答你问它的问题。
+**但有一部分不必如此。** 2.0.77 实测：`/sc` 命令里 `script` 是可用的，
+`script.on_event` 注册的 handler 真的会触发，而在那个 handler 里
+`print()` 出来的东西会到 stdout —— 而 stdout 本来就在被解析。
+所以一个事件可以在一个 tick 内走完 游戏 → stdout → 插件，
+不需要 mod、不需要 `/c`。
+
+插件用 `server.request_lua_event("on_research_finished")` 订阅，
+然后收到 `on_lua_event(server, payload)`。
+科技完成提示从"最多晚两分钟"变成"就在那一 tick"。
+
+有三件事必须做对，全都是实测出来的：
+
+* **串联，不能替换。** `script.on_event` 是覆盖，而一个普通 freeplay 存档在
+  `on_research_finished` 和 `on_player_created` 上已经挂着 handler。
+  原来那个用 `script.get_event_handler` 留住并**先**调用 ——
+  先于我们自己的负载，这样我们这边出问题也不会让游戏丢掉它自己的行为。
+* **每次服务器启动只装一次。** handler 不跨读档存活，所以 RCON 重连时重装；
+  但同一次会话里装两遍，会让我们自己上一个 wrapper 变成"前一个 handler"，
+  于是所有事件打印两遍。这个次数记在这一侧，因为游戏那边分辨不出来。
+* **这座桥是刻意窄的。** `on_entity_died` 在一个有防御的基地上每分钟触发上千次，
+  所以能过桥的是一份短名单、每个都有声明好的负载，而不是插件想要什么就给什么。
+
+过桥的行在 echo 之前就被处理并丢弃：它们是机器流量，
+把 JSON 打进运维的控制台不算改进。
+
+轮询该留的地方仍然留着 —— 它是唯一能捕捉"FactorioReforge 不在线时发生的事"的手段，
+所以 `world_watch` 在推送之下保留了它那一轮慢扫描，两者写同一个 seen 集合。
+
 ## 命令分发
 
 命令跑在**自己的任务**里，绝不在读取循环上。
@@ -260,7 +291,7 @@ Factorio 的输出以前是走一个裸 `print` 的，
 ## 测试
 
 ```bash
-python -m pytest tests/ -q        # 627 项
+python -m pytest tests/ -q        # 649 项
 ```
 
 解析测试跑的是从真实服务器采样下来的输出，在

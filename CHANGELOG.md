@@ -18,6 +18,23 @@
 
 ### Added
 
+- **Real Factorio events, pushed instead of polled.** The project was built
+  believing RCON could not register event handlers. Measured on 2.0.77, that is
+  wrong: `script` is available inside `/sc`, `script.on_event` registers a
+  handler that really fires, and `print()` from inside it reaches stdout — which
+  was already being parsed. A plugin calls
+  `server.request_lua_event("on_research_finished")` and gets
+  `on_lua_event(server, payload)` on the tick it happened. Research completion
+  was up to two minutes late; it is now immediate.
+  - Handlers are **chained, never replaced**: a plain freeplay save already has
+    handlers on `on_research_finished` and `on_player_created`, and overwriting
+    one breaks the scenario silently.
+  - Installed once per server start, counted on the Python side — twice in one
+    session would make our own wrapper the "previous" handler and print
+    everything twice.
+  - `world_watch` keeps its slow poll underneath, because a push cannot deliver
+    what happened while FactorioReforge was down.
+
 - **`version_manager` — `!!version`.** Changing which Factorio build the server
   runs, without losing the world to it. A save format upgrade is a one-way
   door, so this is shaped like a restore and not like an install: stage, back

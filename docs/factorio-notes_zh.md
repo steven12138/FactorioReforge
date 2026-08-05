@@ -93,7 +93,48 @@ A 里的 `Info xxx.cpp:NN:` 部分是可选的，正则必须写成可选分组�
   丢弃运行期间的一切改动。这就是 `mod_manager` 必须单独记录意图、
   并在进程真正退出后重放的原因。
 
-## 6. 未能自动验证的部分
+## 6. 事件可以从游戏里推出来 ⚠️（与假设相反）
+
+这个项目一直建立在"RCON 注册不了事件钩子、所以只能轮询"这个前提上。
+**这个前提是错的**，而且错得有代价：`world_watch` 的科技完成提示因此最多晚两分钟。
+2.0.77 实测：
+
+| 东西 | 结果 |
+|---|---|
+| `/sc` 里的 `script` | **在** —— 控制台沙箱里就有 |
+| 从 `/sc` 调 `script.on_event(...)` | **注册成功，而且真的会触发** |
+| 在那个 handler 里 `print(...)` | **到 stdout** |
+| `game.print(...)` | 只进游戏聊天，永远不到 stdout |
+| `localised_print(...)` | 到 stdout（是**全局**，不在 `helpers` 上） |
+| `log(...)` | 进 `factorio-current.log`，而且会把整段命令源码作为前缀 |
+| `helpers.localised_print` | 2.0.77 上**不存在** |
+
+handler 会触发这一点，是靠挂 `on_tick`、把 `game.tick` 写进 `storage`、
+一个 tick 之后读回来验证的。
+
+所以一个事件可以在一个 tick 内走完 游戏 → stdout → 解析器 → 插件，
+不需要 mod、不需要 `/c`、不需要写文件。有三条约束，全部实测：
+
+- **必须串联，不能替换。** `script.on_event` 是覆盖，而一个普通的 freeplay 存档
+  在 `on_research_finished` 和 `on_player_created` 上**已经挂了 handler**。
+  直接注册会把 scenario 自己的行为悄悄干掉。`script.get_event_handler` 存在，
+  就是用来把原来那个留住的。
+- **它们不跨读档存活**（函数不可序列化），所以每次服务器启动都要重装一次。
+  而同一次会话里注册两遍，会让我们自己上一个 wrapper 变成"前一个 handler"，
+  于是每个事件打印两遍 —— 所以这个次数记在 Python 这一侧，游戏那边分辨不出来。
+- **`on_research_finished` 不能用 `script.raise_event` 触发**
+  （报 *"can't be raised through script"*），所以没法伪造它来做测试。
+
+`/c` 在这里换不来任何东西：它和 `/sc` 是同一个沙箱，区别只有作弊标记，
+所以严格更差。
+
+**一条方法论教训，因为它白白浪费了一轮结论。** 第一次测的时候我 grep 的是
+`nohup.out`，什么都没找到，于是得出"什么都没到 stdout"的结论。
+`nohup.out` 是**块缓冲**的 —— 那些行还卡在缓冲区里。
+`logs/reforge.log` 由一个会 flush 的 handler 写，一直都有。
+**一个带缓冲的文件不构成证据。**
+
+## 7. 未能自动验证的部分
 
 `[JOIN]` / `[LEAVE]` / `[DEATH]` / `[KICK]` 需要真实客户端连接才能触发，本轮没有采到。
 它们与已验证的 `[CHAT]` 同属 C 类格式，解析器按统一的 `[TAG] content` 正则处理，

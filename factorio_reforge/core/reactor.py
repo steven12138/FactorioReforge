@@ -19,6 +19,7 @@ from factorio_reforge.command.source import (
     ConsoleCommandSource,
     PlayerCommandSource,
 )
+from factorio_reforge.core import luahooks
 from factorio_reforge.core.handler import FactorioHandler
 from factorio_reforge.core.info import Info, InfoActionFlag, InfoSource
 from factorio_reforge.plugin import events as ev
@@ -50,6 +51,12 @@ class InfoReactor:
         self._running: set[asyncio.Task] = set()
 
     async def react(self, info: Info) -> None:
+        # Bridged events are machine traffic, not something a person reads.
+        # Handled and dropped before the echo, or every research completion
+        # would put a line of JSON in the operator's console.
+        if info.is_from_server and await self._handle_lua_event(info):
+            return
+
         await self._core_reactions(info)
 
         await self.server.plugins.dispatch(ev.GENERAL_INFO, info)
@@ -64,6 +71,15 @@ class InfoReactor:
             await self._handle_console(info)
         elif info.is_from_server:
             await self._handle_server(info)
+
+    async def _handle_lua_event(self, info: Info) -> bool:
+        """True if this line was a bridged Factorio event, now dispatched."""
+        payload = luahooks.parse_line(info.content or "")
+        if payload is None:
+            return False
+        self.logger.debug("lua event: %s", payload)
+        await self.server.plugins.dispatch(ev.LUA_EVENT, payload)
+        return True
 
     # -- core ----------------------------------------------------------------
 

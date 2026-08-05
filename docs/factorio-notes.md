@@ -110,7 +110,50 @@ documented behaviour and the real behaviour differ:
   anything changed while it ran. That is why `mod_manager` records its intent
   separately and reapplies it after the process is actually gone.
 
-## 6. Not verified automatically
+## 6. Events can be pushed out of the game ⚠️ (opposite of the assumption)
+
+The project was built believing RCON could not register event handlers, so
+everything had to be polling. **That was wrong**, and it was wrong in a way that
+cost `world_watch` up to two minutes of latency on every research completion.
+Measured on 2.0.77:
+
+| Thing | Result |
+|---|---|
+| `script` inside `/sc` | **present** — the console sandbox has it |
+| `script.on_event(...)` from `/sc` | **registers, and really fires** |
+| `print(...)` from inside that handler | **reaches stdout** |
+| `game.print(...)` | in-game chat only, never stdout |
+| `localised_print(...)` | reaches stdout (global, *not* on `helpers`) |
+| `log(...)` | goes to `factorio-current.log`, prefixed with the whole command source |
+| `helpers.localised_print` | **does not exist** on 2.0.77 |
+
+The handler was verified by hooking `on_tick`, writing `game.tick` into
+`storage`, and reading it back one tick later.
+
+So an event travels game → stdout → parser → plugin in one tick, with no mod, no
+`/c` and no files. Three constraints make it safe, all of them measured:
+
+- **Handlers must be chained, never replaced.** `script.on_event` overwrites,
+  and a plain freeplay save already has handlers on `on_research_finished` and
+  `on_player_created`. Replacing one breaks the scenario silently.
+  `script.get_event_handler` exists and is how the previous one is kept.
+- **They do not survive a save/load**, because functions are not serialisable —
+  so they are reinstalled on every server start. Registering twice in one
+  session makes our own wrapper the "previous" handler and prints everything
+  twice, which is why the count is kept on the Python side.
+- **`on_research_finished` cannot be raised with `script.raise_event`**
+  (*"can't be raised through script"*), so it cannot be faked for a test.
+
+`/c` buys nothing here: it is the same sandbox as `/sc`, differing only in the
+cheat flag, so it is strictly worse.
+
+**A methodology note, because it wasted a round of conclusions.** The first
+attempt at this measurement read `nohup.out` and found nothing, and concluded
+that nothing reached stdout. `nohup.out` is *block-buffered* — the lines were
+sitting in a buffer. `logs/reforge.log` is written by a flushing handler and had
+them all along. A buffered file is not evidence.
+
+## 7. Not verified automatically
 
 `[JOIN]` / `[LEAVE]` / `[DEATH]` / `[KICK]` need a real client to connect, so
 they were not sampled. They share shape C with the verified `[CHAT]`, so the
