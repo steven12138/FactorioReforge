@@ -46,6 +46,13 @@
 
 ### Fixed
 
+- **`crash_doctor` never printed its advice.** Its catalogues defined `cause`
+  and `fix` twice each -- once as the wrapper line, once as the mapping of
+  per-cause text -- and YAML keeps the last silently, so the wrapper was
+  destroyed and the line came out as a bare `fix`. The text was computed and
+  thrown away, in both languages, from the day the plugin was written. A new
+  check fails on any catalogue that defines a key twice at any depth.
+
 - **Burner machines were reported as if they were on the grid.** `!!ratio
   iron-plate 15` answered "48 machines, 4.32 MW" for a plan made of stone
   furnaces, which draw no electricity at all, and the coal they eat was missing

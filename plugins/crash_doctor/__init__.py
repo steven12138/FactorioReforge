@@ -186,7 +186,7 @@ async def on_server_crash(server, code):
     if diagnosis.detail:
         server.logger.error(tr("detail", detail=diagnosis.detail))
     if diagnosis.fix(tr):
-        server.logger.error(tr("fix", fix=diagnosis.fix(tr)))
+        server.logger.error(tr("fix_line", fix=diagnosis.fix(tr)))
 
     if (_state["config"]).get("notify_telegram", True):
         bridge = server.get_plugin_instance("telegram_bridge")
@@ -259,8 +259,8 @@ async def _cmd_why(source):
         for line in tail:
             await source.reply(f"    {line}")
         return
-    await source.reply(tr("cause", summary=diagnosis.summary(tr)))
+    await source.reply(tr("cause_line", summary=diagnosis.summary(tr)))
     if diagnosis.detail:
         await source.reply(tr("detail", detail=diagnosis.detail))
     if diagnosis.fix(tr):
-        await source.reply(tr("fix", fix=diagnosis.fix(tr)))
+        await source.reply(tr("fix_line", fix=diagnosis.fix(tr)))

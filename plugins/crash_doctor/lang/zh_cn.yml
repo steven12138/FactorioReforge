@@ -3,9 +3,9 @@ help: 服务器上次为什么退出
 nothing_yet: 自本插件加载以来，服务器没有意外退出过。
 last_exit: "上次意外退出：退出码 {code}"
 no_match: "  没有匹配到已知的失败特征。最后几行输出："
-cause: "  原因：{summary}"
+cause_line: "  原因：{summary}"
 detail: "  细节：{detail}"
-fix: "  建议：{fix}"
+fix_line: "  建议：{fix}"
 unknown_exit: "服务器以退出码 {code} 退出，且没有匹配到已知失败特征。用 !!why 查看最后几行输出。"
 exited: "服务器以退出码 {code} 退出：{summary}"
 telegram: "🔥 <b>服务器意外退出</b>（退出码 {code}）\n{summary}"

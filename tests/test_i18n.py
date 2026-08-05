@@ -228,6 +228,67 @@ class TestBundledPluginCatalogues:
         assert not problems, f"placeholder mismatch: {problems}"
 
 
+class TestDuplicateKeys:
+    """YAML keeps the last of a repeated key and says nothing about it.
+
+    crash_doctor defined ``cause`` twice: once as the wrapper line
+    ``"  Cause: {summary}"`` and once as the mapping of per-cause text. The
+    mapping came second, so the wrapper was silently destroyed and every crash
+    diagnosis printed a bare ``cause`` where the sentence should have been --
+    the text was computed and then thrown away. ``fix`` had it too, in both
+    languages, from the day the plugin was written.
+
+    Nothing else catches this: the key resolves (to a mapping), the file parses,
+    and both languages agree with each other because both are broken the same
+    way.
+    """
+
+    CATALOGUES = [
+        *(Path(__file__).resolve().parent.parent / "factorio_reforge" / "lang").glob("*.yml"),
+        *(
+            path
+            for d in (Path(__file__).resolve().parent.parent / "plugins").iterdir()
+            if d.is_dir() and (d / "lang").is_dir()
+            for path in (d / "lang").glob("*.yml")
+        ),
+    ]
+
+    def duplicates(self, path):
+        """Every key defined more than once in one mapping, at any depth."""
+        from collections import Counter
+
+        found = []
+
+        def walk(node, prefix=""):
+            if not isinstance(node, yaml.MappingNode):
+                return
+            names = [key.value for key, _ in node.value]
+            found.extend(
+                f"{prefix}{name}"
+                for name, count in Counter(names).items()
+                if count > 1
+            )
+            for key, value in node.value:
+                walk(value, f"{prefix}{key.value}.")
+
+        walk(yaml.compose(path.read_text(encoding="utf-8")))
+        return found
+
+    def test_no_catalogue_defines_a_key_twice(self):
+        problems = {
+            f"{path.parent.parent.name}/{path.name}": dupes
+            for path in self.CATALOGUES
+            if (dupes := self.duplicates(path))
+        }
+        assert not problems, f"duplicate keys, later one silently wins: {problems}"
+
+    def test_the_check_would_catch_it(self, tmp_path):
+        """The guard has to fail on the shape it exists for."""
+        path = tmp_path / "en.yml"
+        path.write_text('cause: "  Cause: {summary}"\ncause:\n  boom: exploded\n')
+        assert self.duplicates(path) == ["cause"]
+
+
 class TestYamlBooleanKeys:
     """YAML 1.1 reads yes/no/on/off/true/false as booleans, keys included.
 

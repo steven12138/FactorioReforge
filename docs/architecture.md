@@ -291,7 +291,7 @@ worth reporting — the RCON bind above all — are printed after it.
 ## Tests
 
 ```bash
-python -m pytest tests/ -q        # 625 tests
+python -m pytest tests/ -q        # 627 tests
 ```
 
 Parser tests run against output sampled from a real server, in
@@ -301,5 +301,7 @@ stdin EOF, which is why FactorioReforge never closes that pipe.
 
 Some tests exist to keep a promise rather than to catch a bug: that no source
 file anywhere issues `/c`, that every bundled plugin ships both languages with
-matching placeholders, and that no translation catalogue contains a YAML boolean
-key.
+matching placeholders, that no translation catalogue contains a YAML boolean
+key, and that none defines the same key twice — YAML keeps the last one and says
+nothing, which cost `crash_doctor` its advice line for the whole life of the
+plugin.

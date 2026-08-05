@@ -3,9 +3,9 @@ help: why did the server last exit
 nothing_yet: The server has not exited unexpectedly since this plugin loaded.
 last_exit: "Last unexpected exit: code {code}"
 no_match: "  No known signature matched. Last lines:"
-cause: "  Cause: {summary}"
+cause_line: "  Cause: {summary}"
 detail: "  Detail: {detail}"
-fix: "  Try: {fix}"
+fix_line: "  Try: {fix}"
 unknown_exit: "Server exited with code {code} and nothing matched a known failure. Run !!why to see the last few lines of output."
 exited: "Server exited with code {code}: {summary}"
 telegram: "🔥 <b>Server exited</b> (code {code})\n{summary}"
