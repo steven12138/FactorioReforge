@@ -260,7 +260,7 @@ Factorio 的输出以前是走一个裸 `print` 的，
 ## 测试
 
 ```bash
-python -m pytest tests/ -q        # 588 项
+python -m pytest tests/ -q        # 606 项
 ```
 
 解析测试跑的是从真实服务器采样下来的输出，在

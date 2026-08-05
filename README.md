@@ -6,7 +6,7 @@
   <img alt="Python 3.11+" src="https://img.shields.io/badge/python-3.11%2B-3776ab?logo=python&logoColor=white">
   <img alt="Factorio 2.0" src="https://img.shields.io/badge/factorio-2.0%20headless-d4761a">
   <img alt="License MIT" src="https://img.shields.io/badge/license-MIT-green">
-  <img alt="588 tests" src="https://img.shields.io/badge/tests-588%20passing-brightgreen">
+  <img alt="606 tests" src="https://img.shields.io/badge/tests-606%20passing-brightgreen">
   <img alt="i18n" src="https://img.shields.io/badge/i18n-en%20%C2%B7%20zh__cn-blue">
 </p>
 

@@ -201,6 +201,9 @@ FactorioReforge 终端**永远**是 `owner`，且不可配置：
 | `==<表达式>` | user | 在聊天框里算数：`==1400/7.5` |
 | `!!calc <表达式>` | user | 同上，用于终端和 Telegram |
 | `!!ratio [物品] [速率]` | user | 造它要多少机器、投入、传送带和电 |
+| `!!ratio machine` | user | 每次计算用的是哪台机器 |
+| `!!ratio machine use\|drop <名字>` | helper | 钉住一台机器，或取消钉住 |
+| `!!ratio machine auto` | helper | 改回「这个存档造得出来的最好的那台」 |
 | `!!ratio refresh` | helper | 丢掉配方缓存，下次重新从游戏里读 |
 | `!!recipe [物品]` | user | 单条配方：时间、原料、单台产率 |
 | `!!belt <速率>` | user | 这个速率各档传送带各要几条 |

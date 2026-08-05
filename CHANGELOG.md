@@ -46,6 +46,29 @@
 
 ### Fixed
 
+- **The calculator wrote every plan in a machine you might not have.** Three
+  separate causes, all of them live on a real save:
+  - the config file still pinned the old hardcoded list, and
+    `load_config_simple` never rewrites a key that is already there, so
+    changing the default to "pick the best you can build" fixed nothing for
+    anyone who had run the plugin once. The exact old list is now cleared on
+    load; a list somebody reordered or trimmed is left alone.
+  - what counted as *unlocked* included recycling. Every machine has an
+    `X-recycling` recipe, those are enabled from the start, and recycling an
+    assembling machine 3 yields an assembling machine 2 -- so a save that had
+    researched neither reported tier 2, and every plan came out one tier high.
+  - where nothing in a category was unlocked, the fallback named the *fastest*
+    machine in the game. A save running assembling machine 1 was told to use a
+    cryogenic plant. It now names the one you would reach first.
+  `!!ratio machine` shows and changes the choice from chat.
+- **A reloaded plugin's old commands kept running.** Nothing ever called
+  `CommandManager.unregister_plugin`, so every `!!FR plugin reload` left the
+  previous tree registered *and* first in the list; dispatch ran the old
+  module, whose `on_unload` had just cleared its state. Unloading a plugin left
+  its commands dispatching into a module that no longer existed. The stand-in
+  used in the tests implements the method, which is why satisfying it proved
+  nothing -- the regression tests now drive the real CommandManager.
+
 - `telegram_bridge` retries when it cannot reach Telegram, on a widening
   backoff, instead of logging a traceback and staying dead until someone
   reloads the plugin. Measured on a live server: api.telegram.org times out

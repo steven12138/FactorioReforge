@@ -209,6 +209,9 @@ actually running. See [`calculator`](plugins.md#calculator).
 | `==<expression>` | user | Arithmetic in chat: `==1400/7.5` |
 | `!!calc <expression>` | user | The same, from the terminal or Telegram |
 | `!!ratio [item] [rate]` | user | Machines, inputs, belts and power to build it |
+| `!!ratio machine` | user | Which machine each plan is written in |
+| `!!ratio machine use\|drop <name>` | helper | Pin a machine, or stop pinning it |
+| `!!ratio machine auto` | helper | Back to the best machine this save can build |
 | `!!ratio refresh` | helper | Forget the cached recipe data and re-read it |
 | `!!recipe [item]` | user | One recipe: time, ingredients, per-machine rate |
 | `!!belt <rate>` | user | How many belts of each tier a rate needs |

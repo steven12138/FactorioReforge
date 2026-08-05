@@ -442,6 +442,26 @@ by count, and a beacon number that is quietly wrong is worse than one the
 calculator never claimed to know; `speed=` takes a figure you worked out
 yourself.
 
+`!!ratio machine` shows which machine each answer is written in, and changes
+it:
+
+```
+!!ratio machine                  what is used, grouped by machine
+!!ratio machine use steel-furnace   pin one
+!!ratio machine drop steel-furnace
+!!ratio machine auto             back to the best this save can build
+```
+
+The default is **the best machine this save has actually unlocked** — a plan in
+assembling machine 3 is useless to a save that has not researched it. What
+counts as unlocked comes from the force's enabled recipes, with recycling
+excluded: every machine has an `X-recycling` recipe, those are on from the
+start, and recycling an assembling machine 3 yields an assembling machine 2, so
+without the filter a save that researched neither reported tier 2 and every
+plan came out one tier too high. Where a category has nothing unlocked at all,
+the answer names the machine you would reach *first* rather than the fastest —
+"cryogenic plant" is true and useless to somebody running tier 1.
+
 ## ups_watch
 
 `!!ups` — the update rate, and `!!ups why` for what is eating it.
