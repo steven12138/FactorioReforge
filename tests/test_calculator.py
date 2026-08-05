@@ -824,3 +824,52 @@ class TestBuildableQuery:
     def test_recycling_is_one_of_the_excluded_categories(self, recipes):
         """If this ever stops being true the filter above silently stops working."""
         assert "recycling" in recipes.EXCLUDED_CATEGORIES
+
+
+class TestMachineListing:
+    """What `!!ratio machine` prints.
+
+    The first version printed one line per recipe category: twenty-nine lines
+    on a real Space Age save, longer than the chat box, and twenty-two of them
+    saying the same thing about categories nothing was unlocked in.
+    """
+
+    @pytest.fixture
+    def book(self, recipes):
+        book = recipes.RecipeBook(None)
+        book.machines = {
+            "assembling-machine-1": recipes.parse_machine(
+                "assembling-machine-1",
+                {"speed": 0.5, "categories": ["crafting", "basic-crafting", "electronics"]}),
+            "foundry": recipes.parse_machine(
+                "foundry", {"speed": 4, "categories": ["metallurgy", "casting"]}),
+            "stone-furnace": recipes.parse_machine(
+                "stone-furnace", {"speed": 1, "categories": ["smelting"]}),
+        }
+        book.buildable = {"assembling-machine-1", "stone-furnace"}
+        return book
+
+    def groups(self, plugin, book):
+        return plugin._machine_groups(book, [])
+
+    def test_one_line_per_machine_not_per_category(self, plugin, book):
+        unlocked, _ = self.groups(plugin, book)
+        assert [m for m, _ in unlocked] == ["assembling-machine-1", "stone-furnace"]
+
+    def test_the_machine_covering_most_categories_comes_first(self, plugin, book):
+        unlocked, _ = self.groups(plugin, book)
+        assert unlocked[0][0] == "assembling-machine-1"
+        assert len(unlocked[0][1]) == 3
+
+    def test_what_cannot_be_built_is_kept_separate(self, plugin, book):
+        _, locked = self.groups(plugin, book)
+        assert [m for m, _ in locked] == ["foundry"]
+
+    def test_a_long_category_list_is_cut_short(self, plugin):
+        many = [f"category-{n}" for n in range(9)]
+        line = plugin._join_categories(many)
+        assert line.endswith("+4")
+        assert line.count(",") == plugin.MAX_CATEGORIES - 1
+
+    def test_a_short_category_list_is_not(self, plugin):
+        assert plugin._join_categories(["crafting"]) == "crafting"

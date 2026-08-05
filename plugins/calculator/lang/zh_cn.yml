@@ -53,10 +53,10 @@ error:
   unbounded: "这些配方可以无中生有，所以没有答案。"
 
 machine:
-  header: "各类配方使用的机器："
+  header: "计算结果会用这些机器来表示："
   why_pinned: "   ← 已钉住"
-  why_unlocked: ""
-  why_locked: "   （还没解锁 —— 这一类里没有任何一台解锁了）"
+  none_unlocked: "  目前一台都没解锁，所以会用最先能解锁的那台来表示"
+  locked_summary: "另有 {count} 类配方还没有任何机器解锁；那部分会用最先能解锁的那台表示（{machines}）。"
   pinned: "已钉住：{machines}"
   automatic: "没有钉住任何机器，所以每次计算都用这个存档造得出来的最好的那台。用 {prefix} use <名字> 钉一台。"
   auto_hint: "{prefix} auto 可以改回「用这个存档造得出来的最好的那台」。"

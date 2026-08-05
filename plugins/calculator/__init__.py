@@ -393,20 +393,58 @@ async def _cmd_machine_show(source):
         await _say_pins(source, pinned, prefix)
         return
 
+    unlocked, locked = _machine_groups(book, pinned, _researched_machines())
+
     await source.reply(server.tr("machine.header"))
-    for category in sorted(_interesting_categories(book)):
-        chosen = book.best_machine(category, pinned, researched_only=_researched_machines())
-        if chosen is None:
-            continue
-        if chosen.name in pinned:
-            why = server.tr("machine.why_pinned")
-        elif chosen.name in book.buildable:
-            why = server.tr("machine.why_unlocked")
-        else:
-            why = server.tr("machine.why_locked")
-        await source.reply(f"  {category}: {chosen.name}{why}")
+    for machine, categories in unlocked:
+        mark = server.tr("machine.why_pinned") if machine in pinned else ""
+        await source.reply(f"  {machine}{mark}  --  {_join_categories(categories)}")
+    if not unlocked:
+        await source.reply(server.tr("machine.none_unlocked"))
+    if locked:
+        await source.reply(server.tr(
+            "machine.locked_summary",
+            count=sum(len(c) for _, c in locked),
+            machines=", ".join(machine for machine, _ in locked[:4]),
+        ))
 
     await _say_pins(source, pinned, prefix)
+
+
+#: Categories per machine before the line says "and N more". A machine that
+#: runs twenty categories is not more informative for listing all twenty.
+MAX_CATEGORIES = 5
+
+
+def _machine_groups(book, pinned: list[str], researched_only: bool = True):
+    """The chosen machine per category, grouped by machine and split by whether
+    the save can build it.
+
+    Grouped because one machine covers a dozen categories -- a line each is
+    twenty-nine lines of chat, which is longer than the chat box and mostly
+    repeats. Split because "what am I planning in" and "what would I be
+    planning in if I researched it" are different questions, and only the first
+    is worth reading in full.
+    """
+    chosen: dict[str, list[str]] = {}
+    for category in sorted(_interesting_categories(book)):
+        machine = book.best_machine(category, pinned, researched_only=researched_only)
+        if machine is not None:
+            chosen.setdefault(machine.name, []).append(category)
+
+    unlocked, locked = [], []
+    for machine, categories in sorted(chosen.items()):
+        (unlocked if machine in book.buildable else locked).append((machine, categories))
+    # Most-used machine first: that is the one the answers are written in.
+    unlocked.sort(key=lambda pair: (-len(pair[1]), pair[0]))
+    locked.sort(key=lambda pair: (-len(pair[1]), pair[0]))
+    return unlocked, locked
+
+
+def _join_categories(categories: list[str]) -> str:
+    shown = ", ".join(categories[:MAX_CATEGORIES])
+    extra = len(categories) - MAX_CATEGORIES
+    return f"{shown} +{extra}" if extra > 0 else shown
 
 
 async def _say_pins(source, pinned: list[str], prefix: str) -> None:

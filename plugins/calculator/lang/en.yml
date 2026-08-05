@@ -53,10 +53,10 @@ error:
   unbounded: "These recipes produce something from nothing, so there is no answer."
 
 machine:
-  header: "Machine used for each kind of recipe:"
+  header: "Plans are written in these machines:"
   why_pinned: "   <- pinned"
-  why_unlocked: ""
-  why_locked: "   (not unlocked yet -- nothing in this category is)"
+  none_unlocked: "  nothing is unlocked yet, so plans name the machine you would reach first"
+  locked_summary: "{count} more kind(s) of recipe have nothing unlocked; those plans name the machine you would reach first ({machines})."
   pinned: "Pinned: {machines}"
   automatic: "Nothing is pinned, so each plan uses the best machine this save can build. {prefix} use <name> to pin one."
   auto_hint: "{prefix} auto goes back to using the best machine this save can build."
