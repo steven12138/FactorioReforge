@@ -1,0 +1,100 @@
+description: "Install, switch and roll back the Factorio server build"
+help: "the Factorio version this server runs, and how to change it"
+
+help.status: "{prefix} -- the build, the world's version, and whether they fit"
+help.check: "{prefix} check -- what factorio.com has released"
+help.install: "{prefix} install <version> -- download it; the server keeps running"
+help.use: "{prefix} use <version> -- stage a switch, then {prefix} confirm"
+help.with_save: "{prefix} use <version> with-save <slot> -- go back a version and back to that world, together"
+help.adopt: "{prefix} adopt -- convert this install so versions can be switched (server stopped)"
+
+busy: "Something version-related is already running. Wait for it to finish."
+
+mark:
+  block: "  x"
+  warn: "  !"
+  note: "  ."
+
+status:
+  running: "Running Factorio {version}"
+  window: "It can open worlds from {min} up to {max}"
+  no_binary: "Could not ask the binary what it is: {error}"
+  world: "This world was written by {version}"
+  world_unknown: "Could not read the world's version: {error}"
+  managed: "Switchable: on {version}, {count} version(s) installed"
+  unmanaged: "Not switchable yet -- {path} is an ordinary install"
+  adopt_hint: "Stop the server and run {prefix} adopt to make versions switchable"
+  preupgrade: "There is a pre-upgrade world kept from {time} ({comment})"
+  staged: "A switch to {version} is staged and waiting for confirm"
+
+list:
+  none: "No version trees under {path}"
+  header: "{count} version(s) installed:"
+  active: "   <- in use"
+
+check:
+  asking: "Asking factorio.com what it has released..."
+  failed: "Could not reach factorio.com: {error}"
+  current: "{channel}: {version} -- the one you are running"
+  installed: "{channel}: {version} -- installed; {prefix} use {version}"
+  available: "{channel}: {version} -- {prefix} install {version}"
+
+  same_version: "You are already running {version}"
+  save_unreadable: "The world's version could not be read, so nothing can be checked against it: {error}"
+  save_too_new: "This world was written by {save} and {version} only reads up to {max}. Going back a version means going back to a world that version can open -- add: with-save pre-upgrade"
+  save_too_old: "This world was written by {save} and {version} only reads from {min} up"
+  paired_unreadable: "The save in slot {slot} could not be read: {error}"
+  mods_wrong_series: "{count} installed mod(s) are not built for Factorio {series}: {mods}. The server will refuse to load them"
+  world_replaced: "The live world will be replaced by slot {slot}, written by {save}"
+  downgrade: "{version} is older than what is running; everything since will only exist in the pre-upgrade slot"
+  players_online: "{count} player(s) are online ({players}) and will be disconnected"
+  clients_must_match: "Every player has to be on {version} too -- Factorio will not let a mismatched client connect"
+
+install:
+  starting: "Downloading Factorio {version}. The server keeps running."
+  unit: "MB"
+  failed: "Could not install {version}: {error}"
+  done: "Factorio {version} is installed at {path}"
+  next: "Switch to it with {prefix} use {version}"
+
+switch:
+  unmanaged: "This install cannot switch versions yet."
+  not_installed: "{version} is not installed. Get it with {prefix} install {version}"
+  staged: "Staged: a switch to {version}. Nothing has happened yet."
+  confirm_hint: "{prefix} confirm to go ahead, {prefix} abort to drop it. Expires in {seconds}s."
+  cancelled: "The staged switch was dropped."
+  nothing_staged: "Nothing is staged. Use {prefix} use <version> first."
+  expired: "That staged switch is too old; stage it again."
+  recheck_failed: "Something changed since it was staged, so the switch was refused:"
+  countdown: "Server restarting onto Factorio {version} in {seconds}s -- you will need the same version to reconnect"
+  stopping: "Stopping the server..."
+  would_not_stop: "The server would not stop, so nothing was changed."
+  preserving: "Keeping the current world in the pre-upgrade slot..."
+  preserved_comment: "the world as it was on {version}, before switching to {target}"
+  preserve_failed: "The current world could not be kept, so the switch was refused."
+  world_restored: "Put the world from slot {slot} back in place."
+  switched: "Switched from {old} to {new}."
+  failed: "The switch failed: {error}"
+  start_when_ready: "The server was not running, so it was left down. Start it when you are ready."
+  did_not_come_up: "Factorio {version} did not come up."
+  put_back: "Put {version} back, with the world it had."
+  put_back_failed: "{version} could not be put back either. The world before the switch is in the pre-upgrade slot."
+  relink_failed: "Could not point the install back at {version}: {error}"
+  world_recover_failed: "Could not put the world from {slot} back: {error}"
+  done: "Running Factorio {version}."
+
+adopt:
+  already: "Already switchable; the live version is {version}."
+  server_running: "Stop the server first -- this moves the directory it is running from."
+  no_binary: "There is no Factorio here to adopt: {error}"
+  starting: "Moving this install to {path} as version {version}..."
+  failed: "Nothing was changed: {error}"
+  done: "Adopted as {version}. Saves, mods and settings now live in {shared} and are shared by every version."
+  next: "{prefix} install <version> to add another, then {prefix} use <version>"
+
+remove:
+  failed: "Could not remove {version}: {error}"
+  done: "Removed {version}."
+
+log:
+  switched: "Switched Factorio {old} -> {new}"

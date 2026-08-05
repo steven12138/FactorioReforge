@@ -12,6 +12,7 @@ factorio_reforge/
 ├── command/         command tree builder, dispatch, command sources
 ├── permission/      five levels, persisted to config/permission.yml
 ├── saves/           slots, backup, restore
+├── versions/        which Factorio build runs, and swapping it
 └── config.py
 ```
 
@@ -146,6 +147,35 @@ overwriting the world in order to back it up, which is what a bare
 And a world is one zip rather than a live directory, so QBM's `save-off` /
 `save-all flush` dance has no equivalent here and is simply absent.
 
+## Changing the Factorio version
+
+A save format upgrade is a one-way door: once the new build has written the
+world, the old one cannot open it. That makes swapping the server binary a
+restore problem rather than a download problem, and `versions/` is shaped
+accordingly — stage, back up, swap, verify, put it back.
+
+Two things are read rather than assumed, which is what lets the answer be known
+before the server stops:
+
+* **The binary states its own window.** `--version` prints a *map input* and a
+  *map output* version, so whether a build can open a given world is arithmetic
+  and not a table of rules that goes stale.
+* **The save states its own version**, as four little-endian `uint16` at the
+  start of `level-init.dat`.
+
+Installed versions are separate directories with a symlink pointing at the live
+one, because rollback has to work with the server down and possibly the network
+with it; a symlink flip is the only swap that cannot fail halfway. The world is
+symlinked back into each tree, since Factorio resolves its data paths from the
+executable and would otherwise write saves *inside* the version that is about to
+be rolled back.
+
+The world from before a swap goes to a fixed `pre-upgrade` slot, a second
+`overwrite` in every respect except that a restore does not spend it — it has
+to outlive one, being the only world an older binary can still open. That slot
+is also what makes a downgrade expressible at all: the binary and the world go
+back together, in one operation, or not at all.
+
 ## Ratios and the solver
 
 `!!ratio` is the one piece of arithmetic here complicated enough to be worth
@@ -261,7 +291,7 @@ worth reporting — the RCON bind above all — are printed after it.
 ## Tests
 
 ```bash
-python -m pytest tests/ -q        # 473 tests
+python -m pytest tests/ -q        # 535 tests
 ```
 
 Parser tests run against output sampled from a real server, in

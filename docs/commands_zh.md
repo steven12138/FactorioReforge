@@ -168,6 +168,28 @@ FactorioReforge 终端**永远**是 `owner`，且不可配置：
 只会提供为你这个 Factorio 版本构建的发布版——见
 [`mod_manager`](plugins_zh.md#mod_manager)。
 
+## 服务端版本 —— `!!version`
+
+| 命令 | 等级 | 作用 |
+|---|---|---|
+| `!!version` | user | 当前版本、存档版本，以及两者合不合得上 |
+| `!!version list` | user | 已安装的版本 |
+| `!!version check` | helper | 官方放出了哪些版本 |
+| `!!version install <版本>` | admin | 下载下来——服务器照常跑 |
+| `!!version use <版本>` | owner | 预备切换，目前什么都不会发生 |
+| `!!version use <版本> with-save <槽位>` | owner | 版本**和**存档一起退回去 |
+| `!!version confirm` / `abort` | owner | 执行预备好的切换，或者取消掉 |
+| `!!version adopt` | owner | 把这份安装改造成可切换版本的布局 |
+| `!!version remove <版本>` | owner | 删掉一棵版本树 |
+
+存档格式升级是撤不回来的：新版本一旦写过这个世界，旧版本就打不开它了。
+所以 `!!version use` 到一个更旧的版本会被拒绝，
+除非同时给它一个那个版本读得了的世界 —— 这就是 `with-save` 的用途，
+也是每次切换前的世界都被留在 `pre-upgrade` 备份槽位里的原因。
+
+所有玩家也得在同一个版本上，版本对不上的客户端 Factorio 不让连。
+见 [`version_manager`](plugins_zh.md#version_manager)。
+
 ## 计算器 —— `!!ratio`
 
 算数，以及用你服务器真正在跑的配方解出来的产能比例。见

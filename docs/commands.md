@@ -175,6 +175,29 @@ holding something, in which case it goes to your inventory and says so.
 Only releases built for your Factorio version are offered — see
 [`mod_manager`](plugins.md#mod_manager).
 
+## Server version — `!!version`
+
+| Command | Level | Does |
+|---|---|---|
+| `!!version` | user | The build, the world's version, and whether they fit |
+| `!!version list` | user | Installed version trees |
+| `!!version check` | helper | What factorio.com has released |
+| `!!version install <v>` | admin | Download it — the server keeps running |
+| `!!version use <v>` | owner | Stage a switch; nothing happens yet |
+| `!!version use <v> with-save <slot>` | owner | Go back a version *and* back to that world |
+| `!!version confirm` / `abort` | owner | Perform the staged switch, or drop it |
+| `!!version adopt` | owner | Convert this install so versions can be switched |
+| `!!version remove <v>` | owner | Delete a version tree |
+
+A save format upgrade cannot be undone: once the new build has written the
+world, the old one cannot open it. So `!!version use` on an older version is
+refused unless it is paired with a world that version can read — which is what
+`with-save` is for, and why the world from before every switch is kept in the
+`pre-upgrade` backup slot.
+
+Every player has to be on the same version too; Factorio will not let a
+mismatched client connect. See [`version_manager`](plugins.md#version_manager).
+
 ## Calculator — `!!ratio`
 
 Arithmetic, and production ratios solved from the recipes your server is

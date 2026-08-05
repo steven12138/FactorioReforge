@@ -58,6 +58,7 @@ from typing import Any
 SAVE_NAME = "save.zip"
 INFO_NAME = "info.json"
 OVERWRITE_SLOT = "overwrite"
+PREUPGRADE_SLOT = "pre-upgrade"
 _SAFE = "-_.() "
 
 #: Ring names. The manual one is "" so that a slot a person made is addressed by
@@ -65,6 +66,13 @@ _SAFE = "-_.() "
 MANUAL = ""
 AUTO = "auto"
 OVERWRITE = "overwrite"
+PREUPGRADE = "pre-upgrade"
+
+#: Rings holding exactly one slot, addressed by name and never rotated. Both
+#: exist for the same reason: they are the only way back from a step that
+#: cannot otherwise be undone -- restoring the wrong world, and upgrading the
+#: server past what the old binary can open.
+FIXED_RINGS = (OVERWRITE, PREUPGRADE)
 
 #: What a user types for a slot in the automatic ring: ``a3``, or ``auto3``.
 _AUTO_PREFIXES = ("a", "auto")
@@ -87,13 +95,13 @@ class SlotRef:
 
     @property
     def directory(self) -> str:
-        if self.ring == OVERWRITE:
-            return OVERWRITE_SLOT
+        if self.ring in FIXED_RINGS:
+            return self.ring
         return f"{'auto' if self.ring == AUTO else 'slot'}{self.number}"
 
     def __str__(self) -> str:
-        if self.ring == OVERWRITE:
-            return OVERWRITE_SLOT
+        if self.ring in FIXED_RINGS:
+            return self.ring
         return f"a{self.number}" if self.ring == AUTO else str(self.number)
 
 
@@ -105,8 +113,8 @@ def parse_slot(value: SlotRef | int | str) -> SlotRef:
         return SlotRef(value, MANUAL)
 
     text = str(value).strip().lower()
-    if text == OVERWRITE_SLOT:
-        return SlotRef(0, OVERWRITE)
+    if text in FIXED_RINGS:
+        return SlotRef(0, text)
     for prefix in sorted(_AUTO_PREFIXES, key=len, reverse=True):
         if text.startswith(prefix) and text[len(prefix):].isdigit():
             return SlotRef(int(text[len(prefix):]), AUTO)
@@ -311,6 +319,11 @@ class SaveManager:
     def validate(self, slot: SlotRef | int | str) -> Slot:
         """Resolve a user-supplied slot, with a message they can act on."""
         ref = parse_slot(slot)
+        if ref.ring in FIXED_RINGS:
+            info = self.get(ref)
+            if info is None:
+                raise SaveError(f"there is nothing in {ref}")
+            return info
         count = self.count_in(ref.ring)
         if not 1 <= ref.number <= count:
             where = "automatic slot" if ref.ring == AUTO else "slot"
@@ -449,18 +462,28 @@ class SaveManager:
 
     # -- the pre-restore backup ----------------------------------------------
 
-    def back_up_current_world(self, confirmed_by: str) -> Slot | None:
-        """Copy the live save into the fixed ``overwrite`` slot.
+    def back_up_current_world(
+        self,
+        confirmed_by: str,
+        *,
+        slot: str = OVERWRITE_SLOT,
+        comment: str | None = None,
+    ) -> Slot | None:
+        """Copy the live save into a fixed slot. Server stopped.
 
         QBM does this right before replacing the world, and it is what makes
-        restoring the wrong slot survivable. Called with the server stopped, so
-        the file is not moving underneath us.
+        restoring the wrong slot survivable. ``slot`` chooses which fixed slot,
+        because a version swap needs its own: the ``overwrite`` slot is spent
+        by the next restore, and the world from before an upgrade has to
+        survive longer than that -- it is the only thing an old binary can
+        still open.
         """
         if not self.current_save.is_file():
             self.logger.error("There is no current save to preserve at %s", self.current_save)
             return None
 
-        path = self.slot_path(OVERWRITE_SLOT)
+        ref = parse_slot(slot)
+        path = self.slot_path(ref)
         shutil.rmtree(path, ignore_errors=True)
         path.mkdir(parents=True, exist_ok=True)
         target = path / SAVE_NAME
@@ -468,20 +491,23 @@ class SaveManager:
 
         info = Slot(
             id=0,
-            ring=OVERWRITE,
-            comment=f"the world as it was, before {confirmed_by} confirmed a restore",
+            ring=ref.ring,
+            comment=comment or f"the world as it was, before {confirmed_by} confirmed a restore",
             created_at=time.time(),
             created_by=confirmed_by,
             size_bytes=target.stat().st_size,
             automatic=True,
         )
         info._tr = self.tr
-        self._write_info(OVERWRITE_SLOT, info)
+        self._write_info(ref, info)
         self.logger.info(self._log("log.world_preserved"))
         return info
 
     def get_overwrite(self) -> Slot | None:
         return self.get(OVERWRITE_SLOT)
+
+    def get_preupgrade(self) -> Slot | None:
+        return self.get(PREUPGRADE_SLOT)
 
     # -- restoring -----------------------------------------------------------
 

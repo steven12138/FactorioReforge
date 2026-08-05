@@ -1,0 +1,100 @@
+description: "安装、切换、回退 Factorio 服务端版本"
+help: "这台服务器跑的 Factorio 版本，以及怎么换"
+
+help.status: "{prefix} —— 当前版本、存档版本，以及两者合不合得上"
+help.check: "{prefix} check —— 官方放出了哪些版本"
+help.install: "{prefix} install <版本> —— 下载下来，服务器照常跑"
+help.use: "{prefix} use <版本> —— 预备切换，然后 {prefix} confirm"
+help.with_save: "{prefix} use <版本> with-save <槽位> —— 版本和存档一起退回去"
+help.adopt: "{prefix} adopt —— 把这份安装改造成可切换版本的布局（需停服）"
+
+busy: "已经有一个版本操作在跑了，等它跑完。"
+
+mark:
+  block: "  ✗"
+  warn: "  !"
+  note: "  ·"
+
+status:
+  running: "当前 Factorio {version}"
+  window: "它能打开 {min} 到 {max} 之间的存档"
+  no_binary: "问不到这个二进制的版本：{error}"
+  world: "当前存档是 {version} 写的"
+  world_unknown: "读不出存档版本：{error}"
+  managed: "可切换：当前 {version}，已装 {count} 个版本"
+  unmanaged: "还不能切换 —— {path} 是一份普通安装"
+  adopt_hint: "停服后执行 {prefix} adopt，就能切换版本了"
+  preupgrade: "有一份换版本之前留下的存档，{time}（{comment}）"
+  staged: "已预备切换到 {version}，等 confirm"
+
+list:
+  none: "{path} 下面没有任何版本"
+  header: "已安装 {count} 个版本："
+  active: "   ← 正在用"
+
+check:
+  asking: "正在问 factorio.com 有哪些版本……"
+  failed: "连不上 factorio.com：{error}"
+  current: "{channel}：{version} —— 就是你正在跑的"
+  installed: "{channel}：{version} —— 已装好，{prefix} use {version}"
+  available: "{channel}：{version} —— {prefix} install {version}"
+
+  same_version: "你已经在跑 {version} 了"
+  save_unreadable: "读不出存档版本，就没法拿它跟目标版本核对：{error}"
+  save_too_new: "这个存档是 {save} 写的，而 {version} 最多只能读到 {max}。退版本就必须连存档一起退 —— 在命令后面加上：with-save pre-upgrade"
+  save_too_old: "这个存档是 {save} 写的，而 {version} 只能读 {min} 及以上"
+  paired_unreadable: "槽位 {slot} 里的存档读不出来：{error}"
+  mods_wrong_series: "有 {count} 个已装 mod 不是为 Factorio {series} 做的：{mods}。服务器会拒绝加载它们"
+  world_replaced: "当前世界会被槽位 {slot} 里的存档替换掉，那份是 {save} 写的"
+  downgrade: "{version} 比正在跑的版本旧；此后的一切只会存在于 pre-upgrade 槽位里"
+  players_online: "有 {count} 名玩家在线（{players}），他们会掉线"
+  clients_must_match: "所有玩家也得换到 {version} —— 版本对不上的客户端进不来"
+
+install:
+  starting: "正在下载 Factorio {version}，服务器照常跑。"
+  unit: "MB"
+  failed: "装不上 {version}：{error}"
+  done: "Factorio {version} 已安装到 {path}"
+  next: "用 {prefix} use {version} 切过去"
+
+switch:
+  unmanaged: "这份安装还不能切换版本。"
+  not_installed: "{version} 没装。先 {prefix} install {version}"
+  staged: "已预备切换到 {version}。目前什么都还没发生。"
+  confirm_hint: "{prefix} confirm 执行，{prefix} abort 取消。{seconds} 秒内有效。"
+  cancelled: "预备的切换已取消。"
+  nothing_staged: "没有预备中的切换。先执行 {prefix} use <版本>。"
+  expired: "这次预备已经过期了，重新来一次。"
+  recheck_failed: "预备之后情况变了，切换被拒绝："
+  countdown: "服务器将在 {seconds} 秒后换到 Factorio {version} 重启 —— 你需要同样的版本才能重连"
+  stopping: "正在停服……"
+  would_not_stop: "服务器停不下来，什么都没改。"
+  preserving: "正在把当前世界存进 pre-upgrade 槽位……"
+  preserved_comment: "{version} 上的世界，切换到 {target} 之前"
+  preserve_failed: "当前世界没能保住，切换被拒绝。"
+  world_restored: "已把槽位 {slot} 的世界放回去。"
+  switched: "已从 {old} 切换到 {new}。"
+  failed: "切换失败：{error}"
+  start_when_ready: "服务器本来就没在跑，这里保持停着。你想开的时候再开。"
+  did_not_come_up: "Factorio {version} 没起来。"
+  put_back: "已经换回 {version}，世界也一起换回去了。"
+  put_back_failed: "{version} 也没能换回去。切换之前的世界在 pre-upgrade 槽位里。"
+  relink_failed: "没能把安装指回 {version}：{error}"
+  world_recover_failed: "没能把 {slot} 里的世界放回去：{error}"
+  done: "现在跑的是 Factorio {version}。"
+
+adopt:
+  already: "已经是可切换布局了，当前版本 {version}。"
+  server_running: "先停服 —— 这一步要移动它正在运行的目录。"
+  no_binary: "这里没有可以接管的 Factorio：{error}"
+  starting: "正在把这份安装移到 {path}，记为版本 {version}……"
+  failed: "什么都没改：{error}"
+  done: "已接管为 {version}。存档、mod 和设置现在放在 {shared}，所有版本共用。"
+  next: "{prefix} install <版本> 再装一个，然后 {prefix} use <版本>"
+
+remove:
+  failed: "删不掉 {version}：{error}"
+  done: "已删除 {version}。"
+
+log:
+  switched: "Factorio 版本已切换 {old} → {new}"

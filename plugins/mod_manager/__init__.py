@@ -102,6 +102,9 @@ def on_load(server, prev):
     # rather than the on_<event> naming convention. It fires whenever the bridge
     # starts polling, which is how our commands survive a bridge reload.
     server.register_event_listener("telegram.ready", on_telegram_ready)
+    # Which releases are offered depends on the server's version, and
+    # version_manager can change that under us without a restart.
+    server.register_event_listener("version.changed", on_version_changed)
 
 
 async def _learn_version(server):
@@ -123,6 +126,11 @@ async def on_unload(server):
 async def on_telegram_ready(server):
     """The bridge restarted; put our commands back."""
     _register_telegram(server)
+
+
+async def on_version_changed(server, version=None):
+    """Factorio was swapped for another build; the cached target is now wrong."""
+    await _learn_version(server)
 
 
 async def on_server_stop(server, code=None):

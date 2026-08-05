@@ -6,7 +6,7 @@
   <img alt="Python 3.11+" src="https://img.shields.io/badge/python-3.11%2B-3776ab?logo=python&logoColor=white">
   <img alt="Factorio 2.0" src="https://img.shields.io/badge/factorio-2.0%20headless-d4761a">
   <img alt="License MIT" src="https://img.shields.io/badge/license-MIT-green">
-  <img alt="473 tests" src="https://img.shields.io/badge/tests-473%20passing-brightgreen">
+  <img alt="535 tests" src="https://img.shields.io/badge/tests-535%20passing-brightgreen">
   <img alt="i18n" src="https://img.shields.io/badge/i18n-en%20%C2%B7%20zh__cn-blue">
 </p>
 
@@ -20,7 +20,7 @@
 in-game chat, from your terminal, or from Telegram.**
 
 It owns the server process, turns its output into structured events, and hands
-those to plugins. Twenty-one plugins ship with it: slot-based backups with a
+those to plugins. Twenty-two plugins ship with it: slot-based backups with a
 one-command restore, Telegram control, mod installs from the portal, a rendered
 world map, crash diagnosis, a blueprint library, production charts and more.
 
@@ -111,6 +111,7 @@ included. Each plugin ships its own translations.
 | [`auto_snapshot`](docs/plugins.md#auto_snapshot) | Backups on a timer and when the last player leaves |
 | [`telegram_bridge`](docs/plugins.md#telegram_bridge) | Chat relay and full server control from your phone |
 | [`mod_manager`](docs/plugins.md#mod_manager) | Search, install and update mods from the portal |
+| [`version_manager`](docs/plugins.md#version_manager) | `!!version` — change the Factorio build, and get back if it goes wrong |
 | [`map_render`](docs/plugins.md#map_render) | `!!map` — the world drawn at one pixel per tile |
 | [`crash_doctor`](docs/plugins.md#crash_doctor) | Names the cause when the server dies, and the fix |
 | [`server_admin`](docs/plugins.md#server_admin) | `!!server` — edit `server-settings.json` from chat |

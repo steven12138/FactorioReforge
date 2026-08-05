@@ -105,6 +105,103 @@ Searching filters a cached copy of the full mod list (~22,500 entries, 13 MB,
 endpoint. Exact and prefix matches outrank substring hits, with download count
 breaking ties.
 
+## version_manager
+
+`!!version` — which Factorio build the server runs, and how to change it
+without losing the world.
+
+```
+!!version
+  Running Factorio 2.0.77 (build 84539, linux64, headless)
+  It can open worlds from 1.0.0-0 up to 2.0.77-0
+  This world was written by 2.0.77-0
+  Switchable: on 2.0.77, 2 version(s) installed
+```
+
+**A save format upgrade is a one-way door.** Once 2.0.78 has loaded the world
+and written it back, 2.0.77 cannot open it again. So going up is ordinary and
+going down is not a version change at all — it is a version change *and* a
+restore, which have to happen together or the server comes up on a world it
+cannot read. Everything below follows from that.
+
+**Nothing here hardcodes a compatibility rule.** The binary states its own
+window, measured on 2.0.77:
+
+```
+$ ./bin/x64/factorio --version
+Version: 2.0.77 (build 84539, linux64, headless)
+Map input version: 1.0.0-0
+Map output version: 2.0.77-0
+```
+
+and a save states its own version in the first eight bytes of
+`level-init.dat`, as four little-endian `uint16` — `02 00 00 00 4d 00 00 00`
+is 2.0.77-0. Between the two, whether a swap will work is arithmetic done
+before the server stops, rather than something found out by trying, which
+costs a stop, a failed start and a restore.
+
+**Versions are directories; the live one is a symlink.**
+
+```
+server/
+├── versions/2.0.77/     the unpacked tree: bin/ data/
+├── versions/2.0.78/
+├── shared/              saves/ mods/ config/ server-settings.json ...
+└── factorio -> versions/2.0.78
+```
+
+Rolling back then costs a symlink flip: local, instant, and possible with the
+network down — which is exactly the situation an in-place upgrade leaves you in
+when the new build will not start. The world is symlinked back into each tree
+because Factorio resolves its data paths from the executable
+(`write-data=__PATH__executable__/../..`), so saves written by 2.0.78 would
+otherwise land inside `versions/2.0.78/saves` and disappear on a rollback. The
+live path keeps its name, so `working_directory` and `start_command` need no
+edit.
+
+**Downloading is separate from switching.** `install` needs no downtime and
+takes minutes; `use` needs the server down and takes seconds. Fused, a failed
+download would leave the server both stopped and broken.
+
+`use` stages and `confirm` acts, like `!!qb back`. Before the stop, the checks
+run: what the world is, what the target admits it can open, whether any
+installed mod is built for a different `factorio_version`, and who is online
+and about to be disconnected. Blockers refuse; warnings are printed and
+proceed.
+
+**The expansion is not a hazard.** `space-age`, `quality` and `elevated-rails`
+ship inside `data/` and are versioned in lockstep — `data/space-age/info.json`
+on a 2.0.77 tree reads `"version": "2.0.77"` — so a version swap moves them
+atomically with the binary. Only third-party mods in `mods/` are checked, and
+those pin `major.minor`, so a patch upgrade cannot invalidate one and a 2.0 →
+2.1 move invalidates all of them at once.
+
+**The world from before the swap goes into its own fixed backup slot**,
+`pre-upgrade`, which nothing rotates. It is a second `overwrite` slot and
+exists for the same reason, except that the `overwrite` slot is spent by the
+next restore and this one has to outlive that: it is the only world an older
+binary can still open. That is also what makes a downgrade expressible —
+`!!version use 2.0.77 with-save pre-upgrade` puts the binary and the world back
+together, as one operation.
+
+If the new build does not come up, the symlink goes back, the world goes back,
+and the server is started again, with no one typing anything.
+
+An install that has not been converted still reports everything — version,
+world version, what factorio.com has released. Only switching needs the layout,
+and `!!version adopt` converts an existing install in place, with the server
+stopped, undoing every step if any of them fails.
+
+```jsonc
+{
+  "versions_directory": "",     // blank: beside the live install
+  "build": "headless",
+  "distro": "linux64",
+  "countdown_seconds": 15,
+  "confirm_window_seconds": 120
+}
+```
+
 ## map_render
 
 `!!map` draws the world and delivers the image — to the web panel, to Telegram,

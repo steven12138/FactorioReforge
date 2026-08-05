@@ -18,6 +18,27 @@
 
 ### Added
 
+- **`version_manager` — `!!version`.** Changing which Factorio build the server
+  runs, without losing the world to it. A save format upgrade is a one-way
+  door, so this is shaped like a restore and not like an install: stage, back
+  up, swap, verify, put it back.
+  - Nothing hardcodes a compatibility rule. `--version` reports a *map input*
+    and a *map output* version, and a save carries its own version in the first
+    eight bytes of `level-init.dat`, so whether a swap will work is decided
+    before the server stops rather than by trying it.
+  - Versions become directories with a symlink at the live path, so a rollback
+    is a symlink flip — which is the only kind of swap still available when the
+    new build will not start and the network is not the thing you want to
+    depend on. `!!version adopt` converts an existing install in place, undoing
+    every step if any of them fails.
+  - Downloading and switching are separate commands: one needs no downtime, the
+    other needs the server down.
+  - The world from before a swap goes to a fixed `pre-upgrade` backup slot that
+    nothing rotates, which is what makes `!!version use <older> with-save
+    pre-upgrade` — binary and world back together — possible at all.
+  - The expansion is not a hazard: `space-age`, `quality` and `elevated-rails`
+    ship inside `data/` and move with the binary. Third-party mods pin
+    `major.minor`, so patch upgrades cannot break one, and those are checked.
 - **Seven plugins for watching a server you are not sitting in front of.**
   - `ups_watch` — `!!ups`. Factorio fails by getting slower, not by crashing.
     Samples `game.tick` against the wall clock. A paused server reads 0.5

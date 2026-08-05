@@ -6,7 +6,7 @@
   <img alt="Python 3.11+" src="https://img.shields.io/badge/python-3.11%2B-3776ab?logo=python&logoColor=white">
   <img alt="Factorio 2.0" src="https://img.shields.io/badge/factorio-2.0%20headless-d4761a">
   <img alt="License MIT" src="https://img.shields.io/badge/license-MIT-green">
-  <img alt="473 tests" src="https://img.shields.io/badge/tests-473%20passing-brightgreen">
+  <img alt="535 tests" src="https://img.shields.io/badge/tests-535%20passing-brightgreen">
   <img alt="i18n" src="https://img.shields.io/badge/i18n-en%20%C2%B7%20zh__cn-blue">
 </p>
 
@@ -19,7 +19,7 @@
 **FactorioReforge 托管你的 Factorio headless 服务器，让你在游戏聊天框、终端
 或 Telegram 里管理它。**
 
-它接管服务器进程，把输出解析成结构化事件，再分发给插件。自带二十一个插件：
+它接管服务器进程，把输出解析成结构化事件，再分发给插件。自带二十二个插件：
 带撤销的槽位备份、Telegram 远程控制、从 mod 门户装 mod、渲染世界地图、
 崩溃诊断、蓝图库、产量曲线等等。
 
@@ -104,6 +104,7 @@ Factorio 并等它真正退出，不会因为你着急而丢掉任何一个 tick
 | [`auto_snapshot`](docs/plugins_zh.md#auto_snapshot) | 定时备份，以及最后一名玩家离开时备份 |
 | [`telegram_bridge`](docs/plugins_zh.md#telegram_bridge) | 聊天双向转发，手机上完整控制服务器 |
 | [`mod_manager`](docs/plugins_zh.md#mod_manager) | 从 mod 门户搜索、安装、更新 mod |
+| [`version_manager`](docs/plugins_zh.md#version_manager) | `!!version` —— 换服务端版本，换坏了能退回来 |
 | [`map_render`](docs/plugins_zh.md#map_render) | `!!map` —— 一 tile 一像素画出整个世界 |
 | [`crash_doctor`](docs/plugins_zh.md#crash_doctor) | 服务器挂了时说清原因和修法 |
 | [`server_admin`](docs/plugins_zh.md#server_admin) | `!!server` —— 在聊天里改 `server-settings.json` |
