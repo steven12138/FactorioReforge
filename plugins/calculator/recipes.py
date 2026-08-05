@@ -110,8 +110,17 @@ def static_data() -> str:
         "end "
         "local buildable = {} "
         "local made = {} "
+        # Recycling is why this needs a filter at all. Every machine has an
+        # X-recycling recipe, those are enabled from the start, and recycling
+        # an assembling machine 3 yields an assembling machine 2 -- so a save
+        # that has researched neither reports tier 2 as buildable. Measured on
+        # the live server: assembling-machine-2 and captive-biter-spawner both
+        # came back "unlocked" from their recycling recipes alone.
+        "local skip = {" + ", ".join(
+            f"[{lua.lua_string(category)}] = true" for category in EXCLUDED_CATEGORIES
+        ) + "} "
         "for name, r in pairs(game.forces.player.recipes) do "
-        "  if r.enabled then "
+        "  if r.enabled and not skip[r.category] then "
         "    for _, p in pairs(r.products) do made[p.name] = true end "
         "  end "
         "end "

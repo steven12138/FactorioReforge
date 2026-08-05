@@ -769,3 +769,32 @@ class TestEndToEnd:
         # that last one being how it learns the ores are raw. Four levels, four
         # round trips -- not one per item, and not a dump of all 2000 recipes.
         assert len(recipe_queries) == 4
+
+
+class TestBuildableQuery:
+    """What counts as a machine this save can place.
+
+    Recycling is the trap, and it is the same one that made "recycle scrap" the
+    cheapest way to build a circuit. Every machine has an X-recycling recipe,
+    those are enabled from the start, and recycling an assembling machine 3
+    yields an assembling machine 2 -- so without a filter a save that has
+    researched neither reports tier 2 as unlocked, and every plan comes out one
+    tier too high. Measured on a live 2.0.77 Space Age server: assembling-
+    machine-2 and captive-biter-spawner both came back "unlocked" on the
+    strength of their recycling recipes alone.
+    """
+
+    @pytest.fixture
+    def query(self, recipes):
+        return recipes.static_data()
+
+    def test_the_query_skips_the_excluded_categories(self, query, recipes):
+        for category in recipes.EXCLUDED_CATEGORIES:
+            assert f'["{category}"] = true' in query
+
+    def test_the_skip_is_applied_where_products_are_collected(self, query):
+        assert "r.enabled and not skip[r.category]" in query
+
+    def test_recycling_is_one_of_the_excluded_categories(self, recipes):
+        """If this ever stops being true the filter above silently stops working."""
+        assert "recycling" in recipes.EXCLUDED_CATEGORIES
