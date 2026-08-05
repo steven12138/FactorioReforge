@@ -9,6 +9,7 @@ detail:
   pointing: "不写物品时，用你正指着的机器，或者手上拿着的东西。"
   options: "可选项：速率 30/m、machine=foundry、prod=20、speed=50、modules=speed-module-3*4、raw=iron-plate、use=advanced-oil-processing"
   example: "例：!!ratio electronic-circuit 5/s machine=assembling-machine-3"
+  machine: "!!ratio machine —— 每类配方用哪台机器；use / drop / auto 可以改"
 
 expression:
   result: "{expression} = {result}"
@@ -50,3 +51,21 @@ error:
   no_machine: "这个服务器上没有机器能制造 {item}。"
   infeasible: "按现有配方，做不出 {item}。"
   unbounded: "这些配方可以无中生有，所以没有答案。"
+
+machine:
+  header: "各类配方使用的机器："
+  why_pinned: "   ← 已钉住"
+  why_unlocked: ""
+  why_locked: "   （还没解锁 —— 这一类里没有任何一台解锁了）"
+  pinned: "已钉住：{machines}"
+  automatic: "没有钉住任何机器，所以每次计算都用这个存档造得出来的最好的那台。用 {prefix} use <名字> 钉一台。"
+  auto_hint: "{prefix} auto 可以改回「用这个存档造得出来的最好的那台」。"
+  now_automatic: "已清空。现在用这个存档造得出来的最好的那台机器计算。"
+  now_pinned: "已钉住 {name}，适用于：{categories}"
+  not_unlocked: "注意：这个存档还没解锁 {name}，所以计算结果会用一台你放不下去的机器。"
+  dropped: "{name} 已取消钉住。"
+  not_pinned: "{name} 本来就没有被钉住。"
+  unknown: "没有叫 {name} 的机器。"
+  did_you_mean: "你是不是想找：{names}"
+  no_data: "读不到服务器上的机器列表：{error}"
+  migrated: "calculator：机器偏好还是旧的那份硬编码列表，已清空 —— 现在会用这个存档造得出来的最好的那台"

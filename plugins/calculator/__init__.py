@@ -130,8 +130,40 @@ RATE = re.compile(r"^([\d.]+)\s*(?:/\s*([a-z]+))?$", re.I)
 OPTION = re.compile(r"^[a-z][\w:.-]*=", re.I)
 
 
+#: What "machines" used to default to. A config file written by that version
+#: still says this, and load_config_simple never overwrites a key that is
+#: already there -- so changing the default to [] fixed nothing for anybody who
+#: had already run the plugin once. Their answers stayed denominated in
+#: assembling machine 3 whether or not the save had researched it, which is the
+#: exact complaint the change was meant to answer.
+LEGACY_MACHINES = [
+    "assembling-machine-3",
+    "electric-furnace",
+    "chemical-plant",
+    "oil-refinery",
+    "centrifuge",
+    "rocket-silo",
+]
+
+
+def migrate_machines(config: dict) -> bool:
+    """Turn the old hardcoded default back into "pick the best I can build".
+
+    Only the exact old list is touched. Somebody who chose those machines *and*
+    reordered or trimmed the list meant it, and a preference someone set on
+    purpose is not ours to discard.
+    """
+    if list(config.get("machines") or []) != LEGACY_MACHINES:
+        return False
+    config["machines"] = []
+    return True
+
+
 def on_load(server, prev):
     config = server.load_config_simple("config.json", DEFAULT_CONFIG)
+    if migrate_machines(config):
+        server.save_config_simple(config)
+        server.logger.info(server.tr("machine.migrated"))
     _state.clear()
     _state.update(config=config, server=server, book=data.RecipeBook(
         server,
@@ -152,6 +184,19 @@ def on_load(server, prev):
         .requires(PermissionLevel.USER)
         .runs(_cmd_ratio)
         .then(Literal("refresh").requires(PermissionLevel.HELPER).runs(_cmd_refresh))
+        .then(
+            Literal("machine")
+            .runs(_cmd_machine_show)
+            .then(Literal("auto").requires(PermissionLevel.HELPER).runs(_cmd_machine_auto))
+            .then(
+                Literal("use").requires(PermissionLevel.HELPER)
+                .then(GreedyText("name").runs(_cmd_machine_use))
+            )
+            .then(
+                Literal("drop").requires(PermissionLevel.HELPER)
+                .then(GreedyText("name").runs(_cmd_machine_drop))
+            )
+        )
         .then(GreedyText("query").runs(_cmd_ratio))
     )
     server.register_command(
@@ -175,6 +220,7 @@ def on_load(server, prev):
             server.tr("detail.pointing"),
             server.tr("detail.options"),
             server.tr("detail.example"),
+            server.tr("detail.machine"),
         ),
     )
     server.register_help_message("!!recipe [item]", server.tr("help.recipe"), PermissionLevel.USER)
@@ -323,6 +369,123 @@ async def _cmd_refresh(source):
     await source.reply(source.server.tr("refresh.done"))
 
 
+# ---------------------------------------------------------------------------
+# which machine the plan is denominated in
+# ---------------------------------------------------------------------------
+#
+# The default is "the best one this save can actually place", which is what
+# somebody who has only researched stone furnaces wants to be told. Pinning is
+# for the server that has electric furnaces and wants steel ones anyway.
+
+async def _cmd_machine_show(source):
+    server = source.server
+    book = _state["book"]
+    pinned = [normalise(n) for n in (_state["config"].get("machines") or [])]
+    # The whole plugin registers its commands under literal "!!ratio"; there is
+    # no configurable prefix here to thread through.
+    prefix = "!!ratio machine"
+
+    try:
+        await book.load_static()
+    except QueryError as exc:
+        await source.reply(server.tr("machine.no_data", error=exc))
+        # The pins are config, not game data, so they are still worth saying.
+        await _say_pins(source, pinned, prefix)
+        return
+
+    await source.reply(server.tr("machine.header"))
+    for category in sorted(_interesting_categories(book)):
+        chosen = book.best_machine(category, pinned, researched_only=_researched_machines())
+        if chosen is None:
+            continue
+        if chosen.name in pinned:
+            why = server.tr("machine.why_pinned")
+        elif chosen.name in book.buildable:
+            why = server.tr("machine.why_unlocked")
+        else:
+            why = server.tr("machine.why_locked")
+        await source.reply(f"  {category}: {chosen.name}{why}")
+
+    await _say_pins(source, pinned, prefix)
+
+
+async def _say_pins(source, pinned: list[str], prefix: str) -> None:
+    server = source.server
+    if pinned:
+        await source.reply(server.tr("machine.pinned", machines=", ".join(pinned)))
+        await source.reply(server.tr("machine.auto_hint", prefix=prefix))
+    else:
+        await source.reply(server.tr("machine.automatic", prefix=prefix))
+
+
+def _researched_machines() -> bool:
+    return bool(_state["config"].get("only_researched_machines", True))
+
+
+def _interesting_categories(book) -> set[str]:
+    """Categories something can actually be built in.
+
+    Every machine prototype declares its categories, so this is the set the
+    answer can be denominated in -- not the set of recipe categories, which
+    includes ones no machine in the game runs.
+    """
+    return {category for machine in book.machines.values() for category in machine.categories}
+
+
+async def _cmd_machine_auto(source):
+    config = _state["config"]
+    config["machines"] = []
+    source.server.save_config_simple(config)
+    await source.reply(source.server.tr("machine.now_automatic"))
+
+
+async def _cmd_machine_use(source, ctx):
+    server = source.server
+    book = _state["book"]
+    name = normalise(str(ctx.get("name", "")))
+
+    try:
+        await book.load_static()
+    except QueryError as exc:
+        await source.reply(server.tr("machine.no_data", error=exc))
+        return
+
+    if name not in book.machines:
+        near = [m for m in sorted(book.machines) if name and name in m][:5]
+        await source.reply(server.tr("machine.unknown", name=name))
+        if near:
+            await source.reply(server.tr("machine.did_you_mean", names=", ".join(near)))
+        return
+
+    config = _state["config"]
+    pinned = [n for n in (config.get("machines") or []) if normalise(n) != name]
+    # First match wins when a machine is chosen, so a newly named one goes to
+    # the front: naming it is how you say you want it.
+    config["machines"] = [name, *pinned]
+    server.save_config_simple(config)
+
+    machine = book.machines[name]
+    await source.reply(server.tr(
+        "machine.now_pinned", name=name, categories=", ".join(sorted(machine.categories))))
+    if name not in book.buildable:
+        await source.reply(server.tr("machine.not_unlocked", name=name))
+
+
+async def _cmd_machine_drop(source, ctx):
+    server = source.server
+    name = normalise(str(ctx.get("name", "")))
+    config = _state["config"]
+    pinned = list(config.get("machines") or [])
+    kept = [n for n in pinned if normalise(n) != name]
+
+    if len(kept) == len(pinned):
+        await source.reply(server.tr("machine.not_pinned", name=name))
+        return
+    config["machines"] = kept
+    server.save_config_simple(config)
+    await source.reply(server.tr("machine.dropped", name=name))
+
+
 async def _cmd_ratio(source, ctx=None):
     server = source.server
     words, rate, options = parse_query((ctx or {}).get("query", ""))
@@ -401,7 +564,7 @@ async def _solve(book, item, rate, options, modules, only_unlocked):
     machines, unbuildable = book.assign_machines(
         recipes, _machine_preference(options), modules, _machine_overrides(options),
         researched_only=only_unlocked
-        and bool(_state["config"].get("only_researched_machines", True)),
+        and _researched_machines(),
     )
     for name in unbuildable:
         recipes.pop(name, None)

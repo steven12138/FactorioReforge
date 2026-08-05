@@ -473,6 +473,60 @@ class TestMachineChoice:
         chosen = book.best_machine("crafting", [], researched_only=False)
         assert chosen.name == "assembling-machine-3"
 
+    def test_only_a_stone_furnace_means_a_stone_furnace(self, recipes):
+        """The case as it was reported: nothing else researched yet.
+
+        "Highest tier" has to mean highest *unlocked* tier, or the answer is a
+        plan you cannot start building.
+        """
+        book = recipes.RecipeBook(None)
+        book.machines = {
+            name: recipes.parse_machine(name, {"speed": speed, "categories": ["smelting"]})
+            for name, speed in (
+                ("stone-furnace", 1.0), ("steel-furnace", 2.0), ("electric-furnace", 2.0),
+            )
+        }
+        book.buildable = {"stone-furnace"}
+        assert book.best_machine("smelting", []).name == "stone-furnace"
+
+
+class TestMachinePreferenceMigration:
+    """The pinned list from the old default outlived the fix to the default.
+
+    load_config_simple fills in *missing* keys and never rewrites one that is
+    there, so changing the default from a hardcoded list to [] left every
+    existing install exactly as it was -- still answering in assembling machine
+    3 on a save that had never researched it.
+    """
+
+    @pytest.fixture
+    def calculator(self):
+        return load("")
+
+    def test_the_old_default_is_cleared(self, calculator):
+        config = {"machines": list(calculator.LEGACY_MACHINES)}
+        assert calculator.migrate_machines(config) is True
+        assert config["machines"] == []
+
+    def test_a_list_somebody_chose_is_left_alone(self, calculator):
+        """Those exact machines, reordered, is a preference someone set."""
+        chosen = list(reversed(calculator.LEGACY_MACHINES))
+        config = {"machines": chosen}
+        assert calculator.migrate_machines(config) is False
+        assert config["machines"] == chosen
+
+    def test_a_shorter_list_is_left_alone(self, calculator):
+        config = {"machines": ["steel-furnace"]}
+        assert calculator.migrate_machines(config) is False
+        assert config["machines"] == ["steel-furnace"]
+
+    def test_an_already_empty_list_is_not_rewritten(self, calculator):
+        config = {"machines": []}
+        assert calculator.migrate_machines(config) is False
+
+    def test_a_missing_key_is_not_rewritten(self, calculator):
+        assert calculator.migrate_machines({}) is False
+
 
 class TestLocalisedOutput:
     """Item names are prototype ids, which are not words in any language."""

@@ -9,6 +9,7 @@ detail:
   pointing: "With no item, it uses the machine you are hovering over, or what is in your cursor."
   options: "Options: rate 30/m, machine=foundry, prod=20, speed=50, modules=speed-module-3*4, raw=iron-plate, use=advanced-oil-processing"
   example: "Example: !!ratio electronic-circuit 5/s machine=assembling-machine-3"
+  machine: "!!ratio machine -- which machine each plan uses; use/drop/auto to change it"
 
 expression:
   result: "{expression} = {result}"
@@ -50,3 +51,21 @@ error:
   no_machine: "No machine on this server can craft {item}."
   infeasible: "There is no way to make {item} from what the recipes allow."
   unbounded: "These recipes produce something from nothing, so there is no answer."
+
+machine:
+  header: "Machine used for each kind of recipe:"
+  why_pinned: "   <- pinned"
+  why_unlocked: ""
+  why_locked: "   (not unlocked yet -- nothing in this category is)"
+  pinned: "Pinned: {machines}"
+  automatic: "Nothing is pinned, so each plan uses the best machine this save can build. {prefix} use <name> to pin one."
+  auto_hint: "{prefix} auto goes back to using the best machine this save can build."
+  now_automatic: "Cleared. Plans now use the best machine this save can build."
+  now_pinned: "Pinned {name} for: {categories}"
+  not_unlocked: "Note: {name} is not unlocked on this save yet, so plans will name a machine you cannot place."
+  dropped: "{name} is no longer pinned."
+  not_pinned: "{name} was not pinned."
+  unknown: "There is no machine called {name}."
+  did_you_mean: "Did you mean: {names}"
+  no_data: "Could not read the machine list from the server: {error}"
+  migrated: "calculator: machine preference was still the old hardcoded list; cleared it, so plans now use the best machine this save can build"
